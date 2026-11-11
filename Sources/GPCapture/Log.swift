@@ -3,6 +3,11 @@ import Foundation
 public struct HTTPHeader: Equatable, Sendable {
     public var name: String
     public var value: String
+
+    public init(name: String, value: String) {
+        self.name = name
+        self.value = value
+    }
 }
 
 /// One HTTP request openconnect sent, and the answer if it logged one.
@@ -17,6 +22,19 @@ public struct Exchange: Equatable, Sendable {
     public var statusLine: String?
     public var responseHeaders: [HTTPHeader] = []
     public var responseBody: String?
+
+    public init(time: String? = nil, method: String, target: String, requestHeaders: [HTTPHeader] = [],
+                requestBody: String = "", statusLine: String? = nil, responseHeaders: [HTTPHeader] = [],
+                responseBody: String? = nil) {
+        self.time = time
+        self.method = method
+        self.target = target
+        self.requestHeaders = requestHeaders
+        self.requestBody = requestBody
+        self.statusLine = statusLine
+        self.responseHeaders = responseHeaders
+        self.responseBody = responseBody
+    }
 
     public var status: Int? {
         guard let s = statusLine?.split(separator: " "), s.count >= 2 else { return nil }
@@ -58,6 +76,11 @@ public struct LogEvent: Equatable, Sendable {
 public struct CaptureLog: Sendable {
     public var exchanges: [Exchange] = []
     public var events: [LogEvent] = []
+
+    public init(exchanges: [Exchange], events: [LogEvent] = []) {
+        self.exchanges = exchanges
+        self.events = events
+    }
 
     private enum State { case idle, requestHeaders, requestBody, responseHeaders, responseBody }
 

@@ -13,6 +13,8 @@ let package = Package(
         .library(name: "GPMac", targets: ["GPMac"]),
         .executable(name: "albi-cli", targets: ["albi-cli"]),
         .executable(name: "gp-capture", targets: ["gp-capture"]),
+        .library(name: "Diagnostics", targets: ["Diagnostics"]),
+        .executable(name: "albi-diag", targets: ["albi-diag"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -36,7 +38,7 @@ let package = Package(
         // The macOS I/O layer: URLSession, NWConnection, NWPathMonitor and
         // NetworkExtension glue. Its files are wrapped in #if canImport so the
         // package still builds on Linux, where the target is empty.
-        .target(name: "GPMac", dependencies: ["GPCore"]),
+        .target(name: "GPMac", dependencies: ["GPCore", "Diagnostics"]),
         .testTarget(name: "GPMacTests", dependencies: ["GPMac", "GPCore"]),
 
         // Command-line harness: GPCore plus GPMac, pinging through the tunnel
@@ -49,5 +51,13 @@ let package = Package(
         .target(name: "GPCapture", dependencies: ["GPCore"]),
         .executableTarget(name: "gp-capture", dependencies: ["GPCapture"]),
         .testTarget(name: "GPCaptureTests", dependencies: ["GPCapture", "GPCore"]),
+
+        // Diagnostics mode: writes the flight recorder's window (GPCore) as a
+        // redacted incident file, using GPCapture's redactor, and reads it
+        // back for replay and for drafting gp-fake-gateway scenarios.
+        // albi-diag is the command-line side.
+        .target(name: "Diagnostics", dependencies: ["GPCore", "GPCapture"]),
+        .executableTarget(name: "albi-diag", dependencies: ["Diagnostics", "GPCore"]),
+        .testTarget(name: "DiagnosticsTests", dependencies: ["Diagnostics", "GPCore", "GPCapture"]),
     ]
 )

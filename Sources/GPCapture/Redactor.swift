@@ -90,6 +90,12 @@ public struct Redactor {
         }
     }
 
+    /// Learns one named value, as if it had arrived in a form field or XML
+    /// element of that name: `authcookie`, `user`, `computer`, `portal`, `domain`.
+    public mutating func learn(field name: String, value: String) {
+        learnField(name.lowercased(), value)
+    }
+
     mutating func learnField(_ name: String, _ value: String) {
         let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !v.isEmpty, v != "(null)", v != "-1" else { return }
@@ -297,6 +303,9 @@ public struct Redactor {
         guard let q = target.firstIndex(of: "?") else { return redact(target) }
         return redact(String(target[..<q])) + "?" + redactForm(String(target[target.index(after: q)...]))
     }
+
+    /// How many names and secrets it has learned to hide (addresses aside).
+    public var learnedCount: Int { literals.count + domains.count }
 
     /// The mapping from real to fake values, for the local raw folder only.
     public var report: String {
