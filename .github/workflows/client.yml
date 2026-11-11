@@ -40,3 +40,22 @@ jobs:
         working-directory: gp-fake-gateway
       - run: swift build --product albi-cli
       - run: e2e/client.sh "$(swift build --show-bin-path)/albi-cli" "$PWD/fakegp" "$PWD/gp-fake-gateway/e2e/hipreport-stub.sh"
+
+  xcode:
+    # Builds the app and the system extension unsigned. Signing, installing
+    # and approving the extension happen on a real Mac.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: Apps
+      - name: Build (unsigned)
+        working-directory: Apps
+        # The runner's SDK may be older than the app's macOS 27 floor.
+        run: |
+          xcodebuild -project Albi.xcodeproj -scheme Albi -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
+            build | tail -100
+          exit "${PIPESTATUS[0]}"

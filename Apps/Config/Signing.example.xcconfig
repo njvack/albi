@@ -1,0 +1,9 @@
+// Copy to Signing.xcconfig and fill in. Developer ID signing needs:
+//  - an App ID for the app with the System Extension and Network Extensions
+//    capabilities, and one for the extension with Network Extensions;
+//  - a Developer ID provisioning profile for each, with the "Packet Tunnel
+//    (Developer ID / system extension)" network extension type.
+DEVELOPMENT_TEAM = ABCDE12345
+ALBI_BUNDLE_ID_PREFIX = com.github.njvack.albi
+ALBI_APP_PROFILE = Albi Developer ID
+ALBI_TUNNEL_PROFILE = Albi Tunnel Developer ID
