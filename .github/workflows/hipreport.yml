@@ -3,7 +3,23 @@ name: hipreport
 on:
   push:
     branches: [main]
+    paths: &paths
+      - 'Sources/HIPCore/**'
+      - 'Sources/hipreport/**'
+      - 'Tests/HIPCoreTests/**'
+      - 'contrib/**'
+      - 'scripts/**'
+      - 'e2e/hipreport.sh'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/hipreport.yml'
   pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   linux:
