@@ -32,6 +32,9 @@ struct ContentView: View {
                     set: { vpn.profile.pins = $0.split(separator: " ").map(String.init) }))
                 Toggle("Save password for unattended reconnect", isOn: $vpn.profile.savePassword)
                 TextField("HIP report command (csd-wrapper)", text: $vpn.hipCommand)
+                Toggle("Make HIP reports inside the extension (bundled hipreport)", isOn: Binding(
+                    get: { vpn.profile.bundledHIP ?? false },
+                    set: { vpn.profile.bundledHIP = $0 ? true : nil }))
                 Button("Save VPN configuration") { Task { await vpn.save() } }
             }
             Section("Connection") {
@@ -46,6 +49,15 @@ struct ContentView: View {
                 if let ip = vpn.ipv4 { LabeledContent("Address", value: ip) }
                 if let gw = vpn.gateway { LabeledContent("Gateway", value: gw) }
                 if let t = vpn.lastHIPReport { LabeledContent("Last HIP report", value: t.formatted()) }
+                LabeledContent("Bundled hipreport") {
+                    HStack {
+                        Text(vpn.hipProbe?.summary ?? "not tried")
+                        Button("Test") { Task { await vpn.probeBundledHIP() } }
+                    }
+                }
+                if let err = vpn.hipProbe?.stderrHead, !err.isEmpty {
+                    Text(err).font(.caption.monospaced()).foregroundStyle(.secondary).textSelection(.enabled)
+                }
             }
             Section("Diagnostics") {
                 Toggle("Diagnostics mode", isOn: $vpn.diagnostics.enabled)

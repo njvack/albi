@@ -24,6 +24,8 @@ final class VPNController: NSObject, ObservableObject {
     /// read by the extension when it starts.
     @Published var diagnostics = DiagnosticsSettings()
     @Published var lastIncident: String?
+    /// The last run of the extension's bundled hipreport (Step 1 probe).
+    @Published var hipProbe: ProviderMessage.HIPProbe?
 
     private var manager: NETunnelProviderManager?
     private var pollTask: Task<Void, Never>?
@@ -145,6 +147,7 @@ final class VPNController: NSObject, ObservableObject {
         ipv4 = status.ipv4
         gateway = status.gateway
         lastHIPReport = status.lastHIPReport
+        hipProbe = status.hipProbe
         if let path = status.lastIncident, path != lastIncident {
             lastIncident = path
             message = "Diagnostics saved an incident file: \(path)"
@@ -155,6 +158,17 @@ final class VPNController: NSObject, ObservableObject {
             await poll(answer)
             hipInFlight = false
         }
+    }
+
+    /// Asks the running extension to exec the hipreport in its own bundle
+    /// once; the result comes back in the status.
+    func probeBundledHIP() async {
+        guard manager?.connection.status == .connected || manager?.connection.status == .reasserting else {
+            message = "Connect first: the probe runs inside the extension."
+            return
+        }
+        await poll(ProviderMessage.Request(probeBundledHIP: true))
+        if let p = hipProbe { message = "Bundled hipreport: \(p.summary)" }
     }
 
     /// Asks the extension to write an incident file from its current window.

@@ -67,6 +67,14 @@ targets:
         product: GPMac
       - package: Albi
         product: Diagnostics
+      # hipreport rides in Contents/MacOS, signed with the extension, so
+      # the report comes from a binary the user can't swap. Step 1 checks
+      # that the sandboxed extension may exec it.
+      - target: hipreport
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     info:
       path: AlbiTunnel/Info.plist
       properties:
@@ -90,6 +98,25 @@ targets:
         PRODUCT_NAME: $(ALBI_BUNDLE_ID_PREFIX).tunnel
         PRODUCT_MODULE_NAME: AlbiTunnel
         PROVISIONING_PROFILE_SPECIFIER: $(ALBI_TUNNEL_PROFILE)
+  hipreport:
+    type: tool
+    platform: macOS
+    sources:
+      - path: ../Sources/hipreport
+    dependencies:
+      - package: Albi
+        product: HIPCore
+    entitlements:
+      # A child of a sandboxed process must be sandboxed and inherit its sandbox.
+      path: hipreport/hipreport.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.inherit: true
+    settings:
+      base:
+        PRODUCT_NAME: hipreport
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport
+        SKIP_INSTALL: YES
   AlbiMenu:
     # The Phase 3 menu-bar app, running against the mock tunnel until the
     # live VPNService lands. Signs ad hoc so it runs from Xcode as is; it

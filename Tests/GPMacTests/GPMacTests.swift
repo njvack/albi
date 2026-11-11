@@ -57,3 +57,60 @@ import Security
     }
 }
 #endif
+
+#if canImport(NetworkExtension)
+import Foundation
+
+@Suite struct BundledHIPTests {
+    func script(_ body: String) throws -> URL {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("bundledhip-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent("hipreport")
+        try ("#!/bin/sh\n" + body + "\n").write(to: url, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url
+    }
+
+    @Test func probeRunsTheHelperWithACleanEnvironment() async throws {
+        let url = try script(#"echo "<hip-report>$*</hip-report>"; echo "path=$PATH home=${HOME:-none}" >&2"#)
+        let p = await BundledHIP(executable: url).probe()
+        #expect(p.launchError == nil)
+        #expect(p.exitStatus == 0)
+        #expect(p.stdoutHead?.contains("--md5 probe") == true)
+        #expect(p.stderrHead?.contains("home=none") == true)
+        #expect(p.summary.hasPrefix("exit 0"))
+    }
+
+    @Test func probeReportsAMissingHelper() async {
+        let p = await BundledHIP(executable: nil).probe()
+        #expect(p.path == nil)
+        #expect(p.summary == "no hipreport in the extension's bundle")
+    }
+
+    @Test func probeReportsALaunchFailure() async {
+        let p = await BundledHIP(executable: URL(fileURLWithPath: "/nonexistent/hipreport")).probe()
+        #expect(p.launchError != nil)
+    }
+
+    @Test func failingHelperReportsItsStatus() async throws {
+        let url = try script("echo broken >&2; exit 3")
+        let out = try await BundledHIP(executable: url).run([])
+        #expect(out.status == 3)
+        #expect(String(decoding: out.stderr, as: UTF8.self) == "broken\n")
+    }
+
+    @Test func slowHelperTimesOut() async throws {
+        let url = try script("sleep 5")
+        await #expect(throws: BundledHIP.Failure.self) {
+            _ = try await BundledHIP(executable: url, timeout: 0.3).run([])
+        }
+    }
+
+    @Test func largeOutputDoesNotBlock() async throws {
+        let url = try script("head -c 300000 /dev/zero | tr '\\0' x")
+        let out = try await BundledHIP(executable: url).run([])
+        #expect(out.status == 0)
+        #expect(out.stdout.count == 300000)
+    }
+}
+#endif
