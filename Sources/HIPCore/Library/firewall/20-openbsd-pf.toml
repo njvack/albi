@@ -1,0 +1,8 @@
+category = "firewall"
+vendor = "OpenBSD"
+name = "Packet Filter"
+
+[fields]
+version = { probe = "os_version" }
+# pfctl needs root, so this is n/a unless hipreport runs as root.
+is-enabled = { probe = "privileged", fact = "pf.enabled" }

@@ -1,0 +1,8 @@
+category = "patch-management"
+vendor = "VMware, Inc."
+name = "Workspace ONE Intelligent Hub"
+when.exists = "/Applications/Workspace ONE Intelligent Hub.app"
+
+[fields]
+version = { probe = "bundle_version", path = "/Applications/Workspace ONE Intelligent Hub.app" }
+is-enabled = { probe = "process", path = "/Applications/Workspace ONE Intelligent Hub.app/Contents/Resources/IntelligentHubAgent.app/Contents/MacOS/IntelligentHubAgent" }

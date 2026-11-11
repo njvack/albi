@@ -1,0 +1,7 @@
+category = "disk-backup"
+vendor = "Google Inc."
+name = "Google Drive"
+when.exists = "/Applications/Google Drive.app"
+
+[fields]
+version = { probe = "bundle_version", path = "/Applications/Google Drive.app" }

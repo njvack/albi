@@ -1,0 +1,4 @@
+# A custom plist check configured on the gateway.
+category = "custom-plist"
+path = "/Applications/QualysCloudAgent.app/Contents/MacOS/com.qualys.cloud.agent-restart.plist"
+keys = ["Label"]

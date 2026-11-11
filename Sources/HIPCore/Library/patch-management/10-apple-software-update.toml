@@ -1,0 +1,10 @@
+category = "patch-management"
+vendor = "Apple Inc."
+name = "Software Update"
+
+[fields]
+version = { probe = "bundle_version", path = "/System/Library/CoreServices/Software Update.app" }
+is-enabled = { probe = "command", argv = ["/usr/sbin/softwareupdate", "--schedule"], map = [
+  { match = " off", value = "no" },
+  { match = " on", value = "yes" },
+] }
