@@ -1,30 +1,50 @@
 name: app
 
+# Unsigned Xcode builds of the app with its system extension (which embeds
+# hipreport) and of the menu-bar app. Signing, installing and approving the
+# extension happen on a real Mac. AlbiAppTests run in client.yml.
 on:
   push:
     branches: [main]
+    paths: &paths
+      - 'Apps/**'
+      - 'Sources/**'
+      - 'Package.swift'
+      - 'Package.resolved'
+      - '.github/workflows/app.yml'
   pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  HOMEBREW_NO_AUTO_UPDATE: 1
+  HOMEBREW_NO_INSTALL_CLEANUP: 1
 
 jobs:
-  macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - run: swift --version
-      - run: swift build --target AlbiApp
-      - run: swift test --filter AlbiAppTests
-
   xcode:
-    # Builds the menu-bar app unsigned.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
       - run: xcodegen generate
         working-directory: Apps
-      - name: Build AlbiMenu (unsigned)
+      # The runner's SDK may be older than the app's macOS 27 floor. Both
+      # schemes share DerivedData, so the package builds once.
+      - name: Build Albi (unsigned)
         working-directory: Apps
-        # The runner's SDK may be older than the app's macOS 27 floor.
+        run: |
+          xcodebuild -project Albi.xcodeproj -scheme Albi -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
+            build | tail -100
+          exit "${PIPESTATUS[0]}"
+      - name: Build AlbiMenu (unsigned)
+        if: ${{ !cancelled() }}
+        working-directory: Apps
         run: |
           xcodebuild -project Albi.xcodeproj -scheme AlbiMenu -configuration Debug \
             -destination 'generic/platform=macOS' \
