@@ -1,0 +1,9 @@
+// Shared build settings. Your team, bundle ID prefix and provisioning
+// profiles go in Signing.xcconfig (not committed); copy
+// Signing.example.xcconfig to start.
+ALBI_BUNDLE_ID_PREFIX = com.github.njvack.albi
+DEVELOPMENT_TEAM =
+ALBI_APP_PROFILE =
+ALBI_TUNNEL_PROFILE =
+
+#include? "Signing.xcconfig"
