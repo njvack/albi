@@ -1,4 +1,6 @@
 #if canImport(SwiftUI)
+import AppKit
+import Diagnostics
 import GPMac
 import SwiftUI
 
@@ -31,12 +33,56 @@ private struct GeneralSettings: View {
             Toggle("Launch at login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
                 .disabled(!model.canLaunchAtLogin)
             Toggle("Show notifications", isOn: $model.notificationsEnabled)
-            Text("Albi notifies you to approve a push, when the VPN disconnects unexpectedly, and when a HIP check stops meeting the policy.")
+            Text("Albi notifies you to approve a push, when the VPN disconnects unexpectedly, when a HIP check stops meeting the policy, and when diagnostics saves a file.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
+
+            Section {
+                Toggle("Diagnostics mode", isOn: diagnosticsEnabled)
+                Stepper("Keep the last \(model.diagnostics.windowMinutes) minutes", value: diagnosticsWindow, in: 2...30)
+                    .disabled(!model.diagnostics.enabled)
+                HStack {
+                    Button("Save Diagnostics Now") { Task { await model.saveDiagnosticsNow() } }
+                        .disabled(!model.canSaveDiagnosticsNow)
+                    Button("Show in Finder") { showInFinder(model.diagnosticsLocation) }
+                }
+            } header: {
+                Text("Diagnostics")
+            } footer: {
+                Text("When a dropped connection isn't back within a minute, Albi writes a redacted incident file you can attach to an issue. Changes take effect the next time you connect.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
         }
         .formStyle(.grouped)
-        .frame(height: 300)
+        .frame(height: 480)
+    }
+
+    private var diagnosticsEnabled: Binding<Bool> {
+        Binding(get: { model.diagnostics.enabled }, set: { on in
+            var d = model.diagnostics
+            d.enabled = on
+            Task { await model.setDiagnostics(d) }
+        })
+    }
+
+    private var diagnosticsWindow: Binding<Int> {
+        Binding(get: { model.diagnostics.windowMinutes }, set: { minutes in
+            var d = model.diagnostics
+            d.windowMinutes = minutes
+            Task { await model.setDiagnostics(d) }
+        })
+    }
+}
+
+/// Selects the file in Finder, or opens the folder if there is no file yet.
+@MainActor
+func showInFinder(_ url: URL) {
+    if url.hasDirectoryPath || !FileManager.default.fileExists(atPath: url.path) {
+        let dir = url.hasDirectoryPath ? url : url.deletingLastPathComponent()
+        NSWorkspace.shared.open(dir)
+    } else {
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 

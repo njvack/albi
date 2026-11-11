@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import Diagnostics
 import Foundation
 
 /// Everything the app asks of macOS and the tunnel extension. The live
@@ -25,6 +26,13 @@ public protocol VPNService: AnyObject {
     func currentStatus() async -> TunnelStatus
     /// The current status, then each change. Each call gets its own stream.
     func statusUpdates() -> AsyncStream<TunnelStatus>
+
+    /// Diagnostics mode, saved in every profile's VPN configuration under
+    /// `DiagnosticsSettings.key`. It takes effect on the next connect.
+    func diagnosticsSettings() async -> DiagnosticsSettings
+    func setDiagnosticsSettings(_ settings: DiagnosticsSettings) async throws
+    /// Asks the running extension to write an incident file now.
+    func saveDiagnosticsNow() async
 
     func setupStatus() async -> SetupStatus
     func activateSystemExtension() async

@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import Diagnostics
 import Foundation
 import GPMac
 import Observation
@@ -48,6 +49,7 @@ public final class AppModel {
     public var notificationsEnabled: Bool {
         didSet { defaults.set(notificationsEnabled, forKey: Self.notificationsKey) }
     }
+    public private(set) var diagnostics = DiagnosticsSettings()
     /// The last error from an action, shown in the menu.
     public private(set) var lastError: String?
 
@@ -57,6 +59,7 @@ public final class AppModel {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var watch: Task<Void, Never>?
     @ObservationIgnored private var userDisconnected = false
+    @ObservationIgnored private var hasStatus = false
 
     static let selectedKey = "selectedProfile"
     static let notificationsKey = "notificationsEnabled"
@@ -80,6 +83,7 @@ public final class AppModel {
     public func start() async {
         await reload()
         setup = await service.setupStatus()
+        diagnostics = await service.diagnosticsSettings()
         guard watch == nil else { return }
         let updates = service.statusUpdates()
         watch = Task { [weak self] in
@@ -194,6 +198,7 @@ public final class AppModel {
     func apply(_ new: TunnelStatus) {
         let old = status
         status = new
+        defer { hasStatus = true }
         let name = profiles.first { $0.id == new.profileID }?.name ?? "VPN"
 
         switch new.state {
@@ -224,6 +229,12 @@ public final class AppModel {
             notify("disconnected", "\(name) disconnected", "The VPN connection ended unexpectedly.")
         default:
             break
+        }
+
+        // The first status may carry an incident from before launch; that one is old news.
+        if hasStatus, let path = new.lastIncident, path != old.lastIncident {
+            let file = (path as NSString).lastPathComponent
+            notify("incident", "Diagnostics saved", "Albi wrote \(file). Choose Show Diagnostics in Finder from the Albi menu to attach it to an issue.")
         }
 
         if let hip = new.hip, !hip.isCompliant, old.hip?.isCompliant ?? true {
@@ -271,6 +282,33 @@ public final class AppModel {
         } catch {
             lastError = error.localizedDescription
         }
+    }
+
+    // MARK: Diagnostics
+
+    /// Saves diagnostics mode into the VPN configurations. Takes effect the
+    /// next time the tunnel connects.
+    public func setDiagnostics(_ settings: DiagnosticsSettings) async {
+        var s = settings
+        s.windowMinutes = min(30, max(2, s.windowMinutes))
+        do {
+            try await service.setDiagnosticsSettings(s)
+            diagnostics = s
+        } catch {
+            lastError = "Couldn't save diagnostics mode: \(error.localizedDescription)"
+        }
+    }
+
+    public var canSaveDiagnosticsNow: Bool { diagnostics.enabled && status.state.isActive }
+
+    public func saveDiagnosticsNow() async {
+        guard canSaveDiagnosticsNow else { return }
+        await service.saveDiagnosticsNow()
+    }
+
+    /// The newest incident file, or the folder they go in.
+    public var diagnosticsLocation: URL {
+        status.lastIncident.map(URL.init(fileURLWithPath:)) ?? DiagnosticsSettings.systemDirectory
     }
 
     // MARK: Setup

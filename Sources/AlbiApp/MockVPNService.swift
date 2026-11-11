@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import Diagnostics
 import Foundation
 import GPMac
 
@@ -13,6 +14,7 @@ public final class MockVPNService: VPNService {
     public var savedPasswords: Set<VPNProfile.ID> = []
     public var setup: SetupStatus
     public var step: Duration
+    public var diagnostics = DiagnosticsSettings()
     /// Checks the mock reports once connected.
     public var hipChecks: [HIPCheck] = MockVPNService.sampleChecks
     public internal(set) var connectCalls: [(id: VPNProfile.ID, password: String?)] = []
@@ -171,6 +173,25 @@ public final class MockVPNService: VPNService {
         HIPCheck(id: "pf", category: "Firewall", name: "Packet filter",
                  expected: "No expectation", actual: "n/a (helper not registered)", method: "root helper: pf.enabled", passed: nil),
     ]
+
+    // MARK: Diagnostics
+
+    public func diagnosticsSettings() async -> DiagnosticsSettings { diagnostics }
+
+    public func setDiagnosticsSettings(_ settings: DiagnosticsSettings) async throws { diagnostics = settings }
+
+    /// Writes nothing; reports a new incident path as the extension would.
+    public func saveDiagnosticsNow() async {
+        guard diagnostics.enabled, status.current.state.isActive else { return }
+        simulateIncident()
+    }
+
+    /// Reports a new incident file, as after a drop that didn't recover.
+    public func simulateIncident() {
+        let stamp = Int(Date().timeIntervalSince1970)
+        let path = DiagnosticsSettings.systemDirectory.appendingPathComponent("albi-incident-\(stamp)-\(UUID().uuidString.prefix(4)).json").path
+        status.update { $0.lastIncident = path }
+    }
 
     // MARK: Setup
 
