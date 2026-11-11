@@ -54,7 +54,7 @@ extension RealSystem {
         var out: [String] = []
         for pid in pids.prefix(Int(got)) where pid > 0 {
             if proc_pidpath(pid, &buf, UInt32(buf.count)) > 0 {
-                out.append(String(cString: buf))
+                out.append(cString(buf))
             }
         }
         return out
@@ -71,13 +71,15 @@ extension RealSystem {
         #if os(macOS)
         let n = getfsstat(nil, 0, MNT_NOWAIT)
         guard n > 0 else { return nil }
-        var buf = [statfs](repeating: .init(), count: Int(n) + 8)
-        let got = buf.withUnsafeMutableBufferPointer {
-            getfsstat($0.baseAddress, Int32($0.count * MemoryLayout<statfs>.stride), MNT_NOWAIT)
-        }
+        // An array literal type [statfs] would name the statfs function, so
+        // allocate through a generic parameter, where it names the struct.
+        let cap = Int(n) + 8
+        let buf = UnsafeMutablePointer<statfs>.allocate(capacity: cap)
+        defer { buf.deallocate() }
+        let got = getfsstat(buf, Int32(cap * MemoryLayout<statfs>.stride), MNT_NOWAIT)
         guard got > 0 else { return nil }
         let keys: Set<URLResourceKey> = [.volumeNameKey, .volumeIsInternalKey, .volumeIsEncryptedKey]
-        return buf.prefix(Int(got)).map { fs in
+        return UnsafeBufferPointer(start: buf, count: Int(got)).map { fs in
             var fs = fs
             let mp = withUnsafeBytes(of: &fs.f_mntonname) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
             let flags = UInt32(fs.f_flags)
@@ -143,7 +145,7 @@ private func interfaceAddresses() -> [String: Addresses] {
             let len = socklen_t(sa.pointee.sa_family == UInt8(AF_INET) ? MemoryLayout<sockaddr_in>.size
                                 : MemoryLayout<sockaddr_in6>.size)
             guard getnameinfo(sa, len, &host, socklen_t(host.count), nil, 0, NI_NUMERICHOST) == 0 else { continue }
-            let s = String(String(cString: host).split(separator: "%", maxSplits: 1).first ?? "")
+            let s = String(cString(host).split(separator: "%", maxSplits: 1).first ?? "")
             if sa.pointee.sa_family == UInt8(AF_INET) {
                 out[dev, default: Addresses()].ipv4.append(s)
             } else {
@@ -156,6 +158,11 @@ private func interfaceAddresses() -> [String: Addresses] {
     return out
 }
 #endif
+
+/// A NUL-terminated C buffer as a String.
+func cString(_ a: [CChar]) -> String {
+    String(decoding: a.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+}
 
 // MARK: - From recorded commands
 
