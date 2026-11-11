@@ -110,10 +110,12 @@ public struct TunnelStatus: Equatable, Sendable {
     public var routes: [String]
     public var dnsDomains: [String]
     public var hip: HIPStatus?
+    /// Path of the newest incident file diagnostics mode wrote.
+    public var lastIncident: String?
 
     public init(profileID: UUID? = nil, state: TunnelState = .disconnected, gateway: String? = nil, ipv4: String? = nil,
                 connectedSince: Date? = nil, cookieExpiry: Date? = nil, routes: [String] = [], dnsDomains: [String] = [],
-                hip: HIPStatus? = nil) {
+                hip: HIPStatus? = nil, lastIncident: String? = nil) {
         self.profileID = profileID
         self.state = state
         self.gateway = gateway
@@ -123,6 +125,7 @@ public struct TunnelStatus: Equatable, Sendable {
         self.routes = routes
         self.dnsDomains = dnsDomains
         self.hip = hip
+        self.lastIncident = lastIncident
     }
 
     public static let disconnected = TunnelStatus()

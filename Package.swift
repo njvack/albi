@@ -66,7 +66,7 @@ let package = Package(
         // The menu-bar app's SwiftUI scenes and view models, against the
         // VPNService protocol (a mock for now). macOS only: wrapped in
         // #if canImport(SwiftUI), so it is empty on Linux.
-        .target(name: "AlbiApp", dependencies: ["GPMac"]),
-        .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac"]),
+        .target(name: "AlbiApp", dependencies: ["GPMac", "Diagnostics"]),
+        .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
     ]
 )

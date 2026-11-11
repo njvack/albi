@@ -375,3 +375,56 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
     }
 }
 #endif
+
+#if canImport(SwiftUI)
+import Diagnostics
+
+@MainActor
+@Suite struct DiagnosticsTests {
+    @Test func settingsReachTheServiceAndAreClamped() async {
+        let service = MockVPNService.demo()
+        let model = await makeModel(service)
+        #expect(!model.diagnostics.enabled)
+        await model.setDiagnostics(DiagnosticsSettings(enabled: true, windowMinutes: 45))
+        #expect(service.diagnostics.enabled)
+        #expect(service.diagnostics.windowMinutes == 30)
+        #expect(model.diagnostics == service.diagnostics)
+    }
+
+    @Test func saveNowNeedsDiagnosticsModeAndATunnel() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let model = await makeModel(service)
+        #expect(!model.canSaveDiagnosticsNow)
+        await model.setDiagnostics(DiagnosticsSettings(enabled: true))
+        #expect(!model.canSaveDiagnosticsNow)
+        model.selectedProfileID = service.profiles[0].id
+        await model.connect()
+        try await waitFor(model) { $0.isConnected }
+        #expect(model.canSaveDiagnosticsNow)
+        await model.saveDiagnosticsNow()
+        for _ in 0..<100 where model.status.lastIncident == nil { try await Task.sleep(for: .milliseconds(10)) }
+        let path = try #require(model.status.lastIncident)
+        #expect(path.hasPrefix(DiagnosticsSettings.systemDirectory.path))
+        #expect(model.diagnosticsLocation.path == path)
+    }
+
+    @Test func newIncidentNotifiesButOneFromBeforeLaunchDoesNot() async {
+        let service = MockVPNService.demo()
+        let notifier = RecordingNotifier()
+        let model = AppModel(service: service, notifier: notifier, defaults: freshDefaults())
+        let id = service.profiles[0].id
+        // The first status arrives with an incident from an earlier run.
+        model.apply(TunnelStatus(profileID: id, state: .connected(.https), lastIncident: "/old.json"))
+        #expect(notifier.posted.isEmpty)
+        model.apply(TunnelStatus(profileID: id, state: .connected(.https), lastIncident: "/new.json"))
+        model.apply(TunnelStatus(profileID: id, state: .connected(.https), lastIncident: "/new.json"))
+        #expect(notifier.posted == ["incident"])
+    }
+
+    @Test func locationIsTheFolderWithoutAnIncident() async {
+        let model = await makeModel(MockVPNService(step: .zero))
+        #expect(model.diagnosticsLocation == DiagnosticsSettings.systemDirectory)
+    }
+}
+#endif

@@ -69,6 +69,13 @@ struct MenuContent: View {
         Divider()
 
         Button("HIP Compliance…") { present(AlbiWindow.hip, openWindow) }
+        if model.diagnostics.enabled {
+            Menu("Diagnostics") {
+                Button("Save Diagnostics Now") { Task { await model.saveDiagnosticsNow() } }
+                    .disabled(!model.canSaveDiagnosticsNow)
+                Button("Show Diagnostics in Finder") { showInFinder(model.diagnosticsLocation) }
+            }
+        }
         if !model.setup.isReady {
             Button("Set Up Albi…") { present(AlbiWindow.setup, openWindow) }
         }
@@ -82,6 +89,7 @@ struct MenuContent: View {
             Menu("Demo") {
                 Button("Drop Connection") { demo.simulateDrop() }
                 Button("Fail a HIP Check") { demo.simulateHIPFailure() }
+                Button("Record an Incident") { demo.simulateIncident() }
             }
         }
 
