@@ -1,0 +1,11 @@
+category = "firewall"
+vendor = "Apple Inc."
+name = "Mac OS X Builtin Firewall"
+
+[fields]
+version = { probe = "os_version" }
+# "disabled" first: the enabled message can also contain "blocking".
+is-enabled = { probe = "command", argv = ["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate"], map = [
+  { match = "disabled", value = "no" },
+  { match = "enabled|blocking", value = "yes" },
+] }

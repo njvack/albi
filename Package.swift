@@ -24,10 +24,12 @@ let package = Package(
         // with Foundation, so its tests run on Linux too.
         .target(
             name: "HIPCore",
-            dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")]
+            dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")],
+            // Compiled in through BuiltinLibrary.swift; see scripts/gen-library.sh.
+            exclude: ["Library"]
         ),
         .executableTarget(name: "hipreport", dependencies: ["HIPCore"]),
-        .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"]),
+        .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"], exclude: ["Fixtures"]),
 
         // The GlobalProtect client core: protocol requests and parsing, GPST
         // framing, the session state machine and its runner. No Apple-only

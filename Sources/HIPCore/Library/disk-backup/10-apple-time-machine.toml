@@ -1,0 +1,6 @@
+category = "disk-backup"
+vendor = "Apple Inc."
+name = "Time Machine"
+
+[fields]
+version = { probe = "bundle_version", path = "/System/Applications/Time Machine.app" }
