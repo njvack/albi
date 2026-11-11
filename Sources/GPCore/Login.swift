@@ -22,7 +22,9 @@ public protocol CredentialProvider: Sendable {
 /// Saved credentials, for unattended login and re-auth. Throws
 /// `needsUser` for anything it cannot answer, including a rejected password.
 public struct StoredCredentials: CredentialProvider {
-    public struct NeedsUser: Error, Equatable {}
+    public struct NeedsUser: Error, Equatable {
+        public init() {}
+    }
 
     public var username: String
     public var password: String

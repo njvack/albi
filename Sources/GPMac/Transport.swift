@@ -58,10 +58,12 @@ public final class NWGatewayConnector: GatewayConnector, @unchecked Sendable {
     public let trust: TrustPolicy
     public let connectTimeout: Int
 
-    public init(trust: TrustPolicy, connectTimeout: Int = 15) {
+    /// `requestTimeout` is long because login.esp holds the answer to the
+    /// second-factor challenge until the push is approved.
+    public init(trust: TrustPolicy, connectTimeout: Int = 15, requestTimeout: TimeInterval = 90) {
         self.trust = trust
         self.connectTimeout = connectTimeout
-        http = URLSessionTransport(trust: trust, timeout: TimeInterval(connectTimeout * 2))
+        http = URLSessionTransport(trust: trust, timeout: requestTimeout)
     }
 
     public func send(_ request: HTTPRequest, to server: String) async throws -> HTTPResponse {
