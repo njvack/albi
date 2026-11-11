@@ -32,6 +32,24 @@ public struct VPNProfile: Identifiable, Equatable, Sendable {
     }
 }
 
+/// What Albi does with the VPN when it opens ("At launch" in Settings).
+public enum LaunchBehavior: String, CaseIterable, Sendable {
+    case connect
+    case dontConnect
+    /// Connect if the user's last explicit choice was Connect. A drop, a quit
+    /// or a reboot while connected still counts as connected; only Disconnect
+    /// counts as disconnected.
+    case restore
+
+    public var title: String {
+        switch self {
+        case .connect: "Connect"
+        case .dontConnect: "Don't connect"
+        case .restore: "Restore last state"
+        }
+    }
+}
+
 public enum SecondFactor: Equatable, Hashable, Sendable {
     /// Prompt for the code each time the gateway asks.
     case askEachTime

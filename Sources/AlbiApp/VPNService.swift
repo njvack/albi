@@ -21,6 +21,8 @@ public protocol VPNService: AnyObject {
     /// Answers a `.needsSecondFactor` prompt.
     func answerSecondFactor(_ code: String) async
 
+    /// The status right now.
+    func currentStatus() async -> TunnelStatus
     /// The current status, then each change. Each call gets its own stream.
     func statusUpdates() -> AsyncStream<TunnelStatus>
 

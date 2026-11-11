@@ -63,7 +63,11 @@ struct MenuBarLabel: View {
             .accessibilityLabel(model.status.state.accessibilityLabel)
             .task {
                 await model.start()
-                if !model.setup.isReady { present(AlbiWindow.setup, openWindow) }
+                if !model.setup.isReady {
+                    present(AlbiWindow.setup, openWindow)
+                } else if await model.connectAtLaunch() == .needsLogin {
+                    present(AlbiWindow.login, openWindow)
+                }
             }
     }
 }

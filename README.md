@@ -60,7 +60,7 @@ What the test build is meant to settle: whether the extension (root, sandboxed) 
 
 ## The menu-bar app (Phase 3, mock tunnel)
 
-`AlbiApp` holds the menu-bar app: a `MenuBarExtra` menu with one icon per tunnel state, the login window (AutoFill username and password, a code step for profiles that ask each time), the setup checklist, the HIP compliance table, and Settings with profiles. It talks only to the `VPNService` protocol; `MockVPNService` implements it until the live one, over `NETunnelProviderManager` and provider messages, replaces it after Step 1.
+`AlbiApp` holds the menu-bar app: a `MenuBarExtra` menu with one icon per tunnel state, the login window (AutoFill username and password, a code step for profiles that ask each time), the setup checklist, the HIP compliance table, and Settings with profiles. Settings › General has "At launch": Connect, Don't connect, or Restore last state (the default), which reconnects unless the user's last choice was Disconnect. It talks only to the `VPNService` protocol; `MockVPNService` implements it until the live one, over `NETunnelProviderManager` and provider messages, replaces it after Step 1.
 
 To run it: `cd Apps && xcodegen generate && open Albi.xcodeproj`, choose the AlbiMenu scheme and Run. It is signed ad hoc, so it needs no team. The Demo submenu drops the connection or fails a HIP check. In the demo, Work has a saved password and sends a push; Lab asks for a password and a code, and rejects the password `wrong` and the code `000000`.
 

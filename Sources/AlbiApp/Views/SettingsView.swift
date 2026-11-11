@@ -22,6 +22,12 @@ private struct GeneralSettings: View {
 
     var body: some View {
         Form {
+            Picker("At launch", selection: $model.launchBehavior) {
+                ForEach(LaunchBehavior.allCases, id: \.self) { Text($0.title).tag($0) }
+            }
+            Text("Restore last state connects if you were connected when Albi last quit or the Mac restarted, and stays disconnected if you chose Disconnect. With a saved login, a restart after updates comes back connected without asking.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
             Toggle("Launch at login", isOn: Binding(get: { model.launchAtLogin }, set: { model.setLaunchAtLogin($0) }))
                 .disabled(!model.canLaunchAtLogin)
             Toggle("Show notifications", isOn: $model.notificationsEnabled)
@@ -30,7 +36,7 @@ private struct GeneralSettings: View {
                 .foregroundStyle(.secondary)
         }
         .formStyle(.grouped)
-        .frame(height: 200)
+        .frame(height: 300)
     }
 }
 

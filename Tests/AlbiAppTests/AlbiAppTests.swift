@@ -270,3 +270,108 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
     }
 }
 #endif
+
+#if canImport(SwiftUI)
+@MainActor
+@Suite struct LaunchBehaviorTests {
+    /// A second launch of the app against the same service and defaults.
+    private func relaunch(_ service: MockVPNService, _ defaults: UserDefaults) async -> AppModel {
+        let m = AppModel(service: service, defaults: defaults)
+        await m.start()
+        return m
+    }
+
+    private func connectedThenQuit(_ service: MockVPNService, _ defaults: UserDefaults) async throws {
+        let first = await relaunch(service, defaults)
+        first.selectedProfileID = service.profiles[0].id
+        await first.connect()
+        try await waitFor(first) { $0.isConnected }
+    }
+
+    @Test func restoreIsTheDefault() {
+        #expect(AppModel(service: MockVPNService(), defaults: freshDefaults()).launchBehavior == .restore)
+    }
+
+    @Test func restoreReconnectsAfterARestart() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        try await connectedThenQuit(service, defaults)
+        // The Mac restarts: the tunnel is gone, but the user never chose Disconnect.
+        await service.disconnect()
+        service.connectCalls.removeAll()
+        let second = await relaunch(service, defaults)
+        #expect(await second.connectAtLaunch() == .started)
+        #expect(service.connectCalls.map(\.id) == [service.profiles[0].id])
+    }
+
+    @Test func restoreStaysDisconnectedAfterDisconnect() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        try await connectedThenQuit(service, defaults)
+        let first = await relaunch(service, defaults)
+        await first.disconnect()
+        service.connectCalls.removeAll()
+        let second = await relaunch(service, defaults)
+        #expect(await second.connectAtLaunch() == nil)
+        #expect(service.connectCalls.isEmpty)
+    }
+
+    @Test func restoreLeavesARunningTunnelAlone() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        try await connectedThenQuit(service, defaults)
+        service.connectCalls.removeAll()
+        // Quitting the app left the tunnel up.
+        let second = await relaunch(service, defaults)
+        #expect(await second.connectAtLaunch() == nil)
+        #expect(service.connectCalls.isEmpty)
+    }
+
+    @Test func connectAlwaysConnectsTheSelectedProfile() async {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        let m = await relaunch(service, defaults)
+        m.launchBehavior = .connect
+        m.selectedProfileID = service.profiles[1].id
+        // Lab has no saved password, so launch asks for it.
+        #expect(await m.connectAtLaunch() == .needsLogin)
+        m.selectedProfileID = service.profiles[0].id
+        #expect(await m.connectAtLaunch() == .started)
+    }
+
+    @Test func dontConnectNeverConnects() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        try await connectedThenQuit(service, defaults)
+        await service.disconnect()
+        let m = await relaunch(service, defaults)
+        m.launchBehavior = .dontConnect
+        service.connectCalls.removeAll()
+        #expect(await m.connectAtLaunch() == nil)
+        #expect(service.connectCalls.isEmpty)
+    }
+
+    @Test func nothingHappensBeforeSetupIsDone() async {
+        let service = MockVPNService.demo()
+        service.setup = SetupStatus()
+        let m = await relaunch(service, freshDefaults())
+        m.launchBehavior = .connect
+        #expect(await m.connectAtLaunch() == nil)
+    }
+
+    @Test func cancellingTheLoginCountsAsDisconnect() async {
+        let service = MockVPNService.demo()
+        let defaults = freshDefaults()
+        let m = await relaunch(service, defaults)
+        m.selectedProfileID = service.profiles[1].id
+        #expect(await m.connect() == .needsLogin)
+        await m.cancelLogin()
+        #expect(m.wantedProfileID == nil)
+    }
+}
+#endif

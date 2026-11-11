@@ -40,7 +40,7 @@ public final class MockVPNService: VPNService {
         return m
     }
 
-    public var currentStatus: TunnelStatus { status.current }
+    public func currentStatus() async -> TunnelStatus { status.current }
 
     // MARK: Profiles
 

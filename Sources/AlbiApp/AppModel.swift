@@ -41,6 +41,10 @@ public final class AppModel {
     public private(set) var status: TunnelStatus = .disconnected
     public private(set) var setup = SetupStatus()
     public var login: LoginRequest?
+    /// "At launch" in Settings. Restore by default.
+    public var launchBehavior: LaunchBehavior {
+        didSet { defaults.set(launchBehavior.rawValue, forKey: Self.launchKey) }
+    }
     public var notificationsEnabled: Bool {
         didSet { defaults.set(notificationsEnabled, forKey: Self.notificationsKey) }
     }
@@ -56,6 +60,9 @@ public final class AppModel {
 
     static let selectedKey = "selectedProfile"
     static let notificationsKey = "notificationsEnabled"
+    static let launchKey = "launchBehavior"
+    /// The profile the user last chose to connect, cleared by Disconnect. Restore reconnects it.
+    static let wantedKey = "wantedProfile"
 
     public init(service: any VPNService, notifier: (any Notifier)? = nil, loginItem: (any LoginItem)? = nil,
                 defaults: UserDefaults = .standard) {
@@ -64,6 +71,7 @@ public final class AppModel {
         self.loginItem = loginItem
         self.defaults = defaults
         notificationsEnabled = defaults.object(forKey: Self.notificationsKey) as? Bool ?? true
+        launchBehavior = defaults.string(forKey: Self.launchKey).flatMap(LaunchBehavior.init(rawValue:)) ?? .restore
         selectedProfileID = defaults.string(forKey: Self.selectedKey).flatMap(UUID.init(uuidString:))
         launchAtLogin = loginItem?.isEnabled ?? false
     }
@@ -96,6 +104,30 @@ public final class AppModel {
 
     // MARK: Connecting
 
+    /// Applies "At launch": connects, or not, unless the tunnel is already up
+    /// (quitting the app leaves it running). Call after `start()`. The caller
+    /// opens the login window on `.needsLogin`.
+    @discardableResult
+    public func connectAtLaunch() async -> ConnectOutcome? {
+        apply(await service.currentStatus())
+        guard !status.state.isActive, setup.isReady else { return nil }
+        switch launchBehavior {
+        case .dontConnect:
+            return nil
+        case .connect:
+            break
+        case .restore:
+            guard let id = wantedProfileID, profiles.contains(where: { $0.id == id }) else { return nil }
+            selectedProfileID = id
+        }
+        return await connect()
+    }
+
+    var wantedProfileID: VPNProfile.ID? {
+        get { defaults.string(forKey: Self.wantedKey).flatMap(UUID.init(uuidString:)) }
+        set { defaults.set(newValue?.uuidString, forKey: Self.wantedKey) }
+    }
+
     public enum ConnectOutcome: Equatable { case started, needsLogin, nothingSelected }
 
     /// Connects the selected profile, or asks for the password first. The
@@ -103,6 +135,7 @@ public final class AppModel {
     @discardableResult
     public func connect() async -> ConnectOutcome {
         guard let p = selectedProfile else { return .nothingSelected }
+        wantedProfileID = p.id
         if await service.hasSavedPassword(for: p.id) {
             await start(p.id, password: nil)
             return .started
@@ -135,11 +168,13 @@ public final class AppModel {
     public func cancelLogin() async {
         let wasWorking = login?.submitted == true
         login = nil
+        wantedProfileID = nil
         if wasWorking { await disconnect() }
     }
 
     public func disconnect() async {
         userDisconnected = true
+        wantedProfileID = nil
         await service.disconnect()
     }
 
