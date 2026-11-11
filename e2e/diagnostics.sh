@@ -76,7 +76,7 @@ incidents() { ls "$DIR"/albi-incident-*.json 2>/dev/null | wc -l | tr -d ' '; }
 incidents_above() { [ "$(incidents)" -gt "$1" ]; }
 newest() { ls -t "$DIR"/albi-incident-*.json | head -1; }
 json() { python3 -c "import json, sys; d = json.load(open(sys.argv[1])); print($2)" "$1"; }
-cookie() { ctl GET /sessions | python3 -c "import json, sys; print(' '.join(x['cookie'] for x in json.load(sys.stdin) or []))"; }
+cookie() { ctl GET /sessions | python3 -c "import json, sys; print(' '.join(x['authcookie'] for x in json.load(sys.stdin) or []))"; }
 
 echo "== an unrecovered outage writes a redacted incident file"
 DIR=$WORK/diag1
@@ -85,6 +85,7 @@ L=$WORK/cli1.log
 start_cli "$L" --diag-grace 3 --dpd 2
 if wait_for 20 replies_above "$L" 1; then pass "connected with diagnostics mode on"; else fail "no traffic with diagnostics mode on"; fi
 COOKIES=$(cookie)
+[ -n "$COOKIES" ] || fail "could not read the fake's cookie for the leak check"
 
 if ctl PUT /scenario '{"rules": []}' >/dev/null 2>&1; then
   ctl PUT /scenario '{"name": "refuse tunnels", "rules": [{"when": {"request": "tunnel", "from": 1}, "respond": {"status": 503}}]}' >/dev/null
