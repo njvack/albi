@@ -30,6 +30,8 @@ targets:
         product: GPCore
       - package: Albi
         product: GPMac
+      - package: Albi
+        product: Diagnostics
       - target: AlbiTunnel
         embed: true
         codeSign: true
@@ -63,6 +65,8 @@ targets:
         product: GPCore
       - package: Albi
         product: GPMac
+      - package: Albi
+        product: Diagnostics
     info:
       path: AlbiTunnel/Info.plist
       properties:

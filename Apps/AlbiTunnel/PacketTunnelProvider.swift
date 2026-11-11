@@ -1,3 +1,4 @@
+import Diagnostics
 import Foundation
 import GPCore
 import GPMac
@@ -18,6 +19,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var connectedOnce = false
     private var lastState: SessionState = .idle
     private let stateLock = NSLock()
+    private var diagnostics: Diagnostics?
 
     /// Secrets live in the System keychain: this process runs as root.
     private let keychain = KeychainStore(service: "com.github.njvack.albi.tunnel")
@@ -29,6 +31,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
         self.profile = profile
+        let diagSettings = DiagnosticsSettings(providerConfiguration: proto.providerConfiguration) ?? DiagnosticsSettings()
         let account = "\(profile.username)@\(profile.server)"
         if let pw = options?["password"] as? String {
             keychain.set("password:" + account, profile.savePassword ? Data(pw.utf8) : nil)
@@ -38,7 +41,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
         Task {
             do {
-                try await self.start(profile: profile, account: account, password: password)
+                try await self.start(profile: profile, account: account, password: password, diagnostics: diagSettings)
                 completionHandler(nil)
             } catch {
                 log.error("start failed: \(String(describing: error), privacy: .public)")
@@ -47,9 +50,25 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
-    private func start(profile: Profile, account: String, password: String?) async throws {
-        let connector = NWGatewayConnector(trust: profile.trust)
+    private func start(profile: Profile, account: String, password: String?, diagnostics settings: DiagnosticsSettings) async throws {
+        let clock = ContinuousSessionClock()
         var client = ClientInfo(computer: ProcessInfo.processInfo.hostName)
+
+        // Diagnostics mode: record the session and write a redacted incident
+        // file when an outage isn't recovered. The connector is wrapped
+        // before login so the setup exchanges are recorded too.
+        var diag: Diagnostics?
+        if settings.enabled {
+            let d = Diagnostics(settings: settings, directory: DiagnosticsSettings.systemDirectory, clock: clock,
+                                secrets: KnownSecrets(password: password, servers: [profile.server], computer: client.computer)) { _, line in
+                log.notice("diagnostics: \(line, privacy: .public)")
+            }
+            d.start()
+            diag = d
+            self.diagnostics = d
+        }
+        let base = NWGatewayConnector(trust: profile.trust)
+        let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
         // A saved cookie lets a restarted extension come back without a new
         // login (and without a push). If the gateway rejects it, the session
@@ -71,11 +90,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             cookie = r.cookie
             gateway = r.gateway
             if let v = r.portal?.version { client.appVersion = v }
+            diag?.recorder.setInfo("portal-version", r.portal?.version)
             hipInterval = r.portal?.hipReportInterval.map(Double.init)
             saveCookie(r.cookie, gateway: r.gateway, appVersion: client.appVersion, hipInterval: hipInterval, account: account)
         }
         guard let cookie, let gateway else { throw TunnelError("login gave no cookie") }
         self.gateway = gateway
+        diag?.updateSecrets {
+            $0.cookies.append(cookie)
+            $0.servers.append(gateway)
+        }
 
         var policy = SessionPolicy()
         policy.canReauthenticate = password != nil && profile.secondFactor != nil
@@ -107,7 +131,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let host = PacketFlowHost(provider: self, hooks: hooks)
         let runner = SessionRunner(server: gateway, client: client,
                                    session: Session(cookie: cookie, policy: policy, hipInterval: hipInterval),
-                                   io: connector, host: host)
+                                   io: connector, host: host, clock: clock, recorder: diag?.recorder)
         self.host = host
         self.runner = runner
 
@@ -156,6 +180,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         watcher?.stop()
         Task {
             await runner?.stop(logout: logout)
+            diagnostics?.stop()
             completionHandler()
         }
     }
@@ -182,10 +207,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             } else if req.hipUnavailable == true {
                 await hip.answer(report: nil)
             }
+            if req.diagnosticsDump == true { diagnostics?.saveNow() }
             let state = stateLock.withLock { lastState }
             let config = await runner?.config
             let status = ProviderMessage.Status(state: "\(state)", gateway: gateway, ipv4: config?.ipv4,
-                                                hipRequest: await hip.request, lastHIPReport: await hip.lastReport)
+                                                hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
+                                                lastIncident: diagnostics?.lastIncident?.path,
+                                                diagnosticsEnabled: diagnostics != nil)
             completionHandler?(try? JSONEncoder().encode(status))
         }
     }

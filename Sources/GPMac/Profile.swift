@@ -58,11 +58,16 @@ public enum ProviderMessage {
         public var hipReport: String?
         /// The app has no way to make a report.
         public var hipUnavailable: Bool?
+        /// "Save diagnostics now": write an incident file from the current
+        /// window, whatever the session is doing. Needs diagnostics mode on.
+        public var diagnosticsDump: Bool?
 
-        public init(poll: Bool? = nil, hipReport: String? = nil, hipUnavailable: Bool? = nil) {
+        public init(poll: Bool? = nil, hipReport: String? = nil, hipUnavailable: Bool? = nil,
+                    diagnosticsDump: Bool? = nil) {
             self.poll = poll
             self.hipReport = hipReport
             self.hipUnavailable = hipUnavailable
+            self.diagnosticsDump = diagnosticsDump
         }
     }
 
@@ -100,9 +105,16 @@ public enum ProviderMessage {
         public var expiresIn: Double?
         public var hipRequest: HIPRequest?
         public var lastHIPReport: Date?
+        /// Path of the newest incident file diagnostics mode wrote this
+        /// session. The app notifies when it changes.
+        public var lastIncident: String?
+        public var diagnosticsEnabled: Bool?
 
         public init(state: String, gateway: String? = nil, ipv4: String? = nil, expiresIn: Double? = nil,
-                    hipRequest: HIPRequest? = nil, lastHIPReport: Date? = nil) {
+                    hipRequest: HIPRequest? = nil, lastHIPReport: Date? = nil, lastIncident: String? = nil,
+                    diagnosticsEnabled: Bool? = nil) {
+            self.lastIncident = lastIncident
+            self.diagnosticsEnabled = diagnosticsEnabled
             self.state = state
             self.gateway = gateway
             self.ipv4 = ipv4

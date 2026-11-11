@@ -10,6 +10,7 @@
 
 #if canImport(Network)
 import Darwin
+import Diagnostics
 import Foundation
 import GPCore
 import GPMac
@@ -27,6 +28,8 @@ struct Options {
     var reauth = false
     var hipInterval: Double?
     var policy = SessionPolicy()
+    var diagnostics: String?
+    var diagPolicy = FlightRecorder.Policy()
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -42,6 +45,9 @@ struct Options {
       --dpd SECONDS          keepalive interval (default 10)
       --hip-interval SECONDS HIP recheck interval (default: the portal's, else 3600)
       --hip-retry SECONDS    first retry delay after a failed HIP check (default 30)
+      --diagnostics DIR      diagnostics mode: write incident files to DIR (SIGUSR1 saves one now)
+      --diag-grace SECONDS   outage that counts as an incident (default 60)
+      --diag-window SECONDS  history to keep (default 600)
     The password is read from the first line of stdin.
     """
 
@@ -69,6 +75,9 @@ struct Options {
             case "--dpd": o.policy.dpdInterval = Double(value(a)) ?? 10
             case "--hip-interval": o.hipInterval = Double(value(a))
             case "--hip-retry": o.policy.hipRetryInitialDelay = Double(value(a)) ?? 30
+            case "--diagnostics": o.diagnostics = value(a)
+            case "--diag-grace": o.diagPolicy.grace = Double(value(a)) ?? 60
+            case "--diag-window": o.diagPolicy.window = Double(value(a)) ?? 600
             default: fail("unknown option \(a)\n\(usage)")
             }
         }
@@ -135,12 +144,12 @@ final class CLICredentials: CredentialProvider, @unchecked Sendable {
 final class CLIHost: TunnelHost, @unchecked Sendable {
     private let lock = NSLock()
     let options: Options
-    let connector: NWGatewayConnector
+    let connector: any GatewayConnector
     let credentials: CLICredentials
     private(set) var replies = 0
     var myIPv4: String?
 
-    init(options: Options, connector: NWGatewayConnector, credentials: CLICredentials) {
+    init(options: Options, connector: any GatewayConnector, credentials: CLICredentials) {
         self.options = options
         self.connector = connector
         self.credentials = credentials
@@ -208,7 +217,20 @@ func run(_ path: String, _ args: [String], env: [String: String]) async throws -
 
 let options = Options.parse(Array(CommandLine.arguments.dropFirst()))
 let trust: TrustPolicy = options.pins.isEmpty ? .system : .pinned(options.pins)
-let connector = NWGatewayConnector(trust: trust)
+let clock = ContinuousSessionClock()
+let diagnostics: Diagnostics? = options.diagnostics.map { dir in
+    var settings = DiagnosticsSettings(enabled: true)
+    settings.keep = 100
+    let d = Diagnostics(settings: settings, directory: URL(fileURLWithPath: dir), clock: clock,
+                        secrets: KnownSecrets(servers: [options.server], computer: ProcessInfo.processInfo.hostName,
+                                              localAccount: NSUserName()),
+                        policy: options.diagPolicy) { _, line in say("diagnostics: \(line)") }
+    d.minimumInterval = 0
+    d.start(every: .milliseconds(500))
+    return d
+}
+let base = NWGatewayConnector(trust: trust)
+let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 let credentials = CLICredentials(user: options.user, secondFactor: options.secondFactor)
 let host = CLIHost(options: options, connector: connector, credentials: credentials)
 var client = host.client
@@ -222,11 +244,17 @@ do {
 }
 say("logged in to \(login.gateway) as \(login.cookie.user)")
 if let v = login.portal?.version { client.appVersion = v }
+diagnostics?.updateSecrets {
+    $0.password = credentials.stored?.password
+    $0.cookies.append(login.cookie)
+    $0.servers.append(login.gateway)
+}
+diagnostics?.recorder.setInfo("portal-version", login.portal?.version)
 
 let hipInterval = options.hipInterval ?? login.portal?.hipReportInterval.map(Double.init)
 let runner = SessionRunner(server: login.gateway, client: client,
                            session: Session(cookie: login.cookie, policy: options.policy, hipInterval: hipInterval),
-                           io: connector, host: host)
+                           io: connector, host: host, clock: clock, recorder: diagnostics?.recorder)
 
 let watcher = PathWatcher { [runner] usable in
     say("network path changed (usable=\(usable))")
@@ -235,8 +263,16 @@ let watcher = PathWatcher { [runner] usable in
 watcher.start()
 
 // SIGINT/SIGTERM: stop and log out (unless --no-logout). SIGHUP: stop, keep
-// the cookie. SIGUSR2: reconnect now, as openconnect does.
+// the cookie. SIGUSR2: reconnect now, as openconnect does. SIGUSR1: save a
+// diagnostics file now.
 var sources: [DispatchSourceSignal] = []
+if let diagnostics {
+    signal(SIGUSR1, SIG_IGN)
+    let src = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+    src.setEventHandler { diagnostics.saveNow(reason: "SIGUSR1") }
+    src.resume()
+    sources.append(src)
+}
 for (sig, logout) in [(SIGINT, options.logout), (SIGTERM, options.logout), (SIGHUP, false), (SIGUSR2, false)] {
     signal(sig, SIG_IGN)
     let src = DispatchSource.makeSignalSource(signal: sig, queue: .main)

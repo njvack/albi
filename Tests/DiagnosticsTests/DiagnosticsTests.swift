@@ -187,6 +187,9 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
             (try? IncidentFile(contentsOf: url))?.header["outcome"] as? String == "connected again"
         }
         let second = try String(contentsOf: url, encoding: .utf8)
+        if let keep = ProcessInfo.processInfo.environment["ALBI_DIAG_KEEP"] {
+            try? second.write(toFile: keep, atomically: true, encoding: .utf8)
+        }
         for s in secrets { #expect(!second.lowercased().contains(s.lowercased()), "\(s) leaked") }
         #expect(second.contains("\"after\":true"))
         #expect(written.withLock { $0.count } == 2)

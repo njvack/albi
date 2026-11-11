@@ -12,6 +12,7 @@ This repository is one Swift package plus, later, the Xcode project for the app,
 | `GPMac` | the macOS I/O layer: URLSession, NWConnection, NWPathMonitor, NetworkExtension glue, Keychain |
 | `albi-cli` | command-line harness: logs in and runs the tunnel in userspace, pinging through it |
 | `GPCapture`, `gp-capture` | records a real gateway session through openconnect as redacted test fixtures |
+| `Diagnostics`, `albi-diag` | diagnostics mode: redacted incident files from the flight recorder, replay, and gp-fake-gateway scenario drafts |
 | `Apps/` | Xcode project (XcodeGen) for the app and its packet tunnel system extension |
 
 ## Build and test
@@ -33,6 +34,27 @@ The client core has no Apple-only APIs and no Foundation. The OS plugs in throug
 - `TunnelSettings` maps getconfig to routes, DNS and MTU, ready to become `NEPacketTunnelNetworkSettings`.
 
 Protocol details follow openconnect's `gpst.c` and `auth-globalprotect.c`, which remain the reference.
+
+## Diagnostics mode
+
+With diagnostics mode on, the client keeps the last 10 minutes (2 to 30, configurable) of its session in memory: every input to and output of the session state machine, every HTTPS exchange, and per-second traffic counts. The setup exchanges (prelogin, login, getconfig) and the session's events are kept beyond the window. Passwords, HIP report bodies and packet contents are never recorded.
+
+When the session has been out of `connected` for 60 s while awake with a usable network (so not during sleep or with Wi-Fi off), or it needs a login before the cookie's lifetime is over, it writes `albi-incident-DATE-N.json`, and rewrites it when the incident ends so it also shows the recovery. At most one file every 10 minutes; the newest 20 are kept. The file is redacted when written, with gp-capture's redactor plus a leak check: names, cookies, hosts and addresses become consistent test values that still parse.
+
+- The app: Diagnostics mode toggle, Save diagnostics now, Show in Finder. The extension writes to `/Library/Application Support/Albi/Diagnostics/`.
+- albi-cli: `--diagnostics DIR` (plus `--diag-grace` and `--diag-window` for tests); SIGUSR1 saves a file now.
+
+Then:
+
+```sh
+swift build --product albi-diag
+albi-diag check FILE --scrub YOUR-ORG   # look for anything the redaction missed; read the file too
+albi-diag summary FILE                  # header and timeline
+albi-diag replay FILE                   # feed the events into Session; checks the client logic reproduces
+albi-diag scenario FILE --name "..."    # draft a gp-fake-gateway scenario
+```
+
+A redaction gap is a bug: file it rather than posting the file. Otherwise attach the file to an issue, draft a scenario, trim it to the smallest set of rules that still fails, and commit it to [gp-fake-gateway's scenarios/](https://github.com/njvack/gp-fake-gateway/tree/main/scenarios); `e2e/diagnostics.sh` runs albi-cli against every scenario there in CI.
 
 ## Trying it against the fake gateway
 

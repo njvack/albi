@@ -101,6 +101,7 @@ public enum ScenarioDraft {
             }
         }
 
+        rules = mergeRuns(rules)
         if let i = f.info["hip-interval"].flatMap({ Double($0) }) { config["hip_interval"] = Int(i) }
         if hipNeeded { config["hip_needed"] = true }
         let grace = f.header["grace_seconds"] as? Double ?? 60
@@ -110,7 +111,7 @@ public enum ScenarioDraft {
             "transport": f.info["transport"] ?? "https",
             "config": config,
             "rules": rules,
-            "expect": ["connected_within": Int(grace)],
+            "expect": ["connected_within": max(30, Int(grace.rounded(.up)))],
             "_source": [
                 "written": f.header["written"] ?? "",
                 "reason": f.header["reason"] ?? "",
@@ -118,6 +119,45 @@ public enum ScenarioDraft {
             ],
         ]
         if let v = f.info["portal-version"] { out["_gateway_version"] = v }
+        return out
+    }
+
+    /// Folds rules that differ only in consecutive `nth` into one
+    /// `from`/`to` rule: eight refused tunnels in a row become one rule.
+    static func mergeRuns(_ rules: [[String: Any]]) -> [[String: Any]] {
+        func key(_ r: [String: Any]) -> String {
+            var r = r
+            var w = r["when"] as? [String: Any] ?? [:]
+            w["nth"] = nil
+            r["when"] = w
+            r["_seen"] = nil
+            r["_error"] = nil
+            return json(r)
+        }
+        var out: [[String: Any]] = []
+        var runKey: String?
+        var runEnd = 0
+        for r in rules {
+            let w = r["when"] as? [String: Any] ?? [:]
+            guard let n = w["nth"] as? Int else {
+                out.append(r)
+                runKey = nil
+                continue
+            }
+            let k = key(r)
+            if k == runKey, n == runEnd + 1, var last = out.popLast() {
+                var lw = last["when"] as? [String: Any] ?? [:]
+                if lw["from"] == nil { lw["from"] = lw["nth"]; lw["nth"] = nil }
+                lw["to"] = n
+                last["when"] = lw
+                out.append(last)
+                runEnd = n
+                continue
+            }
+            out.append(r)
+            runKey = k
+            runEnd = n
+        }
         return out
     }
 
