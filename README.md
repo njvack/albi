@@ -63,7 +63,7 @@ category = "patch-management"      # some product present
 
 `swift test` covers probes, validation, trust rules, load order, policies, the CLI, and a golden report from a synthetic Mac (`Tests/HIPCoreTests/Fixtures/mac-basic.toml`, shared with the Go reporter; `UPDATE_GOLDEN=1 swift test` rewrites the golden file). `hipreport record` writes the same kind of fixture from a real Mac; it holds that Mac's host name, MAC and IP addresses, so scrub it before committing one. `--fixture FILE` replays one.
 
-`e2e/hipreport.sh` runs openconnect with `hipreport` as its `--csd-wrapper` against [gp-fake-gateway](https://github.com/njvack/gp-fake-gateway) (Linux, root). `scripts/parity.sh REFERENCE` diffs the report against `hipreport.zsh` or the Go `hipreport` on a Mac. CI runs all of these.
+`e2e/hipreport.sh` runs openconnect with `hipreport` as its `--csd-wrapper` against [gp-fake-gateway](https://github.com/njvack/gp-fake-gateway) (Linux, root). `scripts/parity.sh REFERENCE` compares the report with `hipreport.zsh` or the Go `hipreport` on a Mac, section by section (top-level fields, each category, custom checks), and prints a diff for each section that differs. CI runs all of these.
 
 ## GPCore
 

@@ -72,8 +72,11 @@ public func collect(_ env: Env, _ set: CheckSet, _ req: Request) -> Facts {
     // These must match what the client sent at login, so the cookie wins.
     if f.userName.isEmpty { f.userName = req.userName }
     if f.computer.isEmpty { f.computer = short }
-    f.hostID = hardwareMAC(env, req.hostIDDevice.isEmpty ? "en0" : req.hostIDDevice)
-    f.interfaces = interfaces(env)
+    // Hardware ports only: GP skips lo0, utun*, awdl0 and similar. MACs are
+    // the burned-in ones, not Wi-Fi's private per-network address, as GP does.
+    f.interfaces = env.sys.networkInterfaces()
+    let idDev = req.hostIDDevice.isEmpty ? "en0" : req.hostIDDevice
+    f.hostID = f.interfaces.first { $0.device == idDev }?.mac ?? ""
     f.products = set.checks.compactMap(env.evaluate)
     return f
 }
@@ -112,41 +115,6 @@ func urlDecode(_ s: String) -> String {
 }
 
 // MARK: - Host
-
-/// Hardware ports only: GP skips lo0, utun*, awdl0 and similar.
-func interfaces(_ env: Env) -> [Interface] {
-    env.run(["/usr/sbin/networksetup", "-listallhardwareports"]).stdout.split(separator: "\n").compactMap { line in
-        let l = line.trimmingCharacters(in: .whitespaces)
-        guard l.hasPrefix("Device:") else { return nil }
-        let dev = l.dropFirst("Device:".count).trimmingCharacters(in: .whitespaces)
-        guard !dev.isEmpty else { return nil }
-        return Interface(device: dev, mac: hardwareMAC(env, dev),
-                         ipv4: addresses(env, dev, "inet"), ipv6: addresses(env, dev, "inet6"))
-    }
-}
-
-/// An interface's burned-in address, not the private per-network Wi-Fi
-/// address; GP reports the burned-in one too.
-func hardwareMAC(_ env: Env, _ dev: String) -> String {
-    let words = env.run(["/usr/sbin/networksetup", "-getmacaddress", dev]).stdout
-        .split(whereSeparator: \.isWhitespace)
-    let mac = words.count > 2 ? String(words[2]) : ""
-    if mac.filter({ $0 == ":" }).count >= 2 { return mac }
-    // e.g. bridge0
-    for l in env.run(["/sbin/ifconfig", dev]).stdout.split(separator: "\n") {
-        let f = l.split(whereSeparator: \.isWhitespace)
-        if f.count >= 2 && f[0] == "ether" { return String(f[1]) }
-    }
-    return ""
-}
-
-func addresses(_ env: Env, _ dev: String, _ family: String) -> [String] {
-    env.run(["/sbin/ifconfig", dev]).stdout.split(separator: "\n").compactMap { l in
-        let f = l.split(whereSeparator: \.isWhitespace)
-        guard f.count >= 2, f[0] == family else { return nil }
-        return String(f[1].split(separator: "%", maxSplits: 1).first ?? "")
-    }
-}
 
 // MARK: - XML
 

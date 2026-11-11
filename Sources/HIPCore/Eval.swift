@@ -89,13 +89,9 @@ public final class Env {
     }
 
     /// The macOS product version, such as 27.1.
-    public func osVersion() -> String {
-        run(["/usr/bin/sw_vers", "-productVersion"]).stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
+    public func osVersion() -> String { sys.osVersion() }
 
-    private lazy var running: Set<String> = Set(
-        run(["/bin/ps", "-axo", "comm="]).stdout
-            .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
+    private lazy var running: Set<String> = Set(sys.processPaths())
 
     // MARK: Probes
 
@@ -216,28 +212,25 @@ public final class Env {
     /// internal disks under /Volumes, then an "All" entry: encrypted only if
     /// every one is, unencrypted if any is not, otherwise unknown.
     public func volumes() -> ([Drive], String?) {
-        let r = run(["/sbin/mount"])
-        if r.stdout.isEmpty {
-            return ([Drive(name: "All", state: "unknown")], "mount gave no output")
+        guard let vols = sys.mountedVolumes() else {
+            return ([Drive(name: "All", state: "unknown")], "cannot list mounted volumes")
         }
         var drives: [Drive] = []
         var all = "encrypted"
-        for line in r.stdout.split(separator: "\n").map(String.init) {
-            guard let (mp, flags) = parseMountLine(line), flags.contains("local") else { continue }
-            let info = diskInfo(mp)
+        for v in vols where v.local {
             let label: String
-            if mp == "/" {
-                label = info["VolumeName"].flatMap(plistString) ?? ""
-            } else if mp == "/System/Volumes/Data" {
+            if v.mountPoint == "/" {
+                label = v.name
+            } else if v.mountPoint == "/System/Volumes/Data" {
                 label = "Data"
-            } else if mp.hasPrefix("/Volumes/") {
-                if flags.contains("nobrowse") || plistBool(info["Internal"]) != true { continue }
-                label = (mp as NSString).lastPathComponent
+            } else if v.mountPoint.hasPrefix("/Volumes/") {
+                if !v.browsable || v.isInternal != true { continue }
+                label = (v.mountPoint as NSString).lastPathComponent
             } else {
                 continue
             }
             let state: String
-            switch plistBool(info["FileVault"]) {
+            switch v.encrypted {
             case true?: state = "encrypted"
             case false?: state = "unencrypted"
             case nil: state = "unknown"
@@ -249,23 +242,9 @@ public final class Env {
                 all = "unknown"
             }
         }
-        let err = drives.isEmpty ? "no local volumes found" : nil
-        return (drives + [Drive(name: "All", state: all)], err)
+        if drives.isEmpty { return ([Drive(name: "All", state: "unknown")], "no local volumes found") }
+        return (drives + [Drive(name: "All", state: all)], nil)
     }
-
-    private func diskInfo(_ mp: String) -> [String: Any] {
-        decodePlist(Data(run(["/usr/sbin/diskutil", "info", "-plist", mp]).stdout.utf8)) ?? [:]
-    }
-}
-
-/// "DEV on MOUNTPOINT (flag, flag, ...)" as printed by mount(8).
-func parseMountLine(_ line: String) -> (String, [String])? {
-    guard line.hasSuffix(")"), let open = line.range(of: " (", options: .backwards),
-          let on = line.range(of: " on ", range: line.startIndex..<open.lowerBound) else { return nil }
-    let mp = String(line[on.upperBound..<open.lowerBound])
-    let flags = line[open.upperBound..<line.index(before: line.endIndex)]
-        .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-    return mp.isEmpty ? nil : (mp, flags)
 }
 
 func yesNo(_ b: Bool) -> String { b ? "yes" : "no" }
