@@ -18,6 +18,7 @@ WORK=$(mktemp -d)
 LISTEN=127.0.0.1:18543
 CONTROL=127.0.0.1:18544
 fails=0
+checked=0
 
 unset HTTPS_PROXY https_proxy HTTP_PROXY http_proxy ALL_PROXY all_proxy
 
@@ -69,7 +70,7 @@ stop_all() {
   CLI_PID= GP_PID=
 }
 
-replies() { grep -c 'ping reply' "$1" 2>/dev/null || echo 0; }
+replies() { local n; n=$(grep -c 'ping reply' "$1" 2>/dev/null); echo "${n:-0}"; }
 replies_above() { [ "$(replies "$1")" -gt "$2" ]; }
 connected() { grep -q 'state connected' "$1"; }
 incidents() { ls "$DIR"/albi-incident-*.json 2>/dev/null | wc -l | tr -d ' '; }
@@ -138,9 +139,12 @@ else
   fi
 
   echo "== scenarios in $SCENARIOS"
+  ran=0
+  total=$(ls "$SCENARIOS"/*.json 2>/dev/null | wc -l | tr -d ' ')
   for S in "$SCENARIOS"/*.json; do
     [ -e "$S" ] || { skip "no scenarios"; break; }
     name=$(basename "$S" .json)
+    ran=$((ran + 1))
     within=$(json "$S" "d.get('expect', {}).get('connected_within', 60)")
     DIR=$WORK/scn-$name
     start_fakegp -scenario "$S"
@@ -173,7 +177,10 @@ for i, r in enumerate(st["rules"] or [], 1):
       fail "$name: no traffic within ${within} s of the last fault"
     fi
     stop_all
+    checked=$((checked + 1))
   done
+  # A script error inside the loop must not pass for "all passed".
+  if [ "${checked:-0}" -ne "$total" ]; then fail "checked ${checked:-0} of $total scenarios (ran $ran)"; fi
 fi
 
 if [ "$fails" -ne 0 ]; then
