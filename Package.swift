@@ -10,6 +10,8 @@ let package = Package(
         .library(name: "HIPCore", targets: ["HIPCore"]),
         .executable(name: "hipreport", targets: ["hipreport"]),
         .library(name: "GPCore", targets: ["GPCore"]),
+        .library(name: "GPMac", targets: ["GPMac"]),
+        .executable(name: "albi-cli", targets: ["albi-cli"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -29,5 +31,15 @@ let package = Package(
         // APIs and no Foundation, so it builds and tests on Linux.
         .target(name: "GPCore"),
         .testTarget(name: "GPCoreTests", dependencies: ["GPCore"]),
+
+        // The macOS I/O layer: URLSession, NWConnection, NWPathMonitor and
+        // NetworkExtension glue. Its files are wrapped in #if canImport so the
+        // package still builds on Linux, where the target is empty.
+        .target(name: "GPMac", dependencies: ["GPCore"]),
+        .testTarget(name: "GPMacTests", dependencies: ["GPMac", "GPCore"]),
+
+        // Command-line harness: GPCore plus GPMac, pinging through the tunnel
+        // from userspace. Used by e2e/client.sh against gp-fake-gateway.
+        .executableTarget(name: "albi-cli", dependencies: ["GPCore", "GPMac"]),
     ]
 )

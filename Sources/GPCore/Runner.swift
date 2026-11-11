@@ -58,7 +58,8 @@ public struct ContinuousSessionClock: SessionClock {
     public func sleep(until deadline: Double) async throws {
         let delay = deadline - now()
         if delay > 0 {
-            try await Task.sleep(for: .milliseconds(Int64((delay * 1000).rounded(.up))))
+            // Whole milliseconds, rounded up (no libm needed).
+            try await Task.sleep(for: .milliseconds(Int64(delay * 1000) + 1))
         }
     }
 }
@@ -164,7 +165,8 @@ public actor SessionRunner {
                 await self.result(ev, gen: gen, of: .config)
             }
         case .applySettings(let c):
-            let settings = TunnelSettings(config: c, remoteAddress: hostOnly(server))
+            // gw-address is the gateway's own IP; NE wants an address here.
+            let settings = TunnelSettings(config: c, remoteAddress: c.gatewayAddress ?? hostOnly(server))
             if !settings.ignoredRoutes.isEmpty { host.log("ignored routes: \(settings.ignoredRoutes)") }
             spawn { [host] in
                 do { try await host.apply(settings) } catch { host.log("applying settings failed: \(error)") }

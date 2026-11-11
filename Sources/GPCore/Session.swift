@@ -179,7 +179,8 @@ public struct Session: Sendable {
             guard hipInFlight else { break }
             hipInFlight = false
             hipRetryAttempt = 0
-            deadlines[.hipRecheck] = now + max(hipInterval - 60, 60)
+            // A minute early, like openconnect, unless the interval is very short.
+            deadlines[.hipRecheck] = now + (hipInterval > 120 ? hipInterval - 60 : max(hipInterval, 1))
             if state == .connecting(.hip) { openTunnel(&out) }
 
         case .hipFailed(let f):

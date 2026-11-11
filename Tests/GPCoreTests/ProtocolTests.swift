@@ -276,3 +276,20 @@ let fakeGetConfig = """
         #expect(hostOnly("gw") == "gw")
     }
 }
+
+@Suite struct PingTests {
+    @Test func requestIsValid() throws {
+        let p = try #require(Ping.request(from: "10.99.0.2", to: "10.99.0.1", id: 0x1234, sequence: 7))
+        #expect(p.count == 32)
+        #expect(Ping.checksum(Array(p[0..<20])) == 0)
+        #expect(Ping.checksum(Array(p[20...])) == 0)
+        #expect(Array(p[12..<20]) == [10, 99, 0, 2, 10, 99, 0, 1])
+    }
+
+    @Test func parsesReply() throws {
+        var p = try #require(Ping.request(from: "10.99.0.1", to: "10.99.0.2", id: 9, sequence: 3))
+        p[20] = 0 // echo reply
+        #expect(Ping.reply(p, to: "10.99.0.2")! == (9, 3))
+        #expect(Ping.reply(p, to: "10.99.0.3") == nil)
+    }
+}

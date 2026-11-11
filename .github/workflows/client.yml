@@ -19,5 +19,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - run: swift build --target GPCore
-      - run: swift test --filter GPCoreTests
+      - run: swift build --product albi-cli
+      - run: swift test --filter 'GPCoreTests|GPMacTests'
+
+  e2e:
+    # albi-cli against gp-fake-gateway on a stock macOS runner: no root, no
+    # extension; the CLI pings through the tunnel from userspace.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/gp-fake-gateway
+          path: gp-fake-gateway
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gp-fake-gateway/go.mod
+          cache-dependency-path: gp-fake-gateway/go.mod
+      - run: go build -o ../fakegp ./cmd/fakegp
+        working-directory: gp-fake-gateway
+      - run: swift build --product albi-cli
+      - run: e2e/client.sh "$(swift build --show-bin-path)/albi-cli" "$PWD/fakegp" "$PWD/gp-fake-gateway/e2e/hipreport-stub.sh"
