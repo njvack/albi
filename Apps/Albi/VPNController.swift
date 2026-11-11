@@ -1,3 +1,5 @@
+import AppKit
+import Diagnostics
 import Foundation
 import GPMac
 import NetworkExtension
@@ -18,6 +20,10 @@ final class VPNController: NSObject, ObservableObject {
     @Published var gateway: String?
     @Published var lastHIPReport: Date?
     @Published var message = ""
+    /// Diagnostics mode; saved in the VPN configuration with the profile and
+    /// read by the extension when it starts.
+    @Published var diagnostics = DiagnosticsSettings()
+    @Published var lastIncident: String?
 
     private var manager: NETunnelProviderManager?
     private var pollTask: Task<Void, Never>?
@@ -34,6 +40,7 @@ final class VPNController: NSObject, ObservableObject {
             if let proto = manager?.protocolConfiguration as? NETunnelProviderProtocol,
                let p = Profile(providerConfiguration: proto.providerConfiguration) {
                 profile = p
+                diagnostics = DiagnosticsSettings(providerConfiguration: proto.providerConfiguration) ?? DiagnosticsSettings()
             }
         } catch {
             message = "Loading VPN configurations failed: \(error.localizedDescription)"
@@ -62,7 +69,9 @@ final class VPNController: NSObject, ObservableObject {
             proto.providerBundleIdentifier = tunnelBundleID
             proto.serverAddress = profile.server
             proto.username = profile.username
-            proto.providerConfiguration = profile.providerConfiguration
+            var config = profile.providerConfiguration
+            diagnostics.store(in: &config)
+            proto.providerConfiguration = config
             m.protocolConfiguration = proto
             m.localizedDescription = "Albi (\(profile.server))"
             m.isEnabled = true
@@ -136,11 +145,29 @@ final class VPNController: NSObject, ObservableObject {
         ipv4 = status.ipv4
         gateway = status.gateway
         lastHIPReport = status.lastHIPReport
+        if let path = status.lastIncident, path != lastIncident {
+            lastIncident = path
+            message = "Diagnostics saved an incident file: \(path)"
+        }
         if let hip = status.hipRequest, !hipInFlight {
             hipInFlight = true
             let answer = await makeHIPReport(hip)
             await poll(answer)
             hipInFlight = false
+        }
+    }
+
+    /// Asks the extension to write an incident file from its current window.
+    func saveDiagnosticsNow() async {
+        await poll(ProviderMessage.Request(diagnosticsDump: true))
+    }
+
+    func showDiagnostics() {
+        let dir = DiagnosticsSettings.systemDirectory
+        if let last = lastIncident {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: last)])
+        } else {
+            NSWorkspace.shared.open(dir)
         }
     }
 

@@ -74,6 +74,7 @@ public actor SessionRunner {
     private let io: any GatewayConnector
     private let host: any TunnelHost
     private let clock: any SessionClock
+    public let recorder: FlightRecorder?
 
     private var tunnel: (any TunnelConnection)?
     private var writer: AsyncStream<[UInt8]>.Continuation?
@@ -87,13 +88,25 @@ public actor SessionRunner {
     private var waiters: [CheckedContinuation<SessionState, Never>] = []
 
     public init(server: String, client: ClientInfo, session: Session, io: any GatewayConnector,
-                host: any TunnelHost, clock: any SessionClock = ContinuousSessionClock()) {
+                host: any TunnelHost, clock: any SessionClock = ContinuousSessionClock(),
+                recorder: FlightRecorder? = nil) {
         self.server = server
         self.client = client
         self.session = session
-        self.io = io
-        self.host = host
         self.clock = clock
+        self.recorder = recorder
+        if let recorder {
+            self.io = io is RecordingConnector ? io : RecordingConnector(io, recorder: recorder, clock: clock)
+            self.host = RecordingHost(base: host, recorder: recorder, clock: clock)
+            recorder.setInfo("server", server)
+            recorder.setInfo("app-version", client.appVersion)
+            recorder.setInfo("client-os", client.clientOS)
+            for (k, v) in session.policy.fields { recorder.setInfo("policy." + k, v) }
+            recorder.setInfo("hip-interval", "\(session.hipInterval)")
+        } else {
+            self.io = io
+            self.host = host
+        }
     }
 
     public var state: SessionState { session.state }
@@ -104,7 +117,9 @@ public actor SessionRunner {
 
     /// Feeds an event from outside: path changes, sleep and wake.
     public func post(_ event: Session.Event) {
-        run(session.handle(event, now: clock.now()))
+        let now = clock.now()
+        if let recorder, event != .received { recorder.record(.event(event), at: now) }
+        run(session.handle(event, now: now))
     }
 
     /// Stops the session and waits for the logout request, if any, to finish.
@@ -126,8 +141,14 @@ public actor SessionRunner {
     public func send(packets: [[UInt8]]) {
         guard let w = writer, session.isTunnelUp else { return }
         var buf: [UInt8] = []
-        for p in packets where !p.isEmpty { buf += GPST.encode(packet: p) }
+        var n = 0, bytes = 0
+        for p in packets where !p.isEmpty {
+            buf += GPST.encode(packet: p)
+            n += 1
+            bytes += p.count
+        }
         if !buf.isEmpty { w.yield(buf) }
+        if n > 0 { recorder?.count(at: clock.now(), packetsOut: n, bytesOut: bytes) }
     }
 
     // MARK: Actions
@@ -138,6 +159,13 @@ public actor SessionRunner {
     }
 
     private func perform(_ action: Session.Action) {
+        if let recorder {
+            switch action {
+            case .stateChanged(let s): recorder.record(.state(s), at: clock.now())
+            case .sendKeepalive: recorder.count(at: clock.now(), keepalivesOut: 1)
+            default: recorder.record(.action(action), at: clock.now())
+            }
+        }
         switch action {
         case .stateChanged(let s):
             host.log("state: \(s)")
@@ -306,13 +334,25 @@ public actor SessionRunner {
         Task { [weak self] in
             var dec = GPST.Decoder()
             dec.append(leftover)
+            let recorder = self?.recorder
+            let clock = self?.clock
             do {
                 while true {
                     var packets: [[UInt8]] = []
                     var any = false
+                    var keepalives = 0, bytes = 0
                     while let f = try dec.next() {
                         any = true
-                        if case .packet(let p) = f { packets.append(p) }
+                        switch f {
+                        case .packet(let p):
+                            packets.append(p)
+                            bytes += p.count
+                        case .keepalive:
+                            keepalives += 1
+                        }
+                    }
+                    if any, let recorder, let clock {
+                        recorder.count(at: clock.now(), packetsIn: packets.count, bytesIn: bytes, keepalivesIn: keepalives)
                     }
                     if any { await self?.received(packets, gen: gen) }
                     guard let bytes = try await conn.read() else {
