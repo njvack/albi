@@ -6,7 +6,8 @@
 #
 # REFERENCE is hipreport.zsh or the Go hipreport, both from
 # njvack/openconnect-hipreports. HIPREPORT defaults to the release build.
-# Both get the same openconnect-style arguments. Differences that are
+# Both get the same openconnect-style arguments, and hipreport also loads
+# contrib/, which holds the reference's third-party checks. Differences that are
 # expected are normalized first: generate-time; Packet Filter's
 # is-enabled, which hipreport.zsh reads with `sudo -n pfctl` and hipreport
 # reports as n/a unless it runs as root; and whitespace-only element
@@ -37,7 +38,7 @@ if [[ $ref == *.zsh ]]; then
 else
   $ref --checks-dir /nonexistent $args 2>$work/ref.err | normalize >$work/ref.xml
 fi
-$ours --checks-dir /nonexistent $args 2>$work/ours.err | normalize >$work/ours.xml
+$ours --checks-dir /nonexistent --dev-checks $here/../contrib $args 2>$work/ours.err | normalize >$work/ours.xml
 
 if diff -u $work/ref.xml $work/ours.xml; then
   print "parity: identical to ${ref:t} ($(grep -c '<Prod ' $work/ours.xml) products)"

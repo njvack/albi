@@ -7,6 +7,18 @@ import Testing
         let (set, errs) = loadChecks(FakeSystem(), [.builtin])
         #expect(errs.isEmpty, "\(messages(errs))")
         #expect(set.checks.map { "\($0.category)/\($0.name)" } == [
+            "anti-malware/Xprotect", "anti-malware/Gatekeeper",
+            "disk-backup/Time Machine",
+            "disk-encryption/FileVault",
+            "firewall/Mac OS X Builtin Firewall", "firewall/Packet Filter",
+            "patch-management/Software Update",
+        ])
+    }
+
+    @Test func contribIsValidAndOrdered() {
+        let (set, errs) = loadChecks(FakeSystem(), [.builtin, Source(dir: contribDir.path, dev: true)])
+        #expect(errs.isEmpty, "\(messages(errs))")
+        #expect(set.checks.map { "\($0.category)/\($0.name)" } == [
             "anti-malware/Xprotect", "anti-malware/Gatekeeper", "anti-malware/Cisco Secure Endpoint",
             "disk-backup/Time Machine", "disk-backup/Google Drive",
             "disk-encryption/FileVault",

@@ -15,7 +15,7 @@ jobs:
         run: scripts/gen-library.sh && git -c safe.directory='*' diff --exit-code Sources/HIPCore/BuiltinLibrary.swift
       - run: swift build --product hipreport
       - run: swift test --filter HIPCoreTests
-      - run: swift run hipreport lint --checks-dir /nonexistent
+      - run: swift run hipreport lint --checks-dir /nonexistent contrib
 
   e2e:
     # openconnect, kept as a reference client, runs hipreport as its
@@ -71,7 +71,7 @@ jobs:
       - run: swift --version
       - run: swift test --filter HIPCoreTests
       - run: swift build -c release --product hipreport
-      - run: .build/release/hipreport lint
+      - run: .build/release/hipreport lint contrib
       - run: .build/release/hipreport facts
       - name: Report is well-formed
         run: .build/release/hipreport --md5 x | xmllint --noout -

@@ -5,7 +5,9 @@ import Testing
 @Suite struct ReportTests {
     @Test func goldenMacBasic() throws {
         let f = try FakeSystem.load(fixture: macBasic)
-        let (set, errs) = loadChecks(f, [.builtin])
+        // With contrib, the checks match the Go reporter's library, so the
+        // golden file stays identical to its golden.
+        let (set, errs) = loadChecks(f, [.builtin, Source(dir: contribDir.path, dev: true)])
         #expect(errs.isEmpty)
         var req = Request()
         req.md5 = "0123456789abcdef0123456789abcdef"
