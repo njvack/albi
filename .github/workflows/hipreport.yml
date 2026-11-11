@@ -1,0 +1,23 @@
+name: hipreport
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build --product hipreport
+      - run: swift test --filter HIPCoreTests
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build --product hipreport
+      - run: swift test --filter HIPCoreTests
