@@ -90,3 +90,27 @@ targets:
         PRODUCT_NAME: $(ALBI_BUNDLE_ID_PREFIX).tunnel
         PRODUCT_MODULE_NAME: AlbiTunnel
         PROVISIONING_PROFILE_SPECIFIER: $(ALBI_TUNNEL_PROFILE)
+  AlbiMenu:
+    # The Phase 3 menu-bar app, running against the mock tunnel until the
+    # live VPNService lands. Signs ad hoc so it runs from Xcode as is; it
+    # becomes the Albi target (and embeds the extension) after Step 1.
+    type: application
+    platform: macOS
+    sources: [AlbiMenu]
+    dependencies:
+      - package: Albi
+        product: AlbiApp
+    info:
+      path: AlbiMenu/Info.plist
+      properties:
+        CFBundleDisplayName: Albi
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "27.0"
+        LSUIElement: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).menu
+        PRODUCT_NAME: Albi Menu
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: NO

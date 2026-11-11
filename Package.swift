@@ -15,6 +15,7 @@ let package = Package(
         .executable(name: "gp-capture", targets: ["gp-capture"]),
         .library(name: "Diagnostics", targets: ["Diagnostics"]),
         .executable(name: "albi-diag", targets: ["albi-diag"]),
+        .library(name: "AlbiApp", targets: ["AlbiApp"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -61,5 +62,11 @@ let package = Package(
         .target(name: "Diagnostics", dependencies: ["GPCore", "GPCapture"]),
         .executableTarget(name: "albi-diag", dependencies: ["Diagnostics", "GPCore"]),
         .testTarget(name: "DiagnosticsTests", dependencies: ["Diagnostics", "GPCore", "GPCapture"]),
+
+        // The menu-bar app's SwiftUI scenes and view models, against the
+        // VPNService protocol (a mock for now). macOS only: wrapped in
+        // #if canImport(SwiftUI), so it is empty on Linux.
+        .target(name: "AlbiApp", dependencies: ["GPMac"]),
+        .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac"]),
     ]
 )
