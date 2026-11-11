@@ -11,6 +11,7 @@ This repository is one Swift package plus, later, the Xcode project for the app,
 | `GPCore` | the GlobalProtect client core: login, getconfig, HIP check, GPST tunnel framing, the session state machine and its runner |
 | `GPMac` | the macOS I/O layer: URLSession, NWConnection, NWPathMonitor, NetworkExtension glue, Keychain |
 | `albi-cli` | command-line harness: logs in and runs the tunnel in userspace, pinging through it |
+| `AlbiApp` | the menu-bar app's SwiftUI scenes and view models, against the `VPNService` protocol (macOS only) |
 | `Apps/` | Xcode project (XcodeGen) for the app and its packet tunnel system extension |
 
 ## Build and test
@@ -56,3 +57,11 @@ Needs macOS 27, Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew 
 The extension logs under subsystem `com.github.njvack.albi`: `log stream --predicate 'subsystem == "com.github.njvack.albi"' --level info`.
 
 What the test build is meant to settle: whether the extension (root, sandboxed) can keep the password and cookie in the System keychain; that traffic flows; that sleep, wake and Wi-Fi changes reconnect with the same cookie; that killing the extension (`sudo killall -9 com.github.njvack.albi.tunnel`) leaves no routes or DNS behind; and that the gateway accepts a HIP report. For HIP, set "HIP report command" to a csd-wrapper style reporter (the Go `hipreport` or `hipreport.zsh`); the app runs it when the extension asks.
+
+## The menu-bar app (Phase 3, mock tunnel)
+
+`AlbiApp` holds the menu-bar app: a `MenuBarExtra` menu with one icon per tunnel state, the login window (AutoFill username and password, a code step for profiles that ask each time), the setup checklist, the HIP compliance table, and Settings with profiles. It talks only to the `VPNService` protocol; `MockVPNService` implements it until the live one, over `NETunnelProviderManager` and provider messages, replaces it after Step 1.
+
+To run it: `cd Apps && xcodegen generate && open Albi.xcodeproj`, choose the AlbiMenu scheme and Run. It is signed ad hoc, so it needs no team. The Demo submenu drops the connection or fails a HIP check. In the demo, Work has a saved password and sends a push; Lab asks for a password and a code, and rejects the password `wrong` and the code `000000`.
+
+`swift test --filter AlbiAppTests` covers the view models on macOS.
