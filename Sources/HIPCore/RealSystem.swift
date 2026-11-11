@@ -75,7 +75,13 @@ public final class RealSystem: System {
         try? FileManager.default.destinationOfSymbolicLink(atPath: path)
     }
 
-    public func hostname() -> String { ProcessInfo.processInfo.hostName }
+    // gethostname(3), as the zsh and Go reporters use; ProcessInfo.hostName
+    // resolves and lowercases the name.
+    public func hostname() -> String {
+        var buf = [CChar](repeating: 0, count: 256)
+        guard gethostname(&buf, buf.count) == 0 else { return "" }
+        return String(cString: buf)
+    }
     public func uid() -> UInt32 { UInt32(getuid()) }
     public func now() -> Date { Date() }
     public func timeZone() -> TimeZone { .current }
