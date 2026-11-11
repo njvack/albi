@@ -41,51 +41,9 @@ Unknown options are warned about and ignored. `--client-version` (or `APP_VERSIO
 
 ### Check files
 
-Each `.toml` file describes one product in one HIP category. The built-in library in [`Sources/HIPCore/Library`](Sources/HIPCore/Library) is compiled into the binary (`scripts/gen-library.sh` regenerates `BuiltinLibrary.swift`; a test fails if they drift), so the binary's code signature covers it. Apple's XProtect, Gatekeeper and FileVault are ordinary check files there.
+Each `.toml` file describes one product in one HIP category: vendor, name, when to report it, and one probe per field, from a fixed set of probes. Apple's XProtect, Gatekeeper and FileVault are ordinary check files in the built-in library ([`Sources/HIPCore/Library`](Sources/HIPCore/Library)). More come from root-owned files in `/Library/Application Support/Albi/checks.d`, and `--dev-checks DIR` loads untrusted ones for development.
 
-```toml
-# anti-malware/10-apple-xprotect.toml
-category = "anti-malware"
-vendor = "Apple Inc."
-name = "Xprotect"
-when.exists = "/Library/Apple/System/Library/CoreServices/XProtect.bundle"   # report only if installed
-
-[fields]
-version = { probe = "bundle_version", path = "/Library/Apple/System/Library/CoreServices/XProtect.bundle" }
-defver = { probe = "bundle_version", path = "/Library/Apple/System/Library/CoreServices/XProtect.app" }
-updated = { probe = "mtime", path = "/Library/Apple/System/Library/CoreServices/XProtect.bundle/Contents/Info.plist" }
-real-time-protection = { value = "yes" }
-```
-
-Checks load from the built-in library, then each `--checks-dir DIR` (default `/Library/Application Support/Albi/checks.d`), then each `--dev-checks DIR`. A file replaces one with the same relative path in an earlier source, and `disabled = true` removes one. Within a category, products are listed by file name.
-
-Files in a `--checks-dir` are refused unless the file and every directory above it are owned by root and writable by nobody else (group-writable only for group wheel), the way `sudo` treats `sudoers`. Symlinks are followed and held to the same rule. `--dev-checks` skips that, for writing new checks, and marks the result untrusted.
-
-| Category | Fields (* required) |
-| --- | --- |
-| `anti-malware` | `version`*, `real-time-protection`*, `defver`, `engver`, `updated` (Unix time), `last-full-scan-time` (default `n/a`) |
-| `disk-backup` | `version`*, `last-backup-time` (default `n/a`) |
-| `disk-encryption` | `version`*, `drives`* (the `volumes` probe) |
-| `firewall` | `version`*, `is-enabled`* |
-| `patch-management` | `version`*, `is-enabled`* |
-| `data-loss-prevention` | `version`* |
-| `custom-plist` | no fields; `path` and `keys` for a custom plist check configured on the gateway |
-
-Each field is either `{ value = "..." }` or one probe. Check files cannot run code except through `command`.
-
-| Probe | Parameters | Gives |
-| --- | --- | --- |
-| `bundle_version` | `path` | `CFBundleShortVersionString` of an app or bundle, or empty |
-| `plist` | `path`, `key` (dotted for nested keys) | one value from a plist, XML or binary |
-| `mtime` | `path` | modification time, as a Unix time |
-| `exists` | `path` | `yes` or `no` |
-| `process` | `path` | `yes` if that executable is running |
-| `launchd` | `label` such as `system/com.example.d` or `gui/com.example.agent` | `yes` if loaded; `gui/` means the current user's session |
-| `command` | `argv` (absolute path), `map` (list of `{ match = "regexp", value = "..." }`), optional `default` and `timeout` (seconds) | the value of the first `map` entry matching stdout, else `default` (`n/a`). Runs with `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, no stdin, stderr discarded, 10 s timeout |
-| `volumes` | | FileVault state of the boot volume, its Data volume and browsable internal disks, plus `All` |
-| `os_version` | | `sw_vers -productVersion` |
-| `privileged` | `fact`: `pf.enabled` | a fact only root can read; `n/a` otherwise |
-| `all` | `all`: a list of probes | `yes` if every one is `yes`, `no` if any is `no`, else `n/a` |
+[docs/check-files.md](docs/check-files.md) is the full reference: every key, the categories and their fields, what each probe does and gives on failure, load order and overrides, the trust rule, and how to write and test a check.
 
 ### Policies
 
