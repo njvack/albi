@@ -15,7 +15,7 @@ public final class MockVPNService: VPNService {
     public var step: Duration
     /// Checks the mock reports once connected.
     public var hipChecks: [HIPCheck] = MockVPNService.sampleChecks
-    public private(set) var connectCalls: [(id: VPNProfile.ID, password: String?)] = []
+    public internal(set) var connectCalls: [(id: VPNProfile.ID, password: String?)] = []
 
     private let status = StatusBroadcaster()
     private var run: Task<Void, Never>?
@@ -67,7 +67,7 @@ public final class MockVPNService: VPNService {
     public func connect(_ id: VPNProfile.ID, password: String?) async throws {
         guard let profile = profiles.first(where: { $0.id == id }) else { return }
         connectCalls.append((id, password))
-        if let password, profile.settings.savePassword { savedPasswords.insert(id) }
+        if password != nil, profile.settings.savePassword { savedPasswords.insert(id) }
         run?.cancel()
         run = Task { [weak self] in await self?.walk(profile, password: password) }
     }
