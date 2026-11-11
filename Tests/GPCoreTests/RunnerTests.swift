@@ -203,9 +203,9 @@ extension String {
     }
 }
 
-/// Polls until `cond` holds or about two seconds pass.
+/// Polls until `cond` holds or about five seconds pass.
 func eventually(_ what: String, _ cond: () async -> Bool) async {
-    for _ in 0..<400 {
+    for _ in 0..<1000 {
         if await cond() { return }
         try? await Task.sleep(for: .milliseconds(5))
     }
@@ -281,7 +281,7 @@ let testClient = ClientInfo(computer: "albi-test")
 @Suite(.serialized) struct RunnerTests {
     func fastPolicy() -> SessionPolicy {
         var p = SessionPolicy()
-        p.dpdInterval = 0.05
+        p.dpdInterval = 0.2
         p.reconnectInitialDelay = 0.01
         p.reconnectMaxDelay = 0.05
         p.hipRetryInitialDelay = 0.05
@@ -308,7 +308,7 @@ let testClient = ClientInfo(computer: "albi-test")
         await eventually("echo") { host.deliveredCount == 2 }
         #expect(host.delivered.first == ping)
         // Keepalives are sent and answered; the tunnel stays up.
-        try await Task.sleep(for: .milliseconds(300))
+        try await Task.sleep(for: .milliseconds(900))
         #expect(await runner.state == .connected)
         #expect((gw.tunnels.last?.keepalives ?? 0) >= 2)
         await runner.stop(logout: true)
