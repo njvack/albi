@@ -24,6 +24,29 @@ public struct SessionPolicy: Equatable, Sendable {
     public var canReauthenticate = false
 
     public init() {}
+
+    /// The policy as name and value pairs, for diagnostics; `init(fields:)`
+    /// reads them back.
+    public var fields: [(String, String)] {
+        [("dpd-interval", "\(dpdInterval)"), ("reconnect-initial-delay", "\(reconnectInitialDelay)"),
+         ("reconnect-max-delay", "\(reconnectMaxDelay)"), ("hip-retry-initial-delay", "\(hipRetryInitialDelay)"),
+         ("hip-retry-max-delay", "\(hipRetryMaxDelay)"), ("default-hip-interval", "\(defaultHIPInterval)"),
+         ("reauth-lead-time", "\(reauthLeadTime)"), ("reauth-retry-delay", "\(reauthRetryDelay)"),
+         ("can-reauthenticate", "\(canReauthenticate)")]
+    }
+
+    public init(fields: [String: String]) {
+        func d(_ k: String, _ v: inout Double) { if let x = fields[k].flatMap({ Double($0) }) { v = x } }
+        d("dpd-interval", &dpdInterval)
+        d("reconnect-initial-delay", &reconnectInitialDelay)
+        d("reconnect-max-delay", &reconnectMaxDelay)
+        d("hip-retry-initial-delay", &hipRetryInitialDelay)
+        d("hip-retry-max-delay", &hipRetryMaxDelay)
+        d("default-hip-interval", &defaultHIPInterval)
+        d("reauth-lead-time", &reauthLeadTime)
+        d("reauth-retry-delay", &reauthRetryDelay)
+        canReauthenticate = fields["can-reauthenticate"] == "true"
+    }
 }
 
 /// What the session is doing, for the UI and for logs.

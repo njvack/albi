@@ -47,6 +47,19 @@ struct ContentView: View {
                 if let gw = vpn.gateway { LabeledContent("Gateway", value: gw) }
                 if let t = vpn.lastHIPReport { LabeledContent("Last HIP report", value: t.formatted()) }
             }
+            Section("Diagnostics") {
+                Toggle("Diagnostics mode", isOn: $vpn.diagnostics.enabled)
+                Stepper("Keep the last \(vpn.diagnostics.windowMinutes) minutes",
+                        value: $vpn.diagnostics.windowMinutes, in: 2...30)
+                Text("When a dropped connection isn't back within a minute, the extension writes a redacted incident file. Save the VPN configuration and reconnect to apply.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Button("Save diagnostics now") { Task { await vpn.saveDiagnosticsNow() } }
+                        .disabled(!vpn.diagnostics.enabled)
+                    Button("Show in Finder") { vpn.showDiagnostics() }
+                }
+                if let p = vpn.lastIncident { LabeledContent("Last incident file", value: p).textSelection(.enabled) }
+            }
             if !vpn.message.isEmpty {
                 Section { Text(vpn.message).foregroundStyle(.secondary).textSelection(.enabled) }
             }
