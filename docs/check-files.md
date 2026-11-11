@@ -132,9 +132,11 @@ Each one is `encrypted` or `unencrypted` according to diskutil's `FileVault` key
 
 Checks are loaded from these sources, in order:
 
-1. The built-in library, which ships with hipreport. It lives in [`Sources/HIPCore/Library`](../Sources/HIPCore/Library), with one directory per category.
+1. The built-in library, which ships with hipreport. It covers only what comes with macOS: XProtect, Gatekeeper, Time Machine, FileVault, the application firewall, Packet Filter and Software Update. It lives in [`Sources/HIPCore/Library`](../Sources/HIPCore/Library), with one directory per category.
 2. Each `--checks-dir DIR`, by default `/Library/Application Support/Albi/checks.d`.
 3. Each `--dev-checks DIR`.
+
+Checks for third-party products belong to each site, installed into `checks.d` with the rest of its Mac management. [`contrib/`](../contrib) holds examples that sites can copy or adapt: Cisco Secure Endpoint, Google Drive, Workspace ONE, Qualys and Microsoft AutoUpdate. hipreport doesn't load them unless they're installed.
 
 A check's ID is its path relative to its source, such as `firewall/20-openbsd-pf.toml`. A file in a later source replaces the earlier file with the same ID. To switch off a built-in check on one Mac, put a file containing only `disabled = true` at the same relative path in `checks.d`. To add a product, add a new file.
 
@@ -148,6 +150,6 @@ Files in a `--checks-dir` are refused unless the file and every directory above 
 2. `hipreport lint ~/checks/firewall/30-example.toml` checks the syntax, keys, category, fields and probe parameters.
 3. `hipreport facts --dev-checks ~/checks` shows every product with each field's value and the probe behind it. When a probe falls back, it also shows why. Add `--json` for the same thing as JSON.
 4. `hipreport --dev-checks ~/checks --cookie 'user=me&domain=x&computer=y' --md5 x` prints the XML report.
-5. To ship it, add it to `Sources/HIPCore/Library`, or install it root-owned into `checks.d`.
+5. To deploy it, install it root-owned into `checks.d`, for example in a package pushed by MDM. If other sites could use it, add it to `contrib/`.
 
 `hipreport record > mac.toml` captures everything the probes read on this Mac. `--fixture mac.toml` replays that capture, so you can run checks against another Mac's state. A capture contains that Mac's host name and MAC and IP addresses.

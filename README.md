@@ -41,7 +41,7 @@ Unknown options are warned about and ignored. `--client-version` (or `APP_VERSIO
 
 ### Check files
 
-Each `.toml` file describes one product in one HIP category: vendor, name, when to report it, and one probe per field, from a fixed set of probes. Apple's XProtect, Gatekeeper and FileVault are ordinary check files in the built-in library ([`Sources/HIPCore/Library`](Sources/HIPCore/Library)). More come from root-owned files in `/Library/Application Support/Albi/checks.d`, and `--dev-checks DIR` loads untrusted ones for development.
+Each `.toml` file describes one product in one HIP category: vendor, name, when to report it, and one probe per field, from a fixed set of probes. The built-in library ([`Sources/HIPCore/Library`](Sources/HIPCore/Library)) covers what ships with macOS, such as XProtect, Gatekeeper and FileVault, as ordinary check files. Sites add checks for their other products as root-owned files in `/Library/Application Support/Albi/checks.d`; [`contrib/`](contrib) has examples to start from. `--dev-checks DIR` loads untrusted checks for development.
 
 [docs/check-files.md](docs/check-files.md) is the full reference: every key, the categories and their fields, what each probe does and gives on failure, load order and overrides, the trust rule, and how to write and test a check.
 

@@ -30,27 +30,6 @@ real-time-protection = { probe = "command", argv = ["/usr/sbin/spctl", "--status
 ] }
 
 """#),
-    ("anti-malware/50-cisco-secure-endpoint.toml", #"""
-category = "anti-malware"
-vendor = "Cisco Systems, Inc."
-name = "Cisco Secure Endpoint"
-when.exists = "/Applications/Cisco Secure Endpoint/Secure Endpoint Connector.app"
-
-[fields]
-version = { probe = "bundle_version", path = "/Applications/Cisco Secure Endpoint/Secure Endpoint Connector.app" }
-real-time-protection = { probe = "all", all = [
-  { probe = "process", path = "/Applications/Cisco Secure Endpoint/Secure Endpoint Service.app/Contents/MacOS/ampdaemon" },
-  { probe = "process", path = "/Applications/Cisco Secure Endpoint/Secure Endpoint Service.app/Contents/MacOS/ampscansvc" },
-] }
-
-"""#),
-    ("custom-plist/50-qualys-restart.toml", #"""
-# A custom plist check configured on the gateway.
-category = "custom-plist"
-path = "/Applications/QualysCloudAgent.app/Contents/MacOS/com.qualys.cloud.agent-restart.plist"
-keys = ["Label"]
-
-"""#),
     ("disk-backup/10-apple-time-machine.toml", #"""
 category = "disk-backup"
 vendor = "Apple Inc."
@@ -58,16 +37,6 @@ name = "Time Machine"
 
 [fields]
 version = { probe = "bundle_version", path = "/System/Applications/Time Machine.app" }
-
-"""#),
-    ("disk-backup/50-google-drive.toml", #"""
-category = "disk-backup"
-vendor = "Google Inc."
-name = "Google Drive"
-when.exists = "/Applications/Google Drive.app"
-
-[fields]
-version = { probe = "bundle_version", path = "/Applications/Google Drive.app" }
 
 """#),
     ("disk-encryption/10-apple-filevault.toml", #"""
@@ -116,42 +85,6 @@ is-enabled = { probe = "command", argv = ["/usr/sbin/softwareupdate", "--schedul
   { match = " off", value = "no" },
   { match = " on", value = "yes" },
 ] }
-
-"""#),
-    ("patch-management/50-vmware-workspace-one.toml", #"""
-category = "patch-management"
-vendor = "VMware, Inc."
-name = "Workspace ONE Intelligent Hub"
-when.exists = "/Applications/Workspace ONE Intelligent Hub.app"
-
-[fields]
-version = { probe = "bundle_version", path = "/Applications/Workspace ONE Intelligent Hub.app" }
-is-enabled = { probe = "process", path = "/Applications/Workspace ONE Intelligent Hub.app/Contents/Resources/IntelligentHubAgent.app/Contents/MacOS/IntelligentHubAgent" }
-
-"""#),
-    ("patch-management/51-qualys-cloud-agent.toml", #"""
-category = "patch-management"
-vendor = "Qualys, Inc."
-name = "Qualys Cloud Security Agent"
-when.exists = "/Applications/QualysCloudAgent.app"
-
-[fields]
-version = { probe = "bundle_version", path = "/Applications/QualysCloudAgent.app" }
-is-enabled = { probe = "all", all = [
-  { probe = "process", path = "/Applications/QualysCloudAgent.app/Contents/MacOS/qualys-cloud-agent" },
-  { probe = "process", path = "/Applications/QualysCloudAgent.app/Contents/MacOS/qualys-cep" },
-] }
-
-"""#),
-    ("patch-management/52-microsoft-autoupdate.toml", #"""
-category = "patch-management"
-vendor = "Microsoft Corporation"
-name = "Microsoft AutoUpdate"
-when.exists = "/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app"
-
-[fields]
-version = { probe = "bundle_version", path = "/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app" }
-is-enabled = { probe = "launchd", label = "gui/com.microsoft.update.agent" }
 
 """#),
 ]

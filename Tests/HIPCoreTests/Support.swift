@@ -4,6 +4,8 @@ import Foundation
 /// Fixtures live next to this file; tests read them by path.
 let fixtures = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures")
 let macBasic = fixtures.appendingPathComponent("mac-basic.toml").path
+let contribDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    .appendingPathComponent("../../contrib").standardized
 
 func check(_ toml: String) throws -> Check { try Check.parse(toml) }
 
