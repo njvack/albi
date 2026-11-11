@@ -53,13 +53,20 @@ start_cli() {
   local log=$1; shift
   local ping=(--ping 10.99.0.1)
   [ "${NOPING:-0}" = 1 ] && ping=()
-  rm -f "$WORK/cli.exit"
+  rm -f "$WORK/cli.exit" "$WORK/cli.pid"
+  printf 'test\n' >"$WORK/password"
+  # Signals go to albi-cli itself, not to this wrapper, which only records
+  # the exit status. (macOS bash 3.2 needs the ${a[@]+...} form for an empty
+  # array under set -u.)
   {
-    printf 'test\n' | "$CLI" connect "$LISTEN" --user test --pin "$(cat "$WORK/pin")" --second-factor 1 \
-      "${ping[@]}" "$@" >"$log" 2>"$log.err"
+    "$CLI" connect "$LISTEN" --user test --pin "$(cat "$WORK/pin")" --second-factor 1 \
+      ${ping[@]+"${ping[@]}"} "$@" <"$WORK/password" >"$log" 2>"$log.err" &
+    echo $! >"$WORK/cli.pid"
+    wait $!
     echo $? >"$WORK/cli.exit"
   } &
-  CLI_PID=$!
+  wait_for 5 test -s "$WORK/cli.pid"
+  CLI_PID=$(cat "$WORK/cli.pid")
 }
 
 replies() { grep -c 'ping reply' "$1" 2>/dev/null || echo 0; }
