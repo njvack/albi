@@ -14,6 +14,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var host: PacketFlowHost?
     private var watcher: PathWatcher?
     private let hip = HIPBridge()
+    /// hipreport inside this extension's bundle (Contents/MacOS), out of
+    /// the user's reach. Used when the profile sets `bundledHIP`.
+    private let bundledHIP = BundledHIP()
+    private let probeLock = NSLock()
+    private var lastProbe: ProviderMessage.HIPProbe?
     private var profile: Profile?
     private var gateway: String?
     private var connectedOnce = false
@@ -107,7 +112,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let clientInfo = client
         let interval = hipInterval
         let hooks = PacketFlowHost.Hooks(
-            hipReport: { [hip] ctx in try await hip.report(for: ctx, timeout: 20) },
+            hipReport: { [hip, bundledHIP] ctx in
+                if profile.bundledHIP == true { return try await bundledHIP.report(for: ctx) }
+                return try await hip.report(for: ctx, timeout: 20)
+            },
             reauthenticate: { [keychain] in
                 guard let pw = keychain.get("password:" + account).map({ String(decoding: $0, as: UTF8.self) }) ?? password
                 else { throw StoredCredentials.NeedsUser() }
@@ -208,12 +216,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 await hip.answer(report: nil)
             }
             if req.diagnosticsDump == true { diagnostics?.saveNow() }
+            if req.probeBundledHIP == true {
+                let p = await bundledHIP.probe()
+                log.notice("bundled hipreport probe: \(p.summary, privacy: .public) stderr: \(p.stderrHead ?? "", privacy: .public)")
+                probeLock.withLock { lastProbe = p }
+            }
             let state = stateLock.withLock { lastState }
             let config = await runner?.config
-            let status = ProviderMessage.Status(state: "\(state)", gateway: gateway, ipv4: config?.ipv4,
+            var status = ProviderMessage.Status(state: "\(state)", gateway: gateway, ipv4: config?.ipv4,
                                                 hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
                                                 lastIncident: diagnostics?.lastIncident?.path,
                                                 diagnosticsEnabled: diagnostics != nil)
+            status.hipProbe = probeLock.withLock { lastProbe }
             completionHandler?(try? JSONEncoder().encode(status))
         }
     }

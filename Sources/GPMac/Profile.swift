@@ -18,6 +18,10 @@ public struct Profile: Codable, Equatable, Sendable {
     public var secondFactor: String? = "1"
     /// Save the password so the extension can log in again by itself.
     public var savePassword = true
+    /// Make HIP reports with the hipreport embedded in the extension's own
+    /// bundle, instead of asking the app. Optional so profiles saved before
+    /// it existed still decode.
+    public var bundledHIP: Bool?
 
     public init(server: String, username: String) {
         self.server = server
@@ -61,9 +65,13 @@ public enum ProviderMessage {
         /// "Save diagnostics now": write an incident file from the current
         /// window, whatever the session is doing. Needs diagnostics mode on.
         public var diagnosticsDump: Bool?
+        /// Step 1 probe: run the extension's bundled hipreport once and
+        /// report what happened in `Status.hipProbe`.
+        public var probeBundledHIP: Bool?
 
         public init(poll: Bool? = nil, hipReport: String? = nil, hipUnavailable: Bool? = nil,
-                    diagnosticsDump: Bool? = nil) {
+                    diagnosticsDump: Bool? = nil, probeBundledHIP: Bool? = nil) {
+            self.probeBundledHIP = probeBundledHIP
             self.poll = poll
             self.hipReport = hipReport
             self.hipUnavailable = hipUnavailable
@@ -109,6 +117,8 @@ public enum ProviderMessage {
         /// session. The app notifies when it changes.
         public var lastIncident: String?
         public var diagnosticsEnabled: Bool?
+        /// The last bundled-hipreport probe, if one ran.
+        public var hipProbe: HIPProbe?
 
         public init(state: String, gateway: String? = nil, ipv4: String? = nil, expiresIn: Double? = nil,
                     hipRequest: HIPRequest? = nil, lastHIPReport: Date? = nil, lastIncident: String? = nil,
@@ -121,6 +131,42 @@ public enum ProviderMessage {
             self.expiresIn = expiresIn
             self.hipRequest = hipRequest
             self.lastHIPReport = lastHIPReport
+        }
+    }
+
+    /// What happened when the extension ran a bundled helper.
+    public struct HIPProbe: Codable, Equatable, Sendable {
+        public var at: Date
+        /// Where the helper was looked for; nil if the bundle has none.
+        public var path: String?
+        /// Set when the process could not be started (sandbox, signing, missing).
+        public var launchError: String?
+        public var exitStatus: Int32?
+        public var seconds: Double?
+        public var stdoutBytes: Int?
+        /// The first bytes of stdout and stderr.
+        public var stdoutHead: String?
+        public var stderrHead: String?
+        public var uid: UInt32
+
+        public init(at: Date, path: String?, launchError: String? = nil, exitStatus: Int32? = nil, seconds: Double? = nil,
+                    stdoutBytes: Int? = nil, stdoutHead: String? = nil, stderrHead: String? = nil, uid: UInt32) {
+            self.at = at
+            self.path = path
+            self.launchError = launchError
+            self.exitStatus = exitStatus
+            self.seconds = seconds
+            self.stdoutBytes = stdoutBytes
+            self.stdoutHead = stdoutHead
+            self.stderrHead = stderrHead
+            self.uid = uid
+        }
+
+        public var summary: String {
+            if path == nil { return "no hipreport in the extension's bundle" }
+            if let launchError { return "could not start: \(launchError)" }
+            let secs = seconds.map { String(format: "%.1f", $0) } ?? "?"
+            return "exit \(exitStatus.map(String.init) ?? "?"), \(stdoutBytes ?? 0) bytes in \(secs) s, uid \(uid)"
         }
     }
 }
