@@ -3,6 +3,9 @@ import Testing
 @testable import GPCapture
 @testable import GPCore
 
+// Foundation on macOS has its own XMLElement.
+private typealias XMLElement = GPCore.XMLElement
+
 /// Builds openconnect `-v --timestamp --dump-http-traffic` output.
 struct LogBuilder {
     var lines: [String] = []

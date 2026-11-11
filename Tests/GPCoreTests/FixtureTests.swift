@@ -2,6 +2,9 @@ import Foundation
 import Testing
 @testable import GPCore
 
+// Foundation on macOS has its own XMLElement.
+private typealias XMLElement = GPCore.XMLElement
+
 /// Runs GPCore's parsers over every captured conversation in Fixtures/, and
 /// checks that albi sends the same form fields openconnect did. Each folder
 /// there is the `fixtures` output of `gp-capture`; see the README.
