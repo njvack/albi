@@ -92,6 +92,38 @@ import Testing
         #expect(parseMountLine("garbage") == nil)
     }
 
+    @Test func volumesFromNativeAnswers() {
+        let f = FakeSystem()
+        f.volumes = [
+            Volume(mountPoint: "/", name: "Macintosh HD", isInternal: true, encrypted: true),
+            Volume(mountPoint: "/System/Volumes/Data", name: "Data", browsable: false, isInternal: true, encrypted: true),
+            Volume(mountPoint: "/System/Volumes/VM", name: "VM", browsable: false, isInternal: true, encrypted: false),
+            Volume(mountPoint: "/Volumes/Backup", name: "Backup", isInternal: false, encrypted: false),
+            Volume(mountPoint: "/Volumes/Scratch", name: "Scratch", isInternal: true),
+            Volume(mountPoint: "/Volumes/share", name: "share", local: false, encrypted: false),
+        ]
+        let (drives, err) = Env(f).volumes()
+        #expect(err == nil)
+        #expect(drives == [Drive(name: "Macintosh HD", state: "encrypted"), Drive(name: "Data", state: "encrypted"),
+                           Drive(name: "Scratch", state: "unknown"), Drive(name: "All", state: "unknown")])
+        f.volumes = []
+        #expect(Env(f).volumes().0 == [Drive(name: "All", state: "unknown")])
+    }
+
+    @Test func nativeAnswersSurviveAFixture() throws {
+        let f = FakeSystem(host: "h")
+        f.os = "27.1"
+        f.processes = ["/usr/libexec/a", "/Applications/B.app/Contents/MacOS/B"]
+        f.volumes = [Volume(mountPoint: "/", name: "Macintosh HD", isInternal: true, encrypted: true),
+                     Volume(mountPoint: "/Volumes/X", name: "X", local: false, browsable: false)]
+        f.interfaces = [Interface(device: "en0", mac: "aa:bb:cc:dd:ee:ff", ipv4: ["10.0.0.2"], ipv6: ["fe80::1"])]
+        let g = try FakeSystem.parse(fixture: f.fixtureText())
+        #expect(g.osVersion() == "27.1")
+        #expect(g.processPaths() == f.processes)
+        #expect(g.mountedVolumes() == f.volumes)
+        #expect(g.networkInterfaces() == f.interfaces)
+    }
+
     @Test func realSystemRunsCommandsWithFixedEnvironment() {
         let s = RealSystem()
         let r = s.run(["/bin/sh", "-c", "echo $PATH; echo oops >&2; exit 3"], timeout: 5)

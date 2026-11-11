@@ -94,11 +94,11 @@ When a probe cannot find its value it still gives a result: an empty string, `n/
 | `plist` | `path`, `key` | the value at `key`, from an XML or binary plist. Dots in `key` step into nested dictionaries (`a.b.c`). Strings and numbers are given as text, booleans as `true` or `false`, and dates in ISO 8601 UTC. | empty if the file, the key, or a scalar value is missing |
 | `mtime` | `path` | the file's modification time, as a Unix time in seconds | empty |
 | `exists` | `path` | `yes` if the path exists, else `no` | |
-| `process` | `path` | `yes` if a running process has exactly that executable path (from `ps -axo comm=`), else `no` | |
+| `process` | `path` | `yes` if a running process has exactly that executable path (from libproc's `proc_pidpath`), else `no` | |
 | `launchd` | `label` with a domain: `system/com.example.daemon` or `gui/com.example.agent` | `yes` if `launchctl print` finds it loaded, else `no`. `gui/` is the session of the user hipreport runs as. | |
 | `command` | `argv` (array; the first element an absolute path), `map`, optional `default`, optional `timeout` | runs the command and gives the `value` of the first `map` entry whose `match` regular expression matches anywhere in stdout | `default`, or `n/a` if no default |
 | `volumes` | none | FileVault state per volume; see below. Only for `disk-encryption`'s `drives`. | an `All` entry of `unknown` |
-| `os_version` | none | `sw_vers -productVersion`, such as `27.1` | empty |
+| `os_version` | none | the macOS version from `ProcessInfo`, formatted like `sw_vers -productVersion`, such as `27.1` | empty |
 | `privileged` | `fact` | a fact only root can read. The only fact so far is `pf.enabled` (`pfctl -s info`). | `n/a` when not running as root |
 | `all` | `all`: an array of probe tables | `yes` if every probe gives `yes`, `no` if any gives `no`, otherwise `n/a`. Can't contain `all` or `volumes`. | |
 
@@ -120,13 +120,30 @@ real-time-protection = { probe = "command", argv = ["/usr/sbin/spctl", "--status
 
 ### volumes
 
-`volumes` reads `mount` and runs `diskutil info -plist` on each local volume:
+`volumes` reads the mount table with `getfsstat`, keeps the local volumes, and asks Foundation for each one's name, internal flag and encryption:
 
 - `/` is named after its volume name, such as `Macintosh HD`.
 - `/System/Volumes/Data` is named `Data`.
 - Under `/Volumes`, it includes internal disks that aren't marked `nobrowse`, named by mount point. External disks are skipped.
 
-Each one is `encrypted` or `unencrypted` according to diskutil's `FileVault` key, or `unknown` if that key is missing. A final `All` entry is `unencrypted` if any volume is, else `unknown` if any is, else `encrypted`. Policies usually test `All`.
+Each one is `encrypted` or `unencrypted` according to the volume's `volumeIsEncrypted` resource value, or `unknown` if the system doesn't say. A final `All` entry is `unencrypted` if any volume is, else `unknown` if any is or no volume was found, else `encrypted`. Policies usually test `All`.
+
+### Native APIs and shell commands
+
+hipreport uses public frameworks where they exist, and runs a command only where macOS has no public API for the answer.
+
+| What | How |
+| --- | --- |
+| files, plists, bundle versions, modification times | Foundation (`FileManager`, `PropertyListSerialization`) |
+| `os_version` | `ProcessInfo.operatingSystemVersion` |
+| `process` | libproc: `proc_listallpids`, `proc_pidpath` |
+| `volumes` | `getfsstat` for the mount table (`FileManager.mountedVolumeURLs` skips the hidden Data volume), then the volume name, internal and encrypted URL resource values |
+| network interfaces in the report's host info | SystemConfiguration (`SCNetworkInterfaceCopyAll`, burned-in MACs), `getifaddrs` for addresses |
+| `launchd` | `launchctl print`: `SMJobCopyDictionary` is deprecated, and `SMAppService` only covers the app's own jobs |
+| `pf.enabled` | `pfctl -s info`: the `/dev/pf` ioctl structures aren't in the SDK |
+| Gatekeeper, application firewall, automatic updates (built-in check files) | `command` probes running `spctl --status`, `socketfilterfw --getglobalstate` and `softwareupdate --schedule`; none has a public status API |
+
+Fixtures from `hipreport record` store the native answers. Older fixtures, and ones shared with the Go reporter, store the commands the reporters used to run (`sw_vers`, `ps`, `mount` and `diskutil`, `networksetup` and `ifconfig`). When a fixture has no native answer, hipreport works it out from those commands.
 
 ## Where checks come from
 

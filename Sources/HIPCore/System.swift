@@ -55,6 +55,17 @@ public protocol System: AnyObject {
     func now() -> Date
     /// The zone report times are written in.
     func timeZone() -> TimeZone
+
+    // Native queries; see Native.swift.
+
+    /// The macOS product version, such as 27.1.
+    func osVersion() -> String
+    /// The executable path of every running process.
+    func processPaths() -> [String]
+    /// Mounted volumes, or nil if they can't be listed.
+    func mountedVolumes() -> [Volume]?
+    /// Hardware network ports, with their burned-in MACs and addresses.
+    func networkInterfaces() -> [Interface]
 }
 
 public let defaultTimeout: TimeInterval = 10

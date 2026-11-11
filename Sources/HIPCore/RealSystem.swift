@@ -80,7 +80,7 @@ public final class RealSystem: System {
     public func hostname() -> String {
         var buf = [CChar](repeating: 0, count: 256)
         guard gethostname(&buf, buf.count) == 0 else { return "" }
-        return String(cString: buf)
+        return cString(buf)
     }
     public func uid() -> UInt32 { UInt32(getuid()) }
     public func now() -> Date { Date() }

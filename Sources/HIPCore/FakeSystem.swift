@@ -51,6 +51,14 @@ public final class FakeSystem: System {
     public var commands: [Command]
     public var files: [File]
 
+    // Native answers. When one is nil it is derived from the recorded
+    // commands (sw_vers, ps, mount and diskutil, networksetup and ifconfig),
+    // as in fixtures shared with the Go reporter.
+    public var os: String?
+    public var processes: [String]?
+    public var volumes: [Volume]?
+    public var interfaces: [Interface]?
+
     public init(host: String = "", uid: UInt32 = 0, now: Date = Date(timeIntervalSince1970: 0),
                 zone: TimeZone = TimeZone(secondsFromGMT: 0)!, commands: [Command] = [], files: [File] = []) {
         self.host = host
@@ -110,6 +118,14 @@ public final class FakeSystem: System {
     public func uid() -> UInt32 { userID }
     public func now() -> Date { time }
     public func timeZone() -> TimeZone { zone }
+
+    private func runRecorded(_ argv: [String]) -> RunResult { run(argv, timeout: 0) }
+    public func osVersion() -> String { os ?? HIPCore.osVersion(fromCommands: runRecorded) }
+    public func processPaths() -> [String] { processes ?? HIPCore.processPaths(fromCommands: runRecorded) }
+    public func mountedVolumes() -> [Volume]? { volumes ?? HIPCore.mountedVolumes(fromCommands: runRecorded) }
+    public func networkInterfaces() -> [Interface] {
+        interfaces ?? HIPCore.networkInterfaces(fromCommands: runRecorded)
+    }
 }
 
 func cleanPath(_ p: String) -> String {
@@ -160,6 +176,23 @@ extension FakeSystem {
             f.time = Date(timeIntervalSince1970: t.timeIntervalSince1970)
             f.zone = TimeZone(secondsFromGMT: Int(t.offset) * 60) ?? f.zone
         }
+        f.os = doc["os_version"] as? String
+        if let p = doc["processes"] as? [Any] { f.processes = p.compactMap { $0 as? String } }
+        if let vs = doc["volume"] as? [Any] {
+            f.volumes = vs.compactMap { v in
+                guard let v = v as? [String: Any], let mp = v["mount"] as? String else { return nil }
+                return Volume(mountPoint: mp, name: v["name"] as? String ?? "", local: v["local"] as? Bool ?? true,
+                              browsable: v["browsable"] as? Bool ?? true, isInternal: v["internal"] as? Bool,
+                              encrypted: v["encrypted"] as? Bool)
+            }
+        }
+        if let ifs = doc["interface"] as? [Any] {
+            f.interfaces = ifs.compactMap { i in
+                guard let i = i as? [String: Any], let dev = i["device"] as? String else { return nil }
+                func strs(_ k: String) -> [String] { (i[k] as? [Any] ?? []).compactMap { $0 as? String } }
+                return Interface(device: dev, mac: i["mac"] as? String ?? "", ipv4: strs("ipv4"), ipv6: strs("ipv6"))
+            }
+        }
         for c in doc["command"] as? [Any] ?? [] {
             guard let c = c as? [String: Any] else { continue }
             f.commands.append(Command(
@@ -188,6 +221,19 @@ extension FakeSystem {
     /// The fixture as TOML, in the format `parse` reads.
     public func fixtureText() -> String {
         var out = "hostname = \(tomlString(host))\nuid = \(userID)\nnow = \(tomlDate(time, zone: zone))\n"
+        func list(_ a: [String]) -> String { "[" + a.map(tomlString).joined(separator: ", ") + "]" }
+        if let os { out += "os_version = \(tomlString(os))\n" }
+        if let processes { out += "processes = \(list(processes))\n" }
+        for v in volumes ?? [] {
+            out += "\n[[volume]]\nmount = \(tomlString(v.mountPoint))\nname = \(tomlString(v.name))\n"
+            out += "local = \(v.local)\nbrowsable = \(v.browsable)\n"
+            if let i = v.isInternal { out += "internal = \(i)\n" }
+            if let e = v.encrypted { out += "encrypted = \(e)\n" }
+        }
+        for i in interfaces ?? [] {
+            out += "\n[[interface]]\ndevice = \(tomlString(i.device))\nmac = \(tomlString(i.mac))\n"
+            out += "ipv4 = \(list(i.ipv4))\nipv6 = \(list(i.ipv6))\n"
+        }
         for c in commands {
             out += "\n[[command]]\nargv = [\(c.argv.map(tomlString).joined(separator: ", "))]\n"
             out += "stdout = \(tomlString(c.stdout))\n"
@@ -297,6 +343,30 @@ public final class Recorder: System {
     public func uid() -> UInt32 { recording.userID }
     public func now() -> Date { recording.time }
     public func timeZone() -> TimeZone { recording.zone }
+
+    public func osVersion() -> String {
+        let v = inner.osVersion()
+        recording.os = v
+        return v
+    }
+
+    public func processPaths() -> [String] {
+        let v = inner.processPaths()
+        recording.processes = v
+        return v
+    }
+
+    public func mountedVolumes() -> [Volume]? {
+        let v = inner.mountedVolumes()
+        recording.volumes = v ?? []
+        return v
+    }
+
+    public func networkInterfaces() -> [Interface] {
+        let v = inner.networkInterfaces()
+        recording.interfaces = v
+        return v
+    }
 }
 
 /// Fixtures are text, so a binary plist is stored as the equivalent XML plist.
