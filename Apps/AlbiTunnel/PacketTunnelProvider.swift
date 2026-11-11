@@ -56,12 +56,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         // logs in again.
         var cookie: AuthCookie?
         var gateway: String?
+        var hipInterval: Double?
         if let d = keychain.get("cookie:" + account), let saved = try? JSONDecoder().decode(SavedCookie.self, from: d) {
             cookie = saved.cookie
             gateway = saved.gateway
+            hipInterval = saved.hipInterval
             if let v = saved.appVersion { client.appVersion = v }
         }
-        var hipInterval = (try? keychain.get("cookie:" + account).map { try JSONDecoder().decode(SavedCookie.self, from: $0) })??.hipInterval
         if cookie == nil {
             guard let password else { throw TunnelError("no password: connect from the app") }
             let creds = StoredCredentials(username: profile.username, password: password, secondFactor: profile.secondFactor)
