@@ -1,0 +1,10 @@
+# n	method	target	status	label
+01	POST	/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux	200	portal-prelogin
+02	POST	/global-protect/getconfig.esp	200	portal-getconfig
+03	POST	/ssl-vpn/login.esp	200	gateway-login
+04	POST	/ssl-vpn/login.esp	200	gateway-login
+05	POST	/ssl-vpn/getconfig.esp	200	gateway-getconfig
+06	POST	/ssl-vpn/hipreportcheck.esp	200	gateway-hipreportcheck
+07	POST	/ssl-vpn/hipreport.esp	200	gateway-hipreport
+08	GET	/ssl-tunnel-connect.sslvpn?authcookie=fa000000000000000000000000000002&user=user1	-	tunnel-connect
+09	POST	/ssl-vpn/logout.esp	200	gateway-logout

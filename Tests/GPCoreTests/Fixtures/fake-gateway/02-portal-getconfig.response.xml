@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<policy><version>6.2.8-1045</version>
+<gateways><external><list>
+<entry name="127.0.0.1:18443"><description>Gateway 1</description></entry>
+</list></external></gateways>
+<hip-collection><hip-report-interval>3600</hip-report-interval></hip-collection>
+</policy>

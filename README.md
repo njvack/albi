@@ -11,6 +11,7 @@ This repository is one Swift package plus, later, the Xcode project for the app,
 | `GPCore` | the GlobalProtect client core: login, getconfig, HIP check, GPST tunnel framing, the session state machine and its runner |
 | `GPMac` | the macOS I/O layer: URLSession, NWConnection, NWPathMonitor, NetworkExtension glue, Keychain |
 | `albi-cli` | command-line harness: logs in and runs the tunnel in userspace, pinging through it |
+| `GPCapture`, `gp-capture` | records a real gateway session through openconnect as redacted test fixtures |
 | `Apps/` | Xcode project (XcodeGen) for the app and its packet tunnel system extension |
 
 ## Build and test
@@ -43,6 +44,27 @@ printf 'test\n' | swift run albi-cli connect 127.0.0.1:8443 --user test --pin pi
 ```
 
 `albi-cli connect` also works against a real portal: drop `--pin` to use the system trust store, and add `--hip-wrapper /path/to/hipreport` if the gateway wants HIP reports. It never touches routes or DNS; it only proves login, HIP and the tunnel.
+
+## Capturing a real gateway as fixtures
+
+`gp-capture` records one session with your real portal and gateway, so tests can use what the gateway actually sends and we can read its timers (lifetime, rekey, idle), whether ESP works, and how it handles HIP. It runs openconnect, which already works against the gateway, so no albi code talks to it:
+
+```sh
+brew install openconnect     # if you don't have it
+swift build --product gp-capture
+.build/debug/gp-capture --hip-wrapper /path/to/hipreport --scrub "Your Org Name" vpn.example.edu
+```
+
+Disconnect any other VPN first. It asks for your user name, password and second-factor answer (`1` for a Duo push), runs `sudo openconnect --protocol=gp -v --dump-http-traffic` with a do-nothing `--script` (so routes, DNS and interface addresses are never touched), keeps the tunnel up for `--duration` seconds (default 120), then stops openconnect, which logs out. Ctrl-C ends it early the same way. If the portal lists several gateways, name one with `--gateway`. Options after `--` go to openconnect.
+
+It writes `gp-capture-DATE/`:
+
+- `raw/`: the unredacted log and `redactions.tsv`, the real-to-fake mapping. Keep these on your Mac; `gp-capture-*/` is in `.gitignore`.
+- `fixtures/`: one `.request.form` and `.response.xml` per exchange, `index.tsv`, the rest of openconnect's log, and `summary.txt`.
+
+In `fixtures/`, cookies, ESP keys and SPIs, HIP tokens, user, computer, domain, portal and gateway names, host names under your domains, e-mail addresses, IPv4 and IPv6 addresses, MAC addresses, certificates and phone numbers are replaced by consistent test values: the same cookie is the same fake everywhere, addresses keep their subnets (10.x stays 10.x, public networks move to 198.18.0.0/15 and up, IPv6 to 2001:db8::/32), and keys keep their length. The first label of your domain (`acme` in `vpn.acme.edu`), your Mac account name and its host name and every `--scrub` word are replaced wherever they appear. Afterwards it checks the fixtures for every value it learned and exits 2 if any remain. Free text it does not know about, such as a portal welcome page, is only scrubbed for those patterns, so read `fixtures/` before sharing it.
+
+`summary.txt` holds only timers, counts and yes/no answers; it is safe to paste. To add a capture to the tests, copy `fixtures/` to `Tests/GPCoreTests/Fixtures/NAME/`: `FixtureTests` parses every exchange with GPCore and checks that albi's getconfig, HIP check and logout requests carry the same fields openconnect sent. `--from-log raw/openconnect.log` redoes the redaction without connecting again. `e2e/capture.sh` runs the whole thing against gp-fake-gateway; CI runs it on macOS.
 
 ## The app and extension (Step 1 test build)
 

@@ -1,0 +1,55 @@
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux
+[2026-11-11 12:48:17] Attempting to connect to server 127.0.0.1:18443
+[2026-11-11 12:48:17] Connected to 127.0.0.1:18443
+[2026-11-11 12:48:17] SSL negotiation with 127.0.0.1
+[2026-11-11 12:48:17] Server certificate verify failed: signer not found
+[2026-11-11 12:48:17] Connected to HTTPS on 127.0.0.1 with ciphersuite (TLS1.3)-(ECDHE-X25519)-(ECDSA-SECP256R1-SHA256)-(AES-128-GCM)
+[2026-11-11 12:48:17] --- exchange 01: POST /global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Linux -> HTTP/1.1 200 OK
+Enter login credentials for the fake GP portal
+Password: 
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/global-protect/getconfig.esp
+[2026-11-11 12:48:17] --- exchange 02: POST /global-protect/getconfig.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:17] Portal reports GlobalProtect version 6.2.8-1045; we will report the same client version.
+[2026-11-11 12:48:17] Portal set HIP report interval to 60 minutes).
+[2026-11-11 12:48:17] 1 gateway servers available:
+[2026-11-11 12:48:17]   Gateway 1 (127.0.0.1:18443) [unprioritized]
+Please select GlobalProtect gateway.
+GATEWAY: [Gateway 1]:Gateway 1
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/ssl-vpn/login.esp
+[2026-11-11 12:48:17] --- exchange 03: POST /ssl-vpn/login.esp -> HTTP/1.1 200 OK
+Enter a passcode or select one of the following options:
+ 1. Duo Push to XXX-XXX-0000
+ 2. Phone call to XXX-XXX-0000
+Challenge: 
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/ssl-vpn/login.esp
+[2026-11-11 12:48:17] --- exchange 04: POST /ssl-vpn/login.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:17] GlobalProtect login returned authentication-source=auth-source1
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/ssl-vpn/getconfig.esp
+[2026-11-11 12:48:17] --- exchange 05: POST /ssl-vpn/getconfig.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:17] Tunnel timeout (rekey interval) is 60 minutes.
+[2026-11-11 12:48:17] Idle timeout is 180 minutes.
+[2026-11-11 12:48:17] GlobalProtect IPv6 support is experimental. Please report results to <person1@example.REDACTED>.
+[2026-11-11 12:48:17] Did not receive ESP keys and matching gateway in GlobalProtect config; tunnel will be TLS only.
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/ssl-vpn/hipreportcheck.esp
+[2026-11-11 12:48:17] --- exchange 06: POST /ssl-vpn/hipreportcheck.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:17] Gateway says HIP report submission is needed.
+[2026-11-11 12:48:17] Trying to run HIP Trojan script '.../gp-fake-gateway/e2e/hipreport-stub.sh'.
+[2026-11-11 12:48:17] HIP script '.../gp-fake-gateway/e2e/hipreport-stub.sh' completed successfully (report is 221 bytes).
+[2026-11-11 12:48:17] POST https://127.0.0.1:18443/ssl-vpn/hipreport.esp
+[2026-11-11 12:48:17] --- exchange 07: POST /ssl-vpn/hipreport.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:17] HIP report submitted successfully.
+[2026-11-11 12:48:17] Connecting to HTTPS tunnel endpoint ...
+[2026-11-11 12:48:17] --- exchange 08: GET /ssl-tunnel-connect.sslvpn?authcookie=fa000000000000000000000000000002&user=user1 -> no response logged
+Set up UDP failed; using SSL instead
+[2026-11-11 12:48:17] Configured as 10.1.0.1 + fd00:1::1, with SSL connected and ESP disabled
+[2026-11-11 12:48:17] Session authentication will expire at Thu, 12 Nov 2026 12:48:17 UTC
+[2026-11-11 12:48:17] Failed to open /dev/vhost-net: No such file or directory
+[2026-11-11 12:48:27] Send GPST DPD/keepalive request
+[2026-11-11 12:48:27] Got GPST DPD/keepalive response
+[2026-11-11 12:48:29] POST https://127.0.0.1:18443/ssl-vpn/logout.esp
+[2026-11-11 12:48:29] SSL negotiation with 127.0.0.1
+[2026-11-11 12:48:29] Server certificate verify failed: signer not found
+[2026-11-11 12:48:29] Connected to HTTPS on 127.0.0.1 with ciphersuite (TLS1.3)-(ECDHE-X25519)-(ECDSA-SECP256R1-SHA256)-(AES-128-GCM)
+[2026-11-11 12:48:29] --- exchange 09: POST /ssl-vpn/logout.esp -> HTTP/1.1 200 OK
+[2026-11-11 12:48:29] Logout successful.
+[2026-11-11 12:48:29] User cancelled (SIGINT/SIGTERM); exiting.
