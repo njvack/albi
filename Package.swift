@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "HIPCore", targets: ["HIPCore"]),
         .executable(name: "hipreport", targets: ["hipreport"]),
+        .library(name: "GPCore", targets: ["GPCore"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -22,5 +23,11 @@ let package = Package(
         ),
         .executableTarget(name: "hipreport", dependencies: ["HIPCore"]),
         .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"]),
+
+        // The GlobalProtect client core: protocol requests and parsing, GPST
+        // framing, the session state machine and its runner. No Apple-only
+        // APIs and no Foundation, so it builds and tests on Linux.
+        .target(name: "GPCore"),
+        .testTarget(name: "GPCoreTests", dependencies: ["GPCore"]),
     ]
 )
