@@ -1,0 +1,7 @@
+category = "disk-encryption"
+vendor = "Apple Inc."
+name = "FileVault"
+
+[fields]
+version = { probe = "os_version" }
+drives = { probe = "volumes" }

@@ -18,9 +18,11 @@ let package = Package(
         // with Foundation, so its tests run on Linux too.
         .target(
             name: "HIPCore",
-            dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")]
+            dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")],
+            // Compiled in through BuiltinLibrary.swift; see scripts/gen-library.sh.
+            exclude: ["Library"]
         ),
         .executableTarget(name: "hipreport", dependencies: ["HIPCore"]),
-        .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"]),
+        .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"], exclude: ["Fixtures"]),
     ]
 )

@@ -1,0 +1,8 @@
+category = "patch-management"
+vendor = "Microsoft Corporation"
+name = "Microsoft AutoUpdate"
+when.exists = "/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app"
+
+[fields]
+version = { probe = "bundle_version", path = "/Library/Application Support/Microsoft/MAU2.0/Microsoft AutoUpdate.app" }
+is-enabled = { probe = "launchd", label = "gui/com.microsoft.update.agent" }

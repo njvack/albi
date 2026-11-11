@@ -11,13 +11,79 @@ jobs:
     container: swift:6.1-noble
     steps:
       - uses: actions/checkout@v4
+      - name: Built-in library is in sync
+        run: scripts/gen-library.sh && git -c safe.directory='*' diff --exit-code Sources/HIPCore/BuiltinLibrary.swift
       - run: swift build --product hipreport
       - run: swift test --filter HIPCoreTests
+      - run: swift run hipreport lint --checks-dir /nonexistent
+
+  e2e:
+    # openconnect, kept as a reference client, runs hipreport as its
+    # --csd-wrapper against the fake gateway; the gateway must accept it.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/gp-fake-gateway
+          path: gp-fake-gateway
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/openconnect
+          path: openconnect
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gp-fake-gateway/go.mod
+      - name: Install openconnect build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y autoconf automake libtool pkg-config gettext \
+            libxml2-dev libgnutls28-dev liblz4-dev iproute2 iputils-ping
+      - name: Build openconnect
+        working-directory: openconnect
+        run: |
+          ./autogen.sh
+          ./configure --disable-nls --with-vpnc-script=/bin/true
+          make -j"$(nproc)"
+      - run: go build -o fakegp ./cmd/fakegp
+        working-directory: gp-fake-gateway
+      - name: Build hipreport (static, in the Swift container)
+        run: >
+          docker run --rm -v "$PWD:/src" -w /src swift:6.1-noble
+          swift build -c release --product hipreport --static-swift-stdlib
+      - run: >
+          sudo e2e/hipreport.sh "$PWD/openconnect/openconnect" "$PWD/gp-fake-gateway/fakegp"
+          "$PWD/.build/release/hipreport" "$PWD/gp-fake-gateway/e2e/vpnc-script-min.sh"
 
   macos:
+    # Live collection with the real macOS tools, and parity with both
+    # reference reporters in njvack/openconnect-hipreports.
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/openconnect-hipreports
+          path: reference
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: reference/go.mod
       - run: swift --version
-      - run: swift build --product hipreport
       - run: swift test --filter HIPCoreTests
+      - run: swift build -c release --product hipreport
+      - run: .build/release/hipreport lint
+      - run: .build/release/hipreport facts
+      - name: Report is well-formed
+        run: .build/release/hipreport --md5 x | xmllint --noout -
+      - name: Parity with hipreport.zsh
+        run: scripts/parity.sh reference/hipreport.zsh
+      - name: Parity with the Go hipreport
+        run: |
+          (cd reference && go build -o hipreport-go ./cmd/hipreport)
+          scripts/parity.sh reference/hipreport-go
+      - name: A recording replays to the same report
+        run: |
+          .build/release/hipreport record -o rec.toml --md5 x
+          .build/release/hipreport --md5 x | sed 's|<generate-time>.*</generate-time>||' >live.xml
+          .build/release/hipreport --md5 x --fixture rec.toml | sed 's|<generate-time>.*</generate-time>||' >replay.xml
+          diff -u live.xml replay.xml

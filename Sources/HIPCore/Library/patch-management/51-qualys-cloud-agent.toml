@@ -1,0 +1,11 @@
+category = "patch-management"
+vendor = "Qualys, Inc."
+name = "Qualys Cloud Security Agent"
+when.exists = "/Applications/QualysCloudAgent.app"
+
+[fields]
+version = { probe = "bundle_version", path = "/Applications/QualysCloudAgent.app" }
+is-enabled = { probe = "all", all = [
+  { probe = "process", path = "/Applications/QualysCloudAgent.app/Contents/MacOS/qualys-cloud-agent" },
+  { probe = "process", path = "/Applications/QualysCloudAgent.app/Contents/MacOS/qualys-cep" },
+] }
