@@ -63,18 +63,29 @@ extension RealSystem {
         #endif
     }
 
-    /// FileManager.mountedVolumeURLs with volume resource keys.
+    /// getfsstat(2) for the mount table, as mount(8) prints it, then each
+    /// mount point's volume resource values from Foundation.
+    /// FileManager.mountedVolumeURLs would be simpler, but it leaves out
+    /// hidden volumes such as /System/Volumes/Data, where FileVault matters.
     public func mountedVolumes() -> [Volume]? {
         #if os(macOS)
-        let keys: [URLResourceKey] = [.volumeNameKey, .volumeIsLocalKey, .volumeIsBrowsableKey,
-                                      .volumeIsInternalKey, .volumeIsEncryptedKey]
-        guard let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [])
-        else { return nil }
-        return urls.compactMap { u in
-            guard let v = try? u.resourceValues(forKeys: Set(keys)) else { return nil }
-            return Volume(mountPoint: u.path, name: v.volumeName ?? "", local: v.volumeIsLocal ?? false,
-                          browsable: v.volumeIsBrowsable ?? true, isInternal: v.volumeIsInternal,
-                          encrypted: v.volumeIsEncrypted)
+        let n = getfsstat(nil, 0, MNT_NOWAIT)
+        guard n > 0 else { return nil }
+        var buf = [statfs](repeating: .init(), count: Int(n) + 8)
+        let got = buf.withUnsafeMutableBufferPointer {
+            getfsstat($0.baseAddress, Int32($0.count * MemoryLayout<statfs>.stride), MNT_NOWAIT)
+        }
+        guard got > 0 else { return nil }
+        let keys: Set<URLResourceKey> = [.volumeNameKey, .volumeIsInternalKey, .volumeIsEncryptedKey]
+        return buf.prefix(Int(got)).map { fs in
+            var fs = fs
+            let mp = withUnsafeBytes(of: &fs.f_mntonname) { String(cString: $0.bindMemory(to: CChar.self).baseAddress!) }
+            let flags = UInt32(fs.f_flags)
+            let local = flags & UInt32(MNT_LOCAL) != 0
+            let v = local ? try? URL(fileURLWithPath: mp, isDirectory: true).resourceValues(forKeys: keys) : nil
+            return Volume(mountPoint: mp, name: v?.volumeName ?? "", local: local,
+                          browsable: flags & UInt32(MNT_DONTBROWSE) == 0, isInternal: v?.volumeIsInternal,
+                          encrypted: v?.volumeIsEncrypted)
         }
         #else
         return nil

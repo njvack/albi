@@ -120,7 +120,7 @@ real-time-protection = { probe = "command", argv = ["/usr/sbin/spctl", "--status
 
 ### volumes
 
-`volumes` lists mounted volumes with `FileManager.mountedVolumeURLs` and keeps the local ones:
+`volumes` reads the mount table with `getfsstat`, keeps the local volumes, and asks Foundation for each one's name, internal flag and encryption:
 
 - `/` is named after its volume name, such as `Macintosh HD`.
 - `/System/Volumes/Data` is named `Data`.
@@ -137,7 +137,7 @@ hipreport uses public frameworks where they exist, and runs a command only where
 | files, plists, bundle versions, modification times | Foundation (`FileManager`, `PropertyListSerialization`) |
 | `os_version` | `ProcessInfo.operatingSystemVersion` |
 | `process` | libproc: `proc_listallpids`, `proc_pidpath` |
-| `volumes` | `FileManager.mountedVolumeURLs` with the volume name, local, browsable, internal and encrypted keys |
+| `volumes` | `getfsstat` for the mount table (`FileManager.mountedVolumeURLs` skips the hidden Data volume), then the volume name, internal and encrypted URL resource values |
 | network interfaces in the report's host info | SystemConfiguration (`SCNetworkInterfaceCopyAll`, burned-in MACs), `getifaddrs` for addresses |
 | `launchd` | `launchctl print`: `SMJobCopyDictionary` is deprecated, and `SMAppService` only covers the app's own jobs |
 | `pf.enabled` | `pfctl -s info`: the `/dev/pf` ioctl structures aren't in the SDK |
