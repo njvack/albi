@@ -1,0 +1,33 @@
+name: app
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build --target AlbiApp
+      - run: swift test --filter AlbiAppTests
+
+  xcode:
+    # Builds the menu-bar app unsigned.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: Apps
+      - name: Build AlbiMenu (unsigned)
+        working-directory: Apps
+        # The runner's SDK may be older than the app's macOS 27 floor.
+        run: |
+          xcodebuild -project Albi.xcodeproj -scheme AlbiMenu -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
+            build | tail -100
+          exit "${PIPESTATUS[0]}"

@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "GPCore", targets: ["GPCore"]),
         .library(name: "GPMac", targets: ["GPMac"]),
         .executable(name: "albi-cli", targets: ["albi-cli"]),
+        .library(name: "AlbiApp", targets: ["AlbiApp"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -41,5 +42,11 @@ let package = Package(
         // Command-line harness: GPCore plus GPMac, pinging through the tunnel
         // from userspace. Used by e2e/client.sh against gp-fake-gateway.
         .executableTarget(name: "albi-cli", dependencies: ["GPCore", "GPMac"]),
+
+        // The menu-bar app's SwiftUI scenes and view models, against the
+        // VPNService protocol (a mock for now). macOS only: wrapped in
+        // #if canImport(SwiftUI), so it is empty on Linux.
+        .target(name: "AlbiApp", dependencies: ["GPMac"]),
+        .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac"]),
     ]
 )
