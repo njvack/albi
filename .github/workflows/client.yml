@@ -1,0 +1,105 @@
+name: client
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    container: swift:6.1-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build --target GPCore
+      - run: swift test --filter 'GPCoreTests|GPCaptureTests|DiagnosticsTests'
+
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build --product albi-cli
+      - run: swift test --filter 'GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests'
+
+  e2e:
+    # albi-cli against gp-fake-gateway on a stock macOS runner: no root, no
+    # extension; the CLI pings through the tunnel from userspace.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/gp-fake-gateway
+          path: gp-fake-gateway
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gp-fake-gateway/go.mod
+          cache-dependency-path: gp-fake-gateway/go.mod
+      - run: go build -o ../fakegp ./cmd/fakegp
+        working-directory: gp-fake-gateway
+      - run: swift build --product albi-cli
+      - run: e2e/client.sh "$(swift build --show-bin-path)/albi-cli" "$PWD/fakegp" "$PWD/gp-fake-gateway/e2e/hipreport-stub.sh"
+
+  diagnostics:
+    # Diagnostics mode end to end (an outage writes a redacted incident file,
+    # albi-diag replays it and drafts a scenario, the draft reproduces it),
+    # then albi-cli against every gp-fake-gateway scenario. Uses the fake's
+    # branch of the same name as this one when there is one, else main.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out gp-fake-gateway
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          git clone --quiet https://github.com/njvack/gp-fake-gateway.git gp-fake-gateway
+          git -C gp-fake-gateway checkout --quiet "$BRANCH" 2>/dev/null || true
+          git -C gp-fake-gateway log --oneline -1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gp-fake-gateway/go.mod
+          cache-dependency-path: gp-fake-gateway/go.mod
+      - run: go build -o ../fakegp ./cmd/fakegp
+        working-directory: gp-fake-gateway
+      - run: swift build --product albi-cli && swift build --product albi-diag
+      - run: e2e/diagnostics.sh "$(swift build --show-bin-path)/albi-cli" "$(swift build --show-bin-path)/albi-diag" "$PWD/fakegp" "$PWD/gp-fake-gateway/scenarios"
+
+  capture:
+    # gp-capture against gp-fake-gateway with Homebrew's openconnect, run
+    # through sudo the way it runs on a Mac.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: njvack/gp-fake-gateway
+          path: gp-fake-gateway
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: gp-fake-gateway/go.mod
+          cache-dependency-path: gp-fake-gateway/go.mod
+      - run: go build -o ../fakegp ./cmd/fakegp
+        working-directory: gp-fake-gateway
+      - run: brew install openconnect
+      - run: swift build --product gp-capture
+      - run: e2e/capture.sh "$(swift build --show-bin-path)/gp-capture" "$PWD/fakegp" "$PWD/gp-fake-gateway/e2e/hipreport-stub.sh"
+
+  xcode:
+    # Builds the app and the system extension unsigned. Signing, installing
+    # and approving the extension happen on a real Mac.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install xcodegen
+      - run: xcodegen generate
+        working-directory: Apps
+      - name: Build (unsigned)
+        working-directory: Apps
+        # The runner's SDK may be older than the app's macOS 27 floor.
+        run: |
+          xcodebuild -project Albi.xcodeproj -scheme Albi -configuration Debug \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
+            build | tail -100
+          exit "${PIPESTATUS[0]}"

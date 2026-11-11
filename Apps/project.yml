@@ -1,0 +1,92 @@
+# Xcode project for the app and its packet tunnel system extension.
+# Generate with: cd Apps && xcodegen generate
+name: Albi
+options:
+  bundleIdPrefix: $(ALBI_BUNDLE_ID_PREFIX)
+  deploymentTarget:
+    macOS: "27.0"
+  createIntermediateGroups: true
+configFiles:
+  Debug: Config/Albi.xcconfig
+  Release: Config/Albi.xcconfig
+packages:
+  Albi:
+    path: ..
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_HARDENED_RUNTIME: YES
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+targets:
+  Albi:
+    type: application
+    platform: macOS
+    sources: [Albi]
+    dependencies:
+      - package: Albi
+        product: GPCore
+      - package: Albi
+        product: GPMac
+      - package: Albi
+        product: Diagnostics
+      - target: AlbiTunnel
+        embed: true
+        codeSign: true
+        copy:
+          destination: wrapper
+          subpath: Contents/Library/SystemExtensions
+    info:
+      path: Albi/Info.plist
+      properties:
+        CFBundleDisplayName: Albi
+        LSApplicationCategoryType: public.app-category.utilities
+        LSMinimumSystemVersion: "27.0"
+        AlbiTunnelBundleIdentifier: $(ALBI_BUNDLE_ID_PREFIX).tunnel
+    entitlements:
+      path: Albi/Albi.entitlements
+      properties:
+        com.apple.developer.system-extension.install: true
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.developer.team-identifier: $(DEVELOPMENT_TEAM)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX)
+        PRODUCT_NAME: Albi
+        PROVISIONING_PROFILE_SPECIFIER: $(ALBI_APP_PROFILE)
+  AlbiTunnel:
+    type: system-extension
+    platform: macOS
+    sources: [AlbiTunnel]
+    dependencies:
+      - package: Albi
+        product: GPCore
+      - package: Albi
+        product: GPMac
+      - package: Albi
+        product: Diagnostics
+    info:
+      path: AlbiTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: Albi Tunnel
+        LSMinimumSystemVersion: "27.0"
+        NetworkExtension:
+          NEMachServiceName: $(TeamIdentifierPrefix)$(ALBI_BUNDLE_ID_PREFIX).tunnel
+          NEProviderClasses:
+            com.apple.networkextension.packet-tunnel: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    entitlements:
+      path: AlbiTunnel/AlbiTunnel.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.network.client: true
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
+        com.apple.security.application-groups: [$(TeamIdentifierPrefix)$(ALBI_BUNDLE_ID_PREFIX)]
+        com.apple.developer.team-identifier: $(DEVELOPMENT_TEAM)
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).tunnel
+        PRODUCT_NAME: $(ALBI_BUNDLE_ID_PREFIX).tunnel
+        PRODUCT_MODULE_NAME: AlbiTunnel
+        PROVISIONING_PROFILE_SPECIFIER: $(ALBI_TUNNEL_PROFILE)

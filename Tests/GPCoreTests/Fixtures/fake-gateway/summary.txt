@@ -1,0 +1,46 @@
+Captured 12 s of traffic
+
+Portal
+  prelogin: username and password
+  panos-version: 1
+  version: 6.2.8-1045
+  gateways offered: 1
+  HIP report interval: 3600 s (1 h)
+  config elements: version gateways external list entry description hip-collection hip-report-interval
+
+Gateway login
+  login requests: 2, second-factor challenges: 1
+  jnlp arguments: 19
+  password expires in (days): -1
+
+Gateway config (getconfig.esp)
+  getconfig answers: 1
+  lifetime: 86400 s (24 h)
+  disconnect-on-idle: 10800 s (3 h)
+  timeout (rekey): 3600 s (1 h)
+  mtu: 1400
+  IPv4 address: yes, netmask 255.255.255.255
+  IPv6 address: yes
+  access routes: 2 (1 IPv6)
+  exclude routes: 0
+  DNS servers: 1, DNS suffixes: 1
+  quarantine: no
+  ESP offered: no
+  elements: need-tunnel ssl-tunnel-url portal user lifetime timeout disconnect-on-idle bw-c2s bw-s2c ip-address netmask ip-address-v6 dns member dns-suffix mtu access-routes access-routes-v6 gw-address
+
+Tunnel
+  ESP: not used (not offered or disabled)
+  Configured, with SSL connected and ESP disabled
+  tunnel connects: 1
+  keepalives sent: 1
+  log lines mentioning "Tunnel timeout": 1
+  log lines mentioning "rekey": 1
+  log lines mentioning "Idle timeout": 1
+
+HIP
+  hipreportcheck calls: 1
+  hip-report-needed: yes
+  hipreport submissions: 1, accepted: 1
+  openconnect: Portal set HIP report interval to 60 minutes).
+
+Last log line: User cancelled (SIGINT/SIGTERM); exiting.

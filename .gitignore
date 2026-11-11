@@ -4,3 +4,6 @@
 *.xcworkspace/xcuserdata/
 DerivedData/
 .DS_Store
+Apps/Albi.xcodeproj/
+Apps/Config/Signing.xcconfig
+gp-capture-*/
