@@ -42,6 +42,9 @@ wait_for() {
 
 # openconnect execs the wrapper with a fixed argv, so a shim adds ours.
 cp "$HIPREPORT" "$WORK/hipreport"
+# The built-in check library is a resource bundle next to the binary.
+cp -R "$(dirname "$HIPREPORT")/Albi_HIPCore.resources" "$WORK/"
+chmod -R a+rX "$WORK/Albi_HIPCore.resources"
 cp "$HERE/../Tests/HIPCoreTests/Fixtures/mac-basic.toml" "$WORK/mac.toml"
 cat >"$WORK/wrapper" <<SH
 #!/bin/sh

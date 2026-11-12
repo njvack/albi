@@ -59,7 +59,13 @@ targets:
   AlbiTunnel:
     type: system-extension
     platform: macOS
-    sources: [AlbiTunnel]
+    sources:
+      - AlbiTunnel
+      # hipreport's built-in checks, in Contents/Resources/Library. The
+      # extension's signature seals them; hipreport verifies it first.
+      - path: ../Sources/HIPCore/Library
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: Albi
         product: GPCore

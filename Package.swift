@@ -26,8 +26,9 @@ let package = Package(
         .target(
             name: "HIPCore",
             dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")],
-            // Compiled in through BuiltinLibrary.swift; see scripts/gen-library.sh.
-            exclude: ["Library"]
+            // The built-in check library ships as a resource bundle; see
+            // builtinLibraryURL() in Library.swift.
+            resources: [.copy("Library")]
         ),
         .executableTarget(name: "hipreport", dependencies: ["HIPCore"]),
         .testTarget(name: "HIPCoreTests", dependencies: ["HIPCore"], exclude: ["Fixtures"]),
