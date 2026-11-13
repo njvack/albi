@@ -149,7 +149,7 @@ Fixtures from `hipreport record` store the native answers. Older fixtures, and o
 
 Checks are loaded from these sources, in order:
 
-1. The built-in library, which ships with hipreport. It covers only what comes with macOS: XProtect, Gatekeeper, Time Machine, FileVault, the application firewall, Packet Filter and Software Update. It lives in [`Sources/HIPCore/Library`](../Sources/HIPCore/Library), with one directory per category.
+1. The built-in library, which ships with hipreport. It covers only what comes with macOS: XProtect, Gatekeeper, Time Machine, FileVault, the application firewall, Packet Filter and Software Update. It lives in [`Sources/HIPCore/Library`](../Sources/HIPCore/Library), with one directory per category. The app ships these files in the tunnel extension's `Contents/Resources/Library`, and hipreport loads them only if the extension's code signature is valid. macOS checks executable code as it loads, but not sealed resources, so this check is what catches an edited file. Command-line builds carry them in SwiftPM's resource bundle (`Albi_HIPCore.bundle`, or `Albi_HIPCore.resources` on Linux) next to the binary.
 2. Each `--checks-dir DIR`, by default `/Library/Application Support/Albi/checks.d`.
 3. Each `--dev-checks DIR`.
 

@@ -29,18 +29,9 @@ import Testing
         ])
     }
 
-    /// BuiltinLibrary.swift must match Sources/HIPCore/Library; run
-    /// scripts/gen-library.sh after editing a check file.
-    @Test func embeddedLibraryMatchesFiles() throws {
-        let dir = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
-            .appendingPathComponent("../../Sources/HIPCore/Library").standardized
-        let rels = (FileManager.default.enumerator(atPath: dir.path)?.allObjects as? [String] ?? [])
-            .filter { $0.hasSuffix(".toml") }.sorted()
-        #expect(rels == builtinLibrary.map(\.path).sorted(), "run scripts/gen-library.sh")
-        for entry in builtinLibrary {
-            let text = try String(contentsOf: dir.appendingPathComponent(entry.path), encoding: .utf8)
-            #expect(text == entry.text, "\(entry.path) is stale; run scripts/gen-library.sh")
-        }
+    @Test func builtinLibraryIsFound() throws {
+        let lib = try builtinLibraryURL().get()
+        #expect(FileManager.default.fileExists(atPath: lib.appendingPathComponent("disk-encryption/10-apple-filevault.toml").path))
     }
 }
 

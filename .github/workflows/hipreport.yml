@@ -27,8 +27,6 @@ jobs:
     container: swift:6.1-noble
     steps:
       - uses: actions/checkout@v4
-      - name: Built-in library is in sync
-        run: scripts/gen-library.sh && git -c safe.directory='*' diff --exit-code Sources/HIPCore/BuiltinLibrary.swift
       - run: swift build --product hipreport
       - run: swift test --filter HIPCoreTests
       - run: swift run hipreport lint --checks-dir /nonexistent contrib

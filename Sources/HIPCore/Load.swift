@@ -75,7 +75,18 @@ func loadSource(_ sys: System, _ src: Source) -> ([Check], [CheckError]) {
             files.append((rel, full, FileManager.default.contents(atPath: full).map { String(decoding: $0, as: UTF8.self) }))
         }
     } else {
-        files = builtinLibrary.map { ($0.path, "built-in:" + $0.path, $0.text) }
+        switch builtinLibraryURL() {
+        case .failure(let e):
+            return ([], [e])
+        case .success(let lib):
+            let rels = (FileManager.default.enumerator(atPath: lib.path)?.allObjects as? [String] ?? [])
+                .filter { $0.hasSuffix(".toml") }.sorted()
+            for rel in rels {
+                let text = FileManager.default.contents(atPath: lib.appendingPathComponent(rel).path)
+                    .map { String(decoding: $0, as: UTF8.self) }
+                files.append((rel, "built-in:" + rel, text))
+            }
+        }
     }
 
     var checks: [Check] = []
