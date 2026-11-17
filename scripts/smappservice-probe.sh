@@ -14,7 +14,9 @@ set -u
 
 BIN=${1:?usage: smappservice-probe.sh ALBI_NETPROBE [IDENTITY]}
 IDENTITY=${2:--}
-ID=com.github.njvack.albi.probe
+# PROBE_ID gives the daemon a fresh label and bundle id, so launchd keeps no
+# code requirement from an earlier registration signed another way.
+ID=${PROBE_ID:-com.github.njvack.albi.probe}
 PLIST=$ID.plist
 WORK=$(mktemp -d)
 APP="$WORK/AlbiProbe.app"
@@ -68,7 +70,7 @@ if echo "$reg" | grep -q 'status: requiresApproval'; then
 fi
 sleep 3
 echo "== launchd"
-sudo launchctl print "system/$ID" 2>&1 | grep -E 'state|program|last exit' | sed 's/^/  /'
+sudo launchctl print "system/$ID" 2>&1 | grep -E 'state|program|last exit|LWCR' | sed 's/^/  /'
 echo "== daemon mark"
 if [ -f "$MARK" ]; then ran="yes: $(cat "$MARK")"; else ran="no"; fi
 echo "  $ran"

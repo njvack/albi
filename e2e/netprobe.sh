@@ -77,7 +77,10 @@ scenario() {
     got=$(resolve "albi-probe-$name-$RANDOM.example.com")
     if [ "$got" = 192.0.2.53 ]; then pass "$name: lookups go to the tunnel's DNS"; else fail "$name: lookup gave '$got', not the tunnel's answer"; fi
     case "$(sed -n 's/^bound-check=//p' "$log")" in
-      connected) pass "$name: socket pinned to the physical interface gets out" ;;
+      connected)
+        pass "$name: socket pinned to the physical interface gets out"
+        grep -q '^bound-check-detail=1 attempts' "$log" || note "$name: pinned socket needed retries: $(sed -n 's/^bound-check-detail=//p' "$log")"
+        ;;
       *) fail "$name: pinned socket: $(sed -n 's/^bound-check=//p' "$log")" ;;
     esac
     case "$(sed -n 's/^unbound-check=//p' "$log")" in

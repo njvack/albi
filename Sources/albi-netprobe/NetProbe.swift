@@ -145,7 +145,22 @@ struct NetProbe {
         // to the gateway); an unpinned one goes into the tunnel, where
         // nothing answers TCP.
         if full, let primary {
-            say("bound-check=\(tcpCheck(host: checkHost, port: 443, boundTo: primary, timeoutMs: 4000))")
+            // configd re-does routes for a moment after the service shows
+            // up; retry to measure how long a pinned socket can't get out.
+            let start = Date()
+            var attempts = 0
+            var first = ""
+            var result = ""
+            repeat {
+                attempts += 1
+                result = tcpCheck(host: checkHost, port: 443, boundTo: primary, timeoutMs: 2000)
+                if first.isEmpty { first = result }
+                if result == "connected" { break }
+                usleep(100_000)
+            } while Date().timeIntervalSince(start) < 8
+            let ms = Int(Date().timeIntervalSince(start) * 1000)
+            say("bound-check=\(result)")
+            say("bound-check-detail=\(attempts) attempts in \(ms) ms, first: \(first)")
             say("unbound-check=\(tcpCheck(host: checkHost, port: 443, boundTo: nil, timeoutMs: 2000))")
         }
 
@@ -190,7 +205,7 @@ struct NetProbe {
         guard getsockopt(fd, sysprotoControl, utunOptIfname, &name, &len) == 0 else {
             throw ProbeError("UTUN_OPT_IFNAME: \(errnoString())")
         }
-        return (fd, String(cString: name))
+        return (fd, String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
     }
 
     @discardableResult
