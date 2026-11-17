@@ -18,6 +18,7 @@ import GPMac
 struct Options {
     var server = ""
     var target: (String) -> Login.Target = { .auto($0) }
+    var gateway: String?
     var user: String?
     var pins: [String] = []
     var secondFactor: String?
@@ -34,7 +35,9 @@ struct Options {
     static let usage = """
     usage: albi-cli connect SERVER [options]
       --user NAME            username (else read from stdin)
-      --portal | --gateway   treat SERVER as a portal or a gateway (default: try portal first)
+      --portal               treat SERVER as a portal (default: try portal, then gateway)
+      --gateway NAME         gateway to pick from the portal's list, by name or address
+                             (default: lowest priority number)
       --pin PIN              accept only this certificate (pin-sha256:BASE64); repeatable
       --second-factor ANSWER answer to the challenge (else read from stdin)
       --hip-wrapper PATH     run PATH as an openconnect --csd-wrapper for HIP reports
@@ -53,6 +56,10 @@ struct Options {
 
     static func parse(_ args: [String]) -> Options {
         var o = Options()
+        if args.contains(where: { $0 == "--help" || $0 == "-h" }) {
+            print(usage)
+            exit(0)
+        }
         var it = args.makeIterator()
         guard it.next() == "connect", let server = it.next() else { fail(usage) }
         o.server = server
@@ -64,7 +71,7 @@ struct Options {
             switch a {
             case "--user", "-u": o.user = value(a)
             case "--portal": o.target = { .portal($0) }
-            case "--gateway": o.target = { .gateway($0) }
+            case "--gateway": o.gateway = value(a)
             case "--pin", "--servercert": o.pins.append(value(a))
             case "--second-factor": o.secondFactor = value(a)
             case "--hip-wrapper", "--csd-wrapper": o.hipWrapper = value(a)
@@ -83,6 +90,18 @@ struct Options {
         }
         o.policy.canReauthenticate = o.reauth
         return o
+    }
+
+    /// Picks `--gateway` from the portal's list, else the default.
+    var chooseGateway: @Sendable ([PortalConfig.Gateway]) -> PortalConfig.Gateway {
+        { [gateway] gws in
+        say("portal gateways: " + gws.map { "\($0.description ?? "-") (\($0.address))" }.joined(separator: ", "))
+        guard let name = gateway else { return Login.defaultGateway(gws) }
+        guard let gw = gws.first(where: { $0.description == name || $0.address == name }) else {
+            fail("albi: no gateway named \(name) in the portal's list")
+        }
+        return gw
+        }
     }
 }
 
@@ -185,7 +204,8 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
 
     func reauthenticate() async throws -> AuthCookie {
         guard options.reauth, let stored = credentials.stored else { throw StoredCredentials.NeedsUser() }
-        let login = Login(transport: connector, credentials: stored, client: client, username: stored.username)
+        let login = Login(transport: connector, credentials: stored, client: client, username: stored.username,
+                          chooseGateway: options.chooseGateway)
         let r = try await login.run(options.target(options.server))
         say("logged in again")
         return r.cookie
@@ -237,7 +257,8 @@ var client = host.client
 
 let login: LoginResult
 do {
-    login = try await Login(transport: connector, credentials: credentials, client: client, username: options.user)
+    login = try await Login(transport: connector, credentials: credentials, client: client, username: options.user,
+                            chooseGateway: options.chooseGateway)
         .run(options.target(options.server))
 } catch {
     fail("albi: login failed: \(error)")
@@ -265,6 +286,8 @@ watcher.start()
 // SIGINT/SIGTERM: stop and log out (unless --no-logout). SIGHUP: stop, keep
 // the cookie. SIGUSR2: reconnect now, as openconnect does. SIGUSR1: save a
 // diagnostics file now.
+// A closed stdout (`| tee` killed by the same Ctrl-C) must not kill us before logout.
+signal(SIGPIPE, SIG_IGN)
 var sources: [DispatchSourceSignal] = []
 if let diagnostics {
     signal(SIGUSR1, SIG_IGN)

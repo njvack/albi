@@ -102,6 +102,8 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
                 ours = Requests.getConfig(cookie, client: ClientInfo(computer: "computer1")).body
             case "gateway-hipreportcheck":
                 ours = Requests.hipReportCheck(cookie, clientIPv4: "10.0.0.2", clientIPv6: "fd00::2").body
+            case "gateway-hipreport":
+                ours = Requests.hipReport(cookie, clientIPv4: "10.0.0.2", clientIPv6: "fd00::2", report: "r").body
             case "gateway-logout":
                 ours = Requests.logout(cookie).body
             default:
