@@ -17,7 +17,7 @@ public protocol VPNService: AnyObject {
 
     /// Starts the tunnel. With `password` nil the extension uses its saved one.
     func connect(_ id: VPNProfile.ID, password: String?) async throws
-    /// Disconnects and logs out, so the cookie is gone.
+    /// Disconnects. The extension keeps the gateway cookie for the next connect.
     func disconnect() async
     /// Answers a `.needsSecondFactor` prompt.
     func answerSecondFactor(_ code: String) async

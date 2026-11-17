@@ -106,7 +106,7 @@ go run ./cmd/fakegp -listen 127.0.0.1:8443 -control 127.0.0.1:8444   # in gp-fak
 printf 'test\n' | swift run albi-cli connect 127.0.0.1:8443 --user test --pin pin-sha256:... --second-factor 1 --ping 10.99.0.1
 ```
 
-`albi-cli connect` also works against a real portal: drop `--pin` to use the system trust store, and add `--hip-wrapper /path/to/hipreport` if the gateway wants HIP reports. It never touches routes or DNS; it only proves login, HIP and the tunnel.
+`albi-cli connect` also works against a real portal: drop `--pin` to use the system trust store, and add `--hip-wrapper /path/to/hipreport` if the gateway wants HIP reports. It never touches routes or DNS; it only proves login, HIP and the tunnel. If the portal and the gateway both ask for a second factor, `--gateway-only` logs in straight to the gateway (SERVER, or the `--gateway` address) so you answer once.
 
 ## Capturing a real gateway as fixtures
 

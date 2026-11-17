@@ -178,8 +178,15 @@ if [ "$(sessions 'len(s)')" -eq $((before + 1)) ]; then pass "one gateway sessio
 if [ "$(sessions "sum(len(x['hip_reports'] or []) for x in s)")" -gt "$hips" ]; then pass "HIP report sent on connect"; else fail "no HIP report with the panos-11.1 profile"; fi
 stop_cli
 L=$WORK/cli6.log
-start_cli "$L" --gateway --hip-wrapper "$HIP"
-if wait_for 30 replies_above "$L" 1; then pass "connected straight to the gateway (one challenge)"; else fail "no traffic in gateway mode"; fi
+start_cli "$L" --gateway "Fake gateway" --hip-wrapper "$HIP"
+if wait_for 30 replies_above "$L" 1; then pass "connected through the gateway picked by name"; else fail "no traffic with --gateway NAME"; fi
+if [ "$(grep -c '^albi: challenge:' "$L")" -eq 2 ]; then pass "portal and gateway each asked once"; else fail "expected two challenges through the portal"; fi
+stop_cli
+L=$WORK/cli7.log
+start_cli "$L" --gateway-only --hip-wrapper "$HIP"
+if wait_for 30 replies_above "$L" 1; then pass "connected straight to the gateway"; else fail "no traffic with --gateway-only"; fi
+if [ "$(grep -c '^albi: challenge:' "$L")" -eq 1 ]; then pass "gateway-only asked for the second factor once"; else fail "expected one challenge with --gateway-only"; fi
+if grep -q '^albi: portal gateways:' "$L"; then fail "--gateway-only touched the portal"; else pass "--gateway-only skipped the portal"; fi
 stop_cli
 
 if [ "$fails" -ne 0 ]; then

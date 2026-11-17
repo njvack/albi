@@ -22,6 +22,9 @@ public struct Profile: Codable, Equatable, Sendable {
     /// bundle, instead of asking the app. Optional so profiles saved before
     /// it existed still decode.
     public var bundledHIP: Bool?
+    /// "Clear stored cookies": the extension ignores cookies it saved at or
+    /// before this time.
+    public var cookiesClearedAt: Date?
 
     public init(server: String, username: String) {
         self.server = server
@@ -68,9 +71,13 @@ public enum ProviderMessage {
         /// Step 1 probe: run the extension's bundled hipreport once and
         /// report what happened in `Status.hipProbe`.
         public var probeBundledHIP: Bool?
+        /// "Clear stored cookies" while connected: forget the saved cookie,
+        /// and log out when the tunnel stops.
+        public var clearCookies: Bool?
 
         public init(poll: Bool? = nil, hipReport: String? = nil, hipUnavailable: Bool? = nil,
-                    diagnosticsDump: Bool? = nil, probeBundledHIP: Bool? = nil) {
+                    diagnosticsDump: Bool? = nil, probeBundledHIP: Bool? = nil, clearCookies: Bool? = nil) {
+            self.clearCookies = clearCookies
             self.probeBundledHIP = probeBundledHIP
             self.poll = poll
             self.hipReport = hipReport
