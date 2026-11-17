@@ -126,11 +126,15 @@ final class OutputCollector: @unchecked Sendable {
     private var partial = Data()
     private(set) var tunnelUp = false
     var hostLine: ((String) -> Void)?
+    private var lastOutput = Date()
+    private var promptTaken = false
 
     func append(_ chunk: Data) {
         lock.lock()
         data.append(chunk)
         partial.append(chunk)
+        lastOutput = Date()
+        promptTaken = false
         var shown: [String] = []
         while let nl = partial.firstIndex(of: UInt8(ascii: "\n")) {
             let line = String(decoding: partial[partial.startIndex..<nl], as: UTF8.self)
@@ -170,6 +174,31 @@ final class OutputCollector: @unchecked Sendable {
         defer { lock.unlock() }
         return data
     }
+
+    /// The prompt openconnect is waiting on: an unfinished line ending in a
+    /// colon, with no output for `quiet` seconds. A gateway choice with one
+    /// option prints "GATEWAY: [name]:" and the name right after, so the
+    /// pause is what tells a real prompt apart. Each prompt is returned once.
+    func waitingPrompt(quiet: TimeInterval) -> String? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !promptTaken, !partial.isEmpty, Date().timeIntervalSince(lastOutput) >= quiet else { return nil }
+        let p = String(decoding: partial, as: UTF8.self)
+        guard p.trimmingCharacters(in: .whitespaces).hasSuffix(":") else { return nil }
+        promptTaken = true
+        return p
+    }
+}
+
+enum PromptAnswer: Equatable { case user, password, secondFactor, unknown }
+
+/// Which of our answers an openconnect prompt wants.
+func classifyPrompt(_ prompt: String) -> PromptAnswer {
+    let p = prompt.lowercased()
+    if ["challenge", "passcode", "otp", "token", "response"].contains(where: { p.contains($0) }) { return .secondFactor }
+    if p.contains("password") || p.contains("passwd") { return .password }
+    if p.contains("username") || p.contains("user name") || p.contains("login:") { return .user }
+    return .unknown
 }
 
 /// Runs argv in our own process group, so it can read the terminal (sudo's
@@ -238,22 +267,38 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
     signal(SIGTERM, onSignal)
     FileHandle.standardError.write(Data("Running openconnect (Ctrl-C ends the capture early; it still logs out).\n".utf8))
     do { try process.run() } catch { fail("could not start openconnect: \(error)") }
-    // openconnect reads each answer from stdin when it asks: the password,
-    // then the challenge answer. A portal that hands out no cookie
-    // (portal-userauthcookie "empty") makes openconnect log in to the gateway
-    // too, with the same prompts, so the answers go twice. Lines it never
-    // reads are harmless.
-    var answers = password + "\n"
-    if !second.isEmpty { answers += second + "\n" }
-    answers += answers
-    stdin.fileHandleForWriting.write(Data(answers.utf8))
-    try? stdin.fileHandleForWriting.close()
-
+    // Answer each prompt when openconnect shows it, and keep stdin open until
+    // it exits. Writing everything up front and closing stdin was not enough:
+    // a portal that hands out no cookie (portal-userauthcookie "empty") makes
+    // openconnect log in to the gateway again, and that second password
+    // prompt got end-of-file.
+    signal(SIGPIPE, SIG_IGN)
+    var answered = 0
     var upSince: Date?
     var stopSent: Date?
     var reported = false
     while process.isRunning {
         usleep(200_000)
+        if stopSent == nil, let prompt = collector.waitingPrompt(quiet: 0.5) {
+            let answer: String?
+            switch classifyPrompt(prompt) {
+            case .user: answer = user
+            case .password: answer = password
+            case .secondFactor: answer = second
+            case .unknown: answer = nil
+            }
+            answered += 1
+            if let answer, answered <= 8 {
+                try? stdin.fileHandleForWriting.write(contentsOf: Data((answer + "\n").utf8))
+            } else {
+                let why = answer == nil
+                    ? "gp-capture cannot answer openconnect's prompt \"\(prompt.trimmingCharacters(in: .whitespaces))\"; if it is a gateway choice, pass --gateway."
+                    : "openconnect keeps asking; the password or second-factor answer may be wrong."
+                FileHandle.standardError.write(Data("\(why)\n".utf8))
+                stopSent = Date()
+                process.terminate()
+            }
+        }
         if collector.tunnelUp && upSince == nil {
             upSince = Date()
             FileHandle.standardError.write(Data("Tunnel is up; capturing for \(o.duration) s.\n".utf8))
@@ -270,6 +315,7 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
             kill(process.processIdentifier, SIGKILL)
         }
     }
+    try? stdin.fileHandleForWriting.close()
     output.fileHandleForReading.readabilityHandler = nil
     let rest = output.fileHandleForReading.readDataToEndOfFile()
     if !rest.isEmpty { collector.append(rest) }
