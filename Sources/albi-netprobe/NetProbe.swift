@@ -190,7 +190,7 @@ struct NetProbe {
         guard getsockopt(fd, sysprotoControl, utunOptIfname, &name, &len) == 0 else {
             throw ProbeError("UTUN_OPT_IFNAME: \(errnoString())")
         }
-        return (fd, String(cString: name))
+        return (fd, String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
     }
 
     @discardableResult
