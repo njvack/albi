@@ -85,13 +85,26 @@ extension RealSystem {
             let flags = UInt32(fs.f_flags)
             let local = flags & UInt32(MNT_LOCAL) != 0
             let v = local ? try? URL(fileURLWithPath: mp, isDirectory: true).resourceValues(forKeys: keys) : nil
+            let browsable = flags & UInt32(MNT_DONTBROWSE) == 0
+            // volumeIsEncrypted says false for an APFS volume under FileVault
+            // (seen on macOS 27 with FileVault on), so ask diskutil for the
+            // volumes the disk-encryption entry reports.
+            let reported = mp == "/" || mp == "/System/Volumes/Data" || (browsable && !mp.hasPrefix("/System/"))
+            let fileVault = local && reported ? diskutilFileVault(mp) : nil
             return Volume(mountPoint: mp, name: v?.volumeName ?? "", local: local,
-                          browsable: flags & UInt32(MNT_DONTBROWSE) == 0, isInternal: v?.volumeIsInternal,
-                          encrypted: v?.volumeIsEncrypted)
+                          browsable: browsable, isInternal: v?.volumeIsInternal,
+                          encrypted: fileVault ?? v?.volumeIsEncrypted)
         }
         #else
         return nil
         #endif
+    }
+
+    /// The FileVault key of `diskutil info -plist`, which is what
+    /// `fdesetup status` and System Settings go by.
+    func diskutilFileVault(_ mountPoint: String) -> Bool? {
+        let r = run(["/usr/sbin/diskutil", "info", "-plist", mountPoint], timeout: 5)
+        return decodePlist(Data(r.stdout.utf8)).flatMap { plistBool($0["FileVault"]) }
     }
 
     /// SystemConfiguration for the hardware ports and their burned-in MACs,
