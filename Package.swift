@@ -16,6 +16,7 @@ let package = Package(
         .library(name: "Diagnostics", targets: ["Diagnostics"]),
         .executable(name: "albi-diag", targets: ["albi-diag"]),
         .library(name: "AlbiApp", targets: ["AlbiApp"]),
+        .executable(name: "albi-netprobe", targets: ["albi-netprobe"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -69,5 +70,11 @@ let package = Package(
         // #if canImport(SwiftUI), so it is empty on Linux.
         .target(name: "AlbiApp", dependencies: ["GPMac", "Diagnostics"]),
         .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
+
+        // Root-helper probe: makes a utun, routes and temporary DNS keys
+        // and checks they vanish when the process dies; also registers a
+        // test daemon with SMAppService. e2e/netprobe.sh and
+        // scripts/smappservice-probe.sh drive it. macOS only.
+        .executableTarget(name: "albi-netprobe"),
     ]
 )

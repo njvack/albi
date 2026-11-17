@@ -129,6 +129,21 @@ In `fixtures/`, cookies, ESP keys and SPIs, HIP tokens, user, computer, domain, 
 
 `summary.txt` holds only timers, counts and yes/no answers; it is safe to paste. To add a capture to the tests, copy `fixtures/` to `Tests/GPCoreTests/Fixtures/NAME/`: `FixtureTests` parses every exchange with GPCore and checks that albi's getconfig, HIP check and logout requests carry the same fields openconnect sent. `--from-log raw/openconnect.log` redoes the redaction without connecting again. `e2e/capture.sh` runs the whole thing against gp-fake-gateway; CI runs it on macOS.
 
+## Root helper probe
+
+Albi may run its tunnel in a root LaunchDaemon instead of a Network Extension, which needs no paid Apple Developer account. Its rule: nothing it changes may outlive the process. `albi-netprobe` checks the assumptions behind that before the helper is built.
+
+```sh
+swift build --product albi-netprobe
+e2e/netprobe.sh "$(swift build --show-bin-path)/albi-netprobe"                       # sudo; cuts the network for a few seconds
+scripts/smappservice-probe.sh "$(swift build --show-bin-path)/albi-netprobe"          # ad-hoc signed
+scripts/smappservice-probe.sh "$(swift build --show-bin-path)/albi-netprobe" "Apple Development"
+```
+
+`e2e/netprobe.sh` has `albi-netprobe up` make a utun, give it routes (full tunnel: 0/1 and 128/1; split: 10.99.0.0/16) and publish DNS as temporary dynamic-store keys, then answer DNS for the tunnel itself. While it's up the script checks that lookups reach the tunnel's DNS (every name for full tunnel, only `albi-probe.test` for split) and that a socket pinned to the physical interface still gets out. Then it stops the probe with SIGTERM or kill -9, and checks that the utun, its routes, the DNS servers, the dynamic-store keys and the default route are back as they were. The probe has no cleanup code. CI runs it.
+
+`scripts/smappservice-probe.sh` wraps the probe in a tiny app, signs it ad-hoc or with the given identity, and registers a LaunchDaemon with `SMAppService`. It checks that the daemon ran as root, then unregisters it.
+
 ## The app and extension (Step 1 test build)
 
 Needs macOS 27, Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and a Developer ID team.
