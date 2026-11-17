@@ -313,10 +313,12 @@ public final class FlightRecorder: Sendable {
 /// longer than `grace` of counted time is an incident and gets a dump. So
 /// does reaching `needsLogin` while the cookie should still be valid. The
 /// incident closes on the next `connected`, a stop, or `aftermath` after the
-/// dump.
+/// dump. A stop that logs out closes it once the logout request is recorded
+/// (or `logoutWait` passes), so a failed logout shows up in the file.
 struct IncidentRules: Sendable {
     var grace: Double = 60
     var aftermath: Double = 600
+    var logoutWait: Double = 30
 
     private(set) var openSince: Double?
     private var counted: Double = 0
@@ -333,6 +335,8 @@ struct IncidentRules: Sendable {
     /// An incident closed by `aftermath` while still out: no new dump until
     /// the session connects or stops.
     private var quiet = false
+    /// Stopped with a logout: close when the logout request is recorded, or at this time.
+    private var logoutDeadline: Double?
 
     mutating func observe(_ t: FlightRecorder.Trace, at now: Double) -> [FlightRecorder.Signal] {
         var out: [FlightRecorder.Signal] = []
@@ -340,6 +344,7 @@ struct IncidentRules: Sendable {
         case .event(let e):
             switch e {
             case .start:
+                if logoutDeadline != nil { out += close(now: now, outcome: "stopped") }
                 started = true
                 goOut(now: now)
             case .sleep:
@@ -358,8 +363,12 @@ struct IncidentRules: Sendable {
                 }
             case .configFetched(let c):
                 if let l = c.lifetime, l > 0 { expiresAt = now + Double(l) }
-            case .stop:
-                out += close(now: now, outcome: "stopped")
+            case .stop(let logout):
+                if logout && dumped != nil {
+                    logoutDeadline = now + logoutWait
+                } else {
+                    out += close(now: now, outcome: "stopped")
+                }
                 started = false
                 quiet = false
             default:
@@ -386,11 +395,15 @@ struct IncidentRules: Sendable {
                 out += close(now: now, outcome: "login needed: \(reason)")
                 started = false
             case .stopped:
-                out += close(now: now, outcome: "stopped")
+                if logoutDeadline == nil { out += close(now: now, outcome: "stopped") }
                 started = false
             case .idle:
                 break
             }
+        case .http(let h) where logoutDeadline != nil && h.path.hasPrefix("/ssl-vpn/logout.esp"):
+            // Same test the runner applies before it logs "logged out".
+            let ok = h.error == nil && h.status.map { (try? Reply.document(status: $0, body: h.body ?? "")) != nil } == true
+            out += close(now: now, outcome: ok ? "stopped, logged out" : "stopped, logout failed")
         default:
             break
         }
@@ -399,6 +412,9 @@ struct IncidentRules: Sendable {
     }
 
     mutating func tick(now: Double) -> [FlightRecorder.Signal] {
+        if let d = logoutDeadline, now >= d {
+            return close(now: now, outcome: "stopped, no logout recorded within \(Int(logoutWait)) s")
+        }
         if let d = dumped, now - d.at >= aftermath {
             let out = close(now: now, outcome: "still not connected \(Int(now - d.at)) s after the dump")
             if started && !connected { quiet = true }
@@ -447,6 +463,7 @@ struct IncidentRules: Sendable {
             counted = 0
             countingSince = nil
             dumped = nil
+            logoutDeadline = nil
         }
         guard let d = dumped else { return [] }
         return [.closed(id: d.id, outcome: outcome)]

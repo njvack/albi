@@ -52,7 +52,7 @@ case "summary":
             print(s)
         case "http":
             let st = e["status"].map { "\($0)" } ?? (e["error"] as? String ?? "?")
-            print("\(t) \(pin)http \(IncidentFile.requestKind(e["path"] as? String ?? "")) → \(st) (\(e["duration"] ?? 0) s)")
+            print("\(t) \(pin)http \(IncidentFile.requestKind(e["path"] as? String ?? "")) → \(st) (\(String(format: "%.3f", e["duration"] as? Double ?? 0)) s)")
         case "incident": print("\(t) incident \(e["message"] ?? "")")
         default: break
         }
