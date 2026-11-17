@@ -94,7 +94,7 @@ public final class NetConfig: @unchecked Sendable {
             }
         }
         for r in tunnelRoutes.subtracting(want) {
-            try? RoutingSocket.delete(r)
+            _ = try? RoutingSocket.delete(r)
         }
         for r in want.subtracting(tunnelRoutes) {
             try RoutingSocket.add(r)
@@ -195,7 +195,7 @@ public final class NetConfig: @unchecked Sendable {
     /// doesn't depend on that.
     public func teardown() {
         removeDNS()
-        for r in tunnelRoutes { try? RoutingSocket.delete(r) }
+        for r in tunnelRoutes { _ = try? RoutingSocket.delete(r) }
         tunnelRoutes = []
         for r in excluded {
             do { try RoutingSocket.delete(r) } catch { log("removing excluded route \(r): \(error)") }
