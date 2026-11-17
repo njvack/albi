@@ -284,7 +284,13 @@ public final class PathWatcher: @unchecked Sendable {
     }
 
     private func update(_ path: NWPath) {
-        let phys = path.availableInterfaces.filter { $0.type != .other && $0.type != .loopback }
+        var phys = path.availableInterfaces.filter { $0.type != .other && $0.type != .loopback }
+        // The interface configd made primary (the real default route) goes
+        // first. The monitor's own order can put another one, such as a
+        // Thunderbolt bridge, ahead of it once a tunnel takes the best path.
+        if let primary = Self.globalPrimaryInterface(), let i = phys.firstIndex(where: { $0.name == primary }) {
+            phys.insert(phys.remove(at: i), at: 0)
+        }
         let r = phys.first.flatMap { Self.router(for: $0.name) }
         lock.withLock {
             self.path = path
@@ -299,6 +305,14 @@ public final class PathWatcher: @unchecked Sendable {
         if prev.usable != now.usable || (now.usable && (prev.primary != now.primary || prev.router != now.router)) {
             onChange(now.usable)
         }
+    }
+
+    /// configd's primary IPv4 interface, unless it's a tunnel's.
+    static func globalPrimaryInterface() -> String? {
+        guard let store = SCDynamicStoreCreate(nil, "albi-path" as CFString, nil, nil),
+              let d = SCDynamicStoreCopyValue(store, "State:/Network/Global/IPv4" as CFString) as? [String: Any],
+              let name = d["PrimaryInterface"] as? String, !name.hasPrefix("utun") else { return nil }
+        return name
     }
 
     /// The router of the network service on `ifname`, from configd's state

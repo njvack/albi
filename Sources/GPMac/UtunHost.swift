@@ -1,4 +1,5 @@
 #if os(macOS)
+import Darwin
 import Foundation
 import GPCore
 
@@ -38,6 +39,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private let net: NetConfig
     private let hooks: Hooks
     private let router: @Sendable () -> String?
+    private let gatewayHosts: [String]
     private let queue = DispatchQueue(label: "albi.utun-host")
     private let readQueue = DispatchQueue(label: "albi.utun-read")
     // Touched only on `queue`.
@@ -46,11 +48,14 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private var shutDown = false
 
     /// Opens a utun. `router` gives the physical network's IPv4 router, for
-    /// excluded routes.
+    /// excluded routes and the host routes to the gateway. `gatewayHosts`
+    /// are resolved for those host routes, along with getconfig's gw-address.
     public init(dnsMode: NetConfig.DNSMode = .split, journal: URL = NetConfig.defaultJournal,
+                gatewayHosts: [String] = [],
                 router: @escaping @Sendable () -> String?, hooks: Hooks) throws {
         device = try UtunDevice()
         self.dnsMode = dnsMode
+        self.gatewayHosts = gatewayHosts
         self.router = router
         self.hooks = hooks
         net = NetConfig(journal: journal, log: hooks.log)
@@ -117,13 +122,40 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
 
     private func install() {
         guard !shutDown, let s = settings, s != applied else { return }
+        // Resolved now, while DNS and routes are still the physical network's.
+        let gateways = Self.ipv4Addresses(of: [s.remoteAddress] + gatewayHosts)
         do {
-            try net.apply(s, interface: device.name, router: router(), dnsMode: dnsMode)
+            try net.apply(s, interface: device.name, router: router(), gateways: gateways, dnsMode: dnsMode)
             applied = s
             hooks.log("network applied: \(net.summary)")
         } catch {
             hooks.log("applying network settings failed: \(error)")
         }
+    }
+
+    /// The IPv4 addresses `hosts` resolve to, leaving out loopback (never
+    /// captured by tunnel routes).
+    static func ipv4Addresses(of hosts: [String]) -> [String] {
+        var out: [String] = []
+        for h in hosts where !h.isEmpty {
+            var hints = addrinfo()
+            hints.ai_family = AF_INET
+            hints.ai_socktype = SOCK_STREAM
+            var res: UnsafeMutablePointer<addrinfo>?
+            guard getaddrinfo(h, nil, &hints, &res) == 0, let first = res else { continue }
+            defer { freeaddrinfo(res) }
+            var p: UnsafeMutablePointer<addrinfo>? = first
+            while let ai = p {
+                p = ai.pointee.ai_next
+                guard let sa = ai.pointee.ai_addr else { continue }
+                var sin = sa.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
+                var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
+                guard inet_ntop(AF_INET, &sin.sin_addr, &buf, socklen_t(buf.count)) != nil else { continue }
+                let a = String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+                if !a.hasPrefix("127."), !out.contains(a) { out.append(a) }
+            }
+        }
+        return out
     }
 
     private func removeNetwork() {

@@ -73,7 +73,20 @@ public final class NetConfig: @unchecked Sendable {
 
     /// Makes routes and DNS match `settings` for the tunnel on `interface`.
     /// Call again with new settings; only the difference changes.
-    public func apply(_ settings: TunnelSettings, interface: String, router: String?, dnsMode: DNSMode) throws {
+    ///
+    /// `gateways` are the gateway's IPv4 addresses. Each gets a host route
+    /// via the physical router, like openconnect's vpnc-script adds, so the
+    /// tunnel's own connection never follows 0/1 into the utun, pinned or
+    /// not. They're journaled like excluded routes, and go in first.
+    public func apply(_ settings: TunnelSettings, interface: String, router: String?, gateways: [String] = [],
+                      dnsMode: DNSMode) throws {
+        excludedWanted = gateways.map { RouteSpec(destination: $0, prefixLength: 32) }
+            + settings.excludedIPv4.map { RouteSpec(destination: $0.address, prefixLength: $0.prefixLength) }
+        if !settings.excludedIPv6.isEmpty {
+            log("IPv6 excluded routes not supported yet; ignored: \(settings.excludedIPv6.map { "\($0.address)/\($0.prefixLength)" })")
+        }
+        try routeExcluded(via: router)
+
         // Into the tunnel. A default route becomes two halves so the real
         // default route stays as it is.
         var want = Set<RouteSpec>()
@@ -100,12 +113,6 @@ public final class NetConfig: @unchecked Sendable {
             try RoutingSocket.add(r)
         }
         tunnelRoutes = want
-
-        excludedWanted = settings.excludedIPv4.map { RouteSpec(destination: $0.address, prefixLength: $0.prefixLength) }
-        if !settings.excludedIPv6.isEmpty {
-            log("IPv6 excluded routes not supported yet; ignored: \(settings.excludedIPv6.map { "\($0.address)/\($0.prefixLength)" })")
-        }
-        try routeExcluded(via: router)
         try publishDNS(settings, interface: interface, mode: dnsMode)
     }
 
@@ -122,7 +129,7 @@ public final class NetConfig: @unchecked Sendable {
 
     private func routeExcluded(via router: String?) throws {
         let want = Set(router.map { r in excludedWanted.map { RouteSpec(destination: $0.destination, prefixLength: $0.prefixLength, gateway: r) } } ?? [])
-        if router == nil && !excludedWanted.isEmpty { log("no IPv4 router; excluded routes left out for now") }
+        if router == nil && !excludedWanted.isEmpty { log("no IPv4 router; gateway and excluded routes left out for now") }
         let remove = excluded.subtracting(want)
         let add = want.subtracting(excluded)
         guard !remove.isEmpty || !add.isEmpty else { return }

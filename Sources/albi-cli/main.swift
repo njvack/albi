@@ -44,6 +44,7 @@ struct Options {
     var tun = false
     var dnsMode = NetConfig.DNSMode.split
     var journal = NetConfig.defaultJournal
+    var pinInterface = true
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -71,6 +72,8 @@ struct Options {
       --tun                  real tunnel: utun, routes and DNS (root)
       --dns split|full       with --tun: split (default) sends only the gateway's domains to its
                              DNS; full makes its DNS the default resolver
+      --no-pin               with --tun: don't pin gateway connections to the physical
+                             interface (the host route to the gateway still goes in)
       --journal PATH         with --tun: excluded-route journal
                              (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
@@ -125,6 +128,7 @@ struct Options {
                 guard let m = NetConfig.DNSMode(rawValue: value(a)) else { fail("--dns is split or full") }
                 o.dnsMode = m
             case "--journal": o.journal = URL(fileURLWithPath: value(a))
+            case "--no-pin": o.pinInterface = false
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
                 positional.append(a)
@@ -334,9 +338,26 @@ if options.tun {
 // e2e fake) is never captured, so it isn't pinned.
 let gatewayHost = splitHostPort(options.server).0
 let loopbackGateway = gatewayHost == "localhost" || gatewayHost == "::1" || gatewayHost.hasPrefix("127.")
+/// Logs the interface gateway connections are pinned to when it changes.
+final class PinLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: String?? = .none
+    func note(_ name: String?) {
+        let changed = lock.withLock {
+            defer { last = .some(name) }
+            return last != .some(name)
+        }
+        if changed { say("gateway connections pinned to \(name ?? "nothing (unpinned)")") }
+    }
+}
+let pinLog = PinLog()
 var pin: (@Sendable () -> NWInterface?)?
-if options.tun {
-    pin = { [watcher] in loopbackGateway ? nil : watcher.primaryInterface }
+if options.tun && options.pinInterface {
+    pin = { [watcher] in
+        let i = loopbackGateway ? nil : watcher.primaryInterface
+        pinLog.note(i?.name)
+        return i
+    }
 }
 let base = NWGatewayConnector(trust: trust, requiredInterface: pin)
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
@@ -345,7 +366,9 @@ let cliHost = CLIHost(options: options, connector: connector, credentials: crede
 var client = cliHost.client
 if options.tun {
     do {
-        utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal, router: { [watcher] in watcher.ipv4Router },
+        utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal,
+                                gatewayHosts: [gatewayHost] + (options.gateway.map { [splitHostPort($0).0] } ?? []),
+                                router: { [watcher] in watcher.ipv4Router },
                                 hooks: .init(hipReport: { try await cliHost.hipReport($0) },
                                              reauthenticate: { try await cliHost.reauthenticate() },
                                              saveCookie: { cliHost.saveCookie($0) },
