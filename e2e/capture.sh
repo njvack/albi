@@ -33,7 +33,9 @@ sessions() {
   ctl GET /sessions | python3 -c "import json, sys; s = json.load(sys.stdin) or []; print($1)"
 }
 
-"$FAKEGP" -listen "$LISTEN" -control "$CONTROL" -pin-file "$WORK/pin" >"$WORK/fakegp.out" 2>"$WORK/fakegp.log" &
+# panos-11.1 is the real gateway from albi#15: Duo at the portal and again at
+# the gateway (as JavaScript), so gp-capture answers four prompts.
+"$FAKEGP" -listen "$LISTEN" -control "$CONTROL" -pin-file "$WORK/pin" -profile panos-11.1 >"$WORK/fakegp.out" 2>"$WORK/fakegp.log" &
 GP_PID=$!
 for _ in $(seq 10); do [ -s "$WORK/pin" ] && break; sleep 1; done
 [ -s "$WORK/pin" ] || { echo "fakegp did not start"; cat "$WORK/fakegp.log"; exit 1; }
@@ -56,6 +58,12 @@ for want in "lifetime: 43200 s (12 h)" "timeout (rekey): 3600 s (1 h)" "disconne
             "hip-report-needed: yes" "hipreport submissions: 1, accepted: 1" "IPv6 address: yes" "access routes: 2 (1 IPv6)"; do
   if grep -qF "$want" "$F/summary.txt" 2>/dev/null; then pass "summary: $want"; else fail "summary lacks: $want"; fi
 done
+
+if [ "$(grep -c '	portal-getconfig$' "$F/index.tsv" 2>/dev/null)" = 2 ] && [ "$(grep -c '	gateway-login$' "$F/index.tsv" 2>/dev/null)" = 2 ]; then
+  pass "answered the portal and the gateway challenge"
+else
+  fail "expected two portal-getconfig and two gateway-login exchanges"
+fi
 
 for label in portal-prelogin portal-getconfig gateway-login gateway-getconfig gateway-hipreportcheck gateway-hipreport tunnel-connect gateway-logout; do
   if grep -q "	$label\$" "$F/index.tsv" 2>/dev/null; then pass "captured $label"; else fail "no $label exchange"; fi
