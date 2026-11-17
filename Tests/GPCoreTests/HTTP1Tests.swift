@@ -23,7 +23,7 @@ import Testing
         #expect(s.hasPrefix("POST /ssl-vpn/getconfig.esp HTTP/1.1\r\nHost: gw.example.edu:8443\r\n"))
         #expect(s.contains("User-Agent: PAN GlobalProtect\r\n"))
         #expect(s.contains("Content-Type: application/x-www-form-urlencoded\r\n"))
-        #expect(s.hasSuffix("Content-Length: 5\r\n\r\na=b%20c"))
+        #expect(s.hasSuffix("Content-Length: 7\r\n\r\na=b%20c"))
     }
 
     @Test func encodesGet() {
