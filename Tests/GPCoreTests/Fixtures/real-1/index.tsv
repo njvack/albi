@@ -3,3 +3,9 @@
 02	POST	/global-protect/getconfig.esp	200	portal-getconfig
 03	POST	/global-protect/getconfig.esp	200	portal-getconfig
 04	POST	/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac	200	gateway-prelogin
+05	POST	/ssl-vpn/login.esp	200	gateway-login
+06	POST	/ssl-vpn/login.esp	200	gateway-login
+07	POST	/ssl-vpn/getconfig.esp	200	gateway-getconfig
+08	POST	/ssl-vpn/hipreportcheck.esp	200	gateway-hipreportcheck
+09	POST	/ssl-vpn/hipreport.esp	200	gateway-hipreport
+10	POST	/ssl-vpn/logout.esp	200	gateway-logout

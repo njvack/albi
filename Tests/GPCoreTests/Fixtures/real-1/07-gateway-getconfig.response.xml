@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+
+	<response status="success">
+		<need-tunnel>yes</need-tunnel>
+		<ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url>
+		<portal>portal2</portal>
+		<user>user1</user>
+		<quarantine>no</quarantine>
+		<lifetime>259200</lifetime>
+		<timeout>43200</timeout>
+		<lifetime-notify-prior>3600</lifetime-notify-prior>
+		<lifetime-notify-message>Your GlobalProtect session will expire in 30 minutes. Please save your work before your session expires.</lifetime-notify-message>
+		<inactivity-notify-prior>1800</inactivity-notify-prior>
+		<inactivity-notify-message>Your GlobalProtect session will time out in 30 minutes. Please save your work before your session times out.</inactivity-notify-message>
+		<admin-logout-notify-message>Your administrator has logged you out.</admin-logout-notify-message>
+		<user_expires>1795137214</user_expires>
+		<disconnect-on-idle>43200</disconnect-on-idle>
+		<bw-c2s>1000</bw-c2s>
+		<bw-s2c>1000</bw-s2c>
+		<panos-version>11.1.13-h16</panos-version>
+		<gw-address>198.18.1.1</gw-address>
+		<ipv6-connection>no</ipv6-connection>
+		<ip-address>10.1.1.1</ip-address>
+		<netmask>255.255.255.255</netmask>
+		<ip-address-preferred>yes</ip-address-preferred>
+		<dns>
+			<member>198.19.1.1</member>
+			<member>198.19.1.2</member>
+		</dns> 
+		<wins>
+		</wins> 
+		<dns-suffix>
+			<member>example2.test</member>
+			<member>example.test</member>
+		</dns-suffix> 
+		<default-gateway>10.1.1.1</default-gateway>
+		<mtu>0</mtu>
+		<no-direct-access-to-local-network>no</no-direct-access-to-local-network>
+		<access-routes>
+			<member>0.0.0.0/0</member>
+			<member>198.19.1.1/32</member>
+			<member>198.19.1.2/32</member>
+		</access-routes> 
+		<exclude-access-routes>
+		</exclude-access-routes> 
+		<ipsec>
+			<udp-port>4501</udp-port>
+			<ipsec-mode>esp-tunnel</ipsec-mode>
+			<enc-algo>aes-128-cbc</enc-algo>
+			<hmac-algo>sha1</hmac-algo>
+			<c2s-spi>0xFA000005</c2s-spi>
+			<s2c-spi>0xFA000006</s2c-spi>
+			<akey-s2c>
+				<bits>160</bits>
+				<val>fa00000000000000000000000000000000000007</val>
+			</akey-s2c> 
+			<ekey-s2c>
+				<bits>128</bits>
+				<val>fa000000000000000000000000000008</val>
+			</ekey-s2c> 
+			<akey-c2s>
+				<bits>160</bits>
+				<val>fa00000000000000000000000000000000000009</val>
+			</akey-c2s> 
+			<ekey-c2s>
+				<bits>128</bits>
+				<val>fa00000000000000000000000000000a</val>
+			</ekey-c2s> 
+		</ipsec> 
+	</response>

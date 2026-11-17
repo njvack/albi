@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<jnlp>
+<application-desc>
+<argument></argument>
+<argument>fa000000000000000000000000000003</argument>
+<argument>fa00000000000000000000000000000000000004</argument>
+<argument>portal2</argument>
+<argument>user1</argument>
+<argument>auth-source1</argument>
+<argument>vsys22</argument>
+<argument>domain1</argument>
+<argument></argument>
+<argument></argument>
+<argument></argument>
+<argument></argument>
+<argument>tunnel</argument>
+<argument>-1</argument>
+<argument>4100</argument>
+<argument></argument>
+<argument>empty</argument>
+<argument>empty</argument>
+<argument></argument>
+<argument>4</argument>
+<argument></argument>
+<argument></argument>
+</application-desc>
+</jnlp>
