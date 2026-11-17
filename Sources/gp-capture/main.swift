@@ -113,8 +113,9 @@ func findExecutable(_ name: String) -> String? {
     return nil
 }
 
-// Set by SIGINT/SIGTERM. openconnect gets the same Ctrl-C (it is in our
-// process group) and logs out; we keep going to write what it logged.
+// Set by SIGINT/SIGTERM. On macOS, Process starts openconnect in its own
+// process group, so it may not get the Ctrl-C itself; the main loop sends it
+// SIGTERM, it logs out, and we keep going to write what it logged.
 nonisolated(unsafe) var interrupted: sig_atomic_t = 0
 func onSignal(_: Int32) { interrupted = 1 }
 
@@ -171,6 +172,21 @@ final class OutputCollector: @unchecked Sendable {
     }
 }
 
+/// Runs argv in our own process group, so it can read the terminal (sudo's
+/// password prompt), and returns its wait status, or -1 if it did not start.
+func runInForeground(_ argv: [String]) -> Int32 {
+    let cArgs = argv.map { strdup($0) } + [nil]
+    let cEnv = ProcessInfo.processInfo.environment.map { strdup("\($0.key)=\($0.value)") } + [nil]
+    defer { (cArgs + cEnv).forEach { free($0) } }
+    var pid: pid_t = 0
+    guard posix_spawn(&pid, argv[0], nil, nil, cArgs, cEnv) == 0 else { return -1 }
+    var status: Int32 = 0
+    while waitpid(pid, &status, 0) == -1 {
+        if errno != EINTR { return -1 }
+    }
+    return status
+}
+
 func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, password: String) {
     guard let oc = o.openconnect ?? findExecutable("openconnect") else {
         fail("openconnect not found; install it (brew install openconnect) or pass --openconnect")
@@ -200,12 +216,10 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
         process.arguments = args
     } else {
         FileHandle.standardError.write(Data("openconnect needs root for its tun device; sudo may ask for your Mac password.\n".utf8))
-        let v = Process()
-        v.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
-        v.arguments = ["-v"]
-        do { try v.run() } catch { fail("sudo: \(error)") }
-        v.waitUntilExit()
-        if v.terminationStatus != 0 { fail("sudo failed") }
+        // Not Process: it starts the child in a new process group, so sudo
+        // is not the terminal's foreground job and the password typed at its
+        // prompt goes to the shell instead.
+        if runInForeground(["/usr/bin/sudo", "-v"]) != 0 { fail("sudo failed") }
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sudo")
         process.arguments = ["-n", "--", oc] + args
     }
