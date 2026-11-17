@@ -119,7 +119,8 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
     let c = CapturedConversation.all.first { $0.name == "real-1" }!
 
     func body(_ n: String) throws -> String {
-        try #require(c.response(try #require(c.rows.first { $0.n == n })))
+        let row = try #require(c.rows.first { $0.n == n })
+        return try #require(c.response(row))
     }
 
     @Test func portalHandsOutNoCookie() throws {
