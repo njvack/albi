@@ -24,6 +24,7 @@ on:
       - 'Package.resolved'
       - '.github/workflows/client.yml'
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
     paths: *paths
   workflow_dispatch:
 
@@ -39,6 +40,7 @@ env:
 
 jobs:
   linux:
+    if: github.event.action != 'labeled' || github.event.label.name == 'e2e'
     runs-on: ubuntu-latest
     container: swift:6.1-noble
     steps:
@@ -47,14 +49,29 @@ jobs:
       - run: swift test --filter 'GPCoreTests|GPCaptureTests|DiagnosticsTests'
 
   macos:
-    # One macOS job for everything that needs SwiftPM on a Mac, so the
-    # package builds once: unit tests, then against gp-fake-gateway
-    # albi-cli (userspace ping through the tunnel, no root, no extension),
-    # gp-capture with Homebrew's openconnect run through sudo, and
-    # diagnostics mode end to end (an outage writes a redacted incident
-    # file, albi-diag replays it and drafts a scenario, the draft reproduces
-    # it) plus albi-cli against every scenario. Uses the fake's branch of the
-    # same name as this one when there is one, else main.
+    # Unit tests for everything that needs SwiftPM on a Mac.
+    if: github.event.action != 'labeled' || github.event.label.name == 'e2e'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift test --filter 'GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests'
+
+  e2e:
+    # Against gp-fake-gateway: albi-cli (userspace ping through the tunnel,
+    # no root, no extension), gp-capture with Homebrew's openconnect run
+    # through sudo, and diagnostics mode end to end (an outage writes a
+    # redacted incident file, albi-diag replays it and drafts a scenario, the
+    # draft reproduces it) plus albi-cli against every scenario. Uses the
+    # fake's branch of the same name as this one when it has commits main
+    # lacks, else main.
+    #
+    # Runs on pushes to main, by hand (Actions > client > Run workflow), and
+    # on a PR once it carries the e2e label; later pushes to that PR run it
+    # too. Not on every PR push, to save macOS runner time.
+    if: >-
+      github.event_name != 'pull_request' ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +81,11 @@ jobs:
         run: |
           git clone --quiet https://github.com/njvack/gp-fake-gateway.git gp-fake-gateway
           git -C gp-fake-gateway checkout --quiet "$BRANCH" 2>/dev/null || true
+          # A same-name branch that main already contains is stale (merged
+          # earlier); main is newer, so use it.
+          if git -C gp-fake-gateway merge-base --is-ancestor HEAD origin/main; then
+            git -C gp-fake-gateway checkout --quiet --detach origin/main
+          fi
           git -C gp-fake-gateway log --oneline -1
       - uses: actions/setup-go@v5
         with:
@@ -72,9 +94,7 @@ jobs:
       - run: go build -o ../fakegp ./cmd/fakegp
         working-directory: gp-fake-gateway
       - run: brew install openconnect
-      - run: swift --version
       - run: swift build --product albi-cli && swift build --product albi-diag && swift build --product gp-capture
-      - run: swift test --filter 'GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests'
       - name: e2e client
         if: ${{ !cancelled() }}
         run: e2e/client.sh "$(swift build --show-bin-path)/albi-cli" "$PWD/fakegp" "$PWD/gp-fake-gateway/e2e/hipreport-stub.sh"
