@@ -144,6 +144,11 @@ scenario() {
   sleep 2 # configd reacts to a dead session asynchronously
   [ "$how" = term ] && { grep -q 'network removed' "$log" && pass "$name: removed its network on SIGTERM" || fail "$name: no 'network removed' on SIGTERM"; }
 
+  if grep -Eq 'path changed|state (reconnecting|waiting)' "$log"; then
+    echo "  session events:"
+    grep -E 'path changed|state |network (applied|removed)|failed' "$log" | sed 's/^/    /'
+  fi
+
   # After.
   if ifconfig -l | tr ' ' '\n' | grep -qx "$utun"; then fail "$name: $utun still exists"; else pass "$name: $utun is gone"; fi
   if [ "$mode" = full ] && [ "$how" = kill9 ]; then

@@ -314,12 +314,14 @@ final class RunnerBox: @unchecked Sendable {
 }
 let box = RunnerBox()
 nonisolated(unsafe) var utunHost: UtunHost?
+nonisolated(unsafe) var watcherRef: PathWatcher?
 
 let watcher = PathWatcher { usable in
-    say("network path changed (usable=\(usable))")
+    say("network path changed (usable=\(usable)): \(watcherRef?.summary ?? "")")
     box.post(.pathChanged(usable: usable))
     utunHost?.pathChanged()
 }
+watcherRef = watcher
 watcher.start()
 
 if options.tun {

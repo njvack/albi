@@ -169,7 +169,8 @@ public final class NetConfig: @unchecked Sendable {
         ]
         var dns: [String: Any] = ["ServerAddresses": s.dnsServers]
         if override {
-            ipv4["Router"] = v4
+            // No Router: with one, configd also points the default route at
+            // the utun, and the default route is never ours to change.
             ipv4["OverridePrimary"] = 1
             if !s.searchDomains.isEmpty { dns["SearchDomains"] = s.searchDomains }
         } else {

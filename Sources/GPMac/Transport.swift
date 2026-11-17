@@ -277,6 +277,14 @@ public final class PathWatcher: @unchecked Sendable {
         }
     }
 
+    /// The last path, for logs.
+    public var summary: String {
+        lock.withLock {
+            guard let p = path else { return "no path yet" }
+            return "status=\(p.status) interfaces=\(p.availableInterfaces.map(\.name)) gateways=\(p.gateways)"
+        }
+    }
+
     private func update(_ path: NWPath) {
         lock.withLock { self.path = path }
         // The primary interface catches Wi-Fi to Ethernet; the router address
