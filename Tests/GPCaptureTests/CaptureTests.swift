@@ -244,6 +244,15 @@ func sampleLog() -> String {
         #expect(s.contains("gateways offered: 2"))
     }
 
+    @Test func placeholdersAreKept() {
+        var r = Redactor()
+        r.learn(field: "portal-userauthcookie", value: "empty")
+        r.learn(field: "agent-user-override-key", value: "****")
+        r.learn(field: "advanced-st-public-key", value: "Empty")
+        let xml = "<portal-userauthcookie>empty</portal-userauthcookie><k>****</k><p>Empty</p>"
+        #expect(r.redact(xml) == xml)
+    }
+
     @Test func leakCheckCatchesWhatItLearned() {
         var r = fx.redactor
         _ = r.redact("x")

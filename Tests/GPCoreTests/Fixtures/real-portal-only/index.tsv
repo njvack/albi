@@ -1,0 +1,5 @@
+# n	method	target	status	label
+01	POST	/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac	200	portal-prelogin
+02	POST	/global-protect/getconfig.esp	200	portal-getconfig
+03	POST	/global-protect/getconfig.esp	200	portal-getconfig
+04	POST	/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac	200	gateway-prelogin

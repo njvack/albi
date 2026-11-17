@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<policy>
+  <agent-user-override-key>****</agent-user-override-key>
+  <portal-name>portal1</portal-name>
+  <portal-config-version>4100</portal-config-version>
+  <version>6.2.8-948</version>
+  <client-role>global-protect-full</client-role>
+  <gateways>
+    <cutoff-time>5</cutoff-time>
+    <external>
+      <list>
+        <entry name="host1.example.test">
+          <description>Gateway 1</description>
+          <priority-rule>
+            <entry name="Any">
+              <priority>1</priority>
+            </entry>
+          </priority-rule>
+        </entry>
+      </list>
+    </external>
+  </gateways>
+  <gateways-v6>
+    <cutoff-time>5</cutoff-time>
+    <external>
+      <list>
+        <entry name="Gateway 1">
+          <fqdn>host1.example.test</fqdn>
+          <priority-rule>
+            <entry name="Any">
+              <priority>1</priority>
+            </entry>
+          </priority-rule>
+        </entry>
+      </list>
+    </external>
+  </gateways-v6>
+  <agent-config>
+    <save-user-credentials>2</save-user-credentials>
+    <portal-2fa>no</portal-2fa>
+    <internal-gateway-2fa>no</internal-gateway-2fa>
+    <auto-discovery-external-gateway-2fa>no</auto-discovery-external-gateway-2fa>
+    <manual-only-gateway-2fa>no</manual-only-gateway-2fa>
+    <disconnect-reasons/>
+    <uninstall>allowed</uninstall>
+    <client-upgrade>prompt</client-upgrade>
+    <enable-signout>yes</enable-signout>
+    <allow-extend-session>no</allow-extend-session>
+    <use-sso-pin>no</use-sso-pin>
+    <use-sso-macos>yes</use-sso-macos>
+    <logout-remove-sso>yes</logout-remove-sso>
+    <krb-auth-fail-fallback>yes</krb-auth-fail-fallback>
+    <default-browser>no</default-browser>
+    <cache-saml-username>no</cache-saml-username>
+    <retry-tunnel>30</retry-tunnel>
+    <retry-timeout>5</retry-timeout>
+    <traffic-enforcement>no</traffic-enforcement>
+    <enforce-globalprotect>no</enforce-globalprotect>
+    <captive-portal-exception-timeout>0</captive-portal-exception-timeout>
+    <captive-portal-using-default-browser>yes</captive-portal-using-default-browser>
+    <captive-portal-login-url/>
+    <traffic-blocking-notification-delay>15</traffic-blocking-notification-delay>
+    <display-traffic-blocking-notification-msg>yes</display-traffic-blocking-notification-msg>
+    <traffic-blocking-notification-msg>&lt;div style="font-family:'Helvetica Neue';"&gt;&lt;h1 style="color:red;text-align:center; margin: 0; font-size: 30px;"&gt;Notice&lt;/h1&gt;&lt;p style="margin: 0;font-size: 15px; line-height: 1.2em;"&gt;To access the network, you must first connect to GlobalProtect.&lt;/p&gt;&lt;/div&gt;</traffic-blocking-notification-msg>
+    <allow-traffic-blocking-notification-dismissal>yes</allow-traffic-blocking-notification-dismissal>
+    <display-captive-portal-detection-msg>no</display-captive-portal-detection-msg>
+    <captive-portal-detection-msg>&lt;div style="font-family:'Helvetica Neue';"&gt;&lt;h1 style="color:red;text-align:center; margin: 0; font-size: 30px;"&gt;Captive Portal Detected&lt;/h1&gt;&lt;p style="margin: 0; font-size: 15px; line-height: 1.2em;"&gt;GlobalProtect has temporarily permitted network access for you to connect to the Internet. Follow instructions from your internet provider.&lt;/p&gt;&lt;p style="margin: 0; font-size: 15px; line-height: 1.2em;"&gt;If you let the connection time out, open GlobalProtect and click Connect to try again.&lt;/p&gt;&lt;/div&gt;</captive-portal-detection-msg>
+    <captive-portal-notification-delay>5</captive-portal-notification-delay>
+    <certificate-store-lookup>user-and-machine</certificate-store-lookup>
+    <scep-certificate-renewal-period>7</scep-certificate-renewal-period>
+    <ext-key-usage-oid-for-client-cert/>
+    <full-chain-cert-verify>pre-deploy</full-chain-cert-verify>
+    <retain-connection-smartcard-removal>yes</retain-connection-smartcard-removal>
+    <user-accept-terms-before-creating-tunnel>no</user-accept-terms-before-creating-tunnel>
+    <rediscover-network>yes</rediscover-network>
+    <wifi-to-wired-transition>no</wifi-to-wired-transition>
+    <resubmit-host-info>yes</resubmit-host-info>
+    <intelligent-portal>no</intelligent-portal>
+    <can-continue-if-portal-cert-invalid>yes</can-continue-if-portal-cert-invalid>
+    <access-gateway-from-agent-only>no</access-gateway-from-agent-only>
+    <user-switch-tunnel-rename-timeout>0</user-switch-tunnel-rename-timeout>
+    <pre-logon-tunnel-rename-timeout>-1</pre-logon-tunnel-rename-timeout>
+    <enable-cache-portal-config-absence-prelogon-tunnel>no</enable-cache-portal-config-absence-prelogon-tunnel>
+    <preserve-tunnel-upon-user-logoff-timeout>0</preserve-tunnel-upon-user-logoff-timeout>
+    <ipsec-failover-ssl>0</ipsec-failover-ssl>
+    <display-tunnel-fallback-notification>yes</display-tunnel-fallback-notification>
+    <ssl-only-selection>0</ssl-only-selection>
+    <tunnel-mtu>1400</tunnel-mtu>
+    <max-internal-gateway-connection-attempts>0</max-internal-gateway-connection-attempts>
+    <adv-internal-host-detection>no</adv-internal-host-detection>
+    <delays-internal-host-detection>no</delays-internal-host-detection>
+    <unified-user-id-hybrid-deployment>no</unified-user-id-hybrid-deployment>
+    <portal-timeout>30</portal-timeout>
+    <connect-timeout>60</connect-timeout>
+    <receive-timeout>30</receive-timeout>
+    <split-tunnel-option>network-traffic</split-tunnel-option>
+    <split-tunnel-option-mobile>yes</split-tunnel-option-mobile>
+    <advanced-st-public-key>Empty</advanced-st-public-key>
+    <enforce-dns>yes</enforce-dns>
+    <append-local-search-domain>no</append-local-search-domain>
+    <flush-dns>no</flush-dns>
+    <agent-proxy-port>9999</agent-proxy-port>
+    <agent-proxy-mode>1</agent-proxy-mode>
+    <auto-proxy-pac/>
+    <proxy-multiple-autodetect>no</proxy-multiple-autodetect>
+    <use-proxy>yes</use-proxy>
+    <enable-hip-remediation>0</enable-hip-remediation>
+    <hip-remediation-retry>0</hip-remediation-retry>
+    <hip-remediation-integrity-check/>
+    <wsc-autodetect>yes</wsc-autodetect>
+    <mfa-enabled>no</mfa-enabled>
+    <mfa-listening-port>4501</mfa-listening-port>
+    <mfa-notification-msg>You have attempted to access a protected resource that requires additional authentication. Proceed to authenticate at</mfa-notification-msg>
+    <mfa-prompt-suppress-time>0</mfa-prompt-suppress-time>
+    <ipv6-preferred>yes</ipv6-preferred>
+    <change-password-message/>
+    <measuring-egw-tcp-connection>no</measuring-egw-tcp-connection>
+    <log-gateway>no</log-gateway>
+    <cdl-log>no</cdl-log>
+    <pes-agent-action>yes</pes-agent-action>
+    <dem-notification>yes</dem-notification>
+    <dem-agent>not-install</dem-agent>
+    <dem-agent-action>no-action</dem-agent-action>
+    <quarantine-add-message>Your security policy has restricted access to the network from this device. If the issue persists, contact your administrator.</quarantine-add-message>
+    <quarantine-remove-message>Your security policy has restored access to the network from this device. If you still cannot access the network, contact your administrator.</quarantine-remove-message>
+    <allow-disable-cbl>no</allow-disable-cbl>
+  </agent-config>
+  <use-sso>yes</use-sso>
+  <connect-method>on-demand</connect-method>
+  <on-demand>yes</on-demand>
+  <refresh-config>yes</refresh-config>
+  <refresh-config-interval>24</refresh-config-interval>
+  <agent-ui>
+    <can-save-password>no</can-save-password>
+    <agent-user-override-timeout>0</agent-user-override-timeout>
+    <max-agent-user-overrides>0</max-agent-user-overrides>
+    <welcome-page>
+      <display>no</display>
+      <page/>
+    </welcome-page>
+    <help-page/>
+    <help-page-2/>
+    <agent-user-override>allowed</agent-user-override>
+    <enable-advanced-view>yes</enable-advanced-view>
+    <enable-do-not-display-this-welcome-page-again>yes</enable-do-not-display-this-welcome-page-again>
+    <can-change-portal>yes</can-change-portal>
+    <show-agent-icon>yes</show-agent-icon>
+    <password-expiry-message/>
+    <init-panel>no</init-panel>
+    <user-input-on-top>no</user-input-on-top>
+  </agent-ui>
+  <hip-collection>
+    <hip-report-interval>3600</hip-report-interval>
+    <max-wait-time>30</max-wait-time>
+    <collect-hip-data>yes</collect-hip-data>
+    <default>
+      <category>
+        <member>host-info</member>
+        <member>data-loss-prevention</member>
+        <member>patch-management</member>
+        <member>firewall</member>
+        <member>anti-malware</member>
+        <member>disk-backup</member>
+        <member>disk-encryption</member>
+      </category>
+    </default>
+  </hip-collection>
+
+<portal-userauthcookie>empty</portal-userauthcookie>
+<portal-prelogonuserauthcookie>empty</portal-prelogonuserauthcookie>
+<config-digest>16891c34d821bb2dba9f31aa5e562f52</config-digest>
+</policy>

@@ -55,15 +55,15 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
             guard let body = c.response(r), let status = r.status else { continue }
             let what = "\(c.name) \(r.n)-\(r.label)"
             switch r.label {
-            case "portal-prelogin":
+            case "portal-prelogin", "gateway-prelogin":
                 _ = Prelogin(try Reply.document(status: status, body: body))
-            case "portal-getconfig" where status == 200:
-                let pc = try PortalConfig(try Reply.document(status: status, body: body))
-                #expect(!pc.gateways.isEmpty, "\(what): no gateways")
-            case "gateway-login" where status == 200:
+            case "portal-getconfig" where status == 200, "gateway-login" where status == 200:
                 switch try Reply.classify(status: status, body: body) {
                 case .challenge(_, let inputStr):
                     #expect(!inputStr.isEmpty, "\(what): challenge without inputstr")
+                case .document(let d) where r.label == "portal-getconfig":
+                    let pc = try PortalConfig(d)
+                    #expect(!pc.gateways.isEmpty, "\(what): no gateways")
                 case .document(let d):
                     let cookie = try AuthCookie(jnlp: d, computer: "computer1")
                     #expect(!cookie.authcookie.isEmpty)
@@ -78,7 +78,11 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
                 break
             }
         }
-        #expect(sawConfig, "\(c.name): no gateway getconfig answer")
+        // A capture that stopped before the gateway login (portal only) has
+        // no gateway config to check.
+        if c.rows.contains(where: { $0.label == "gateway-login" }) {
+            #expect(sawConfig, "\(c.name): no gateway getconfig answer")
+        }
     }
 
     /// albi's requests carry the same fields as openconnect's, which the

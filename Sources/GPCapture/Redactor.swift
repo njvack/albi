@@ -173,6 +173,10 @@ public struct Redactor {
             || ["md5", "md5-sum", "inputstr", "host-id", "serial-number", "udid", "sessid"].contains(n)
     }
 
+    static func isPlaceholder(_ v: String) -> Bool {
+        ["empty", "none", "null"].contains(v.lowercased()) || v.allSatisfy { $0 == "*" }
+    }
+
     static func isMAC(_ v: String) -> Bool {
         let p = v.split(separator: ":", omittingEmptySubsequences: false)
         let q = v.split(separator: "-", omittingEmptySubsequences: false)
@@ -186,6 +190,10 @@ public struct Redactor {
     mutating func add(_ value: String, _ kind: Kind) {
         let v = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !v.isEmpty, v != "(null)", v != "-1", literals[v] == nil else { return }
+        // Placeholders a portal sends where it has no value, such as
+        // <portal-userauthcookie>empty</portal-userauthcookie>. Clients act on
+        // them, so they stay.
+        if Self.isPlaceholder(v) { return }
         // Addresses and host names are handled by the sweeps.
         if IPv4Map.isAddress(v) || IPv6Map.parse(v) != nil || Self.isMAC(v) { return }
         if kind == .secret, v.count < 4 { return }
