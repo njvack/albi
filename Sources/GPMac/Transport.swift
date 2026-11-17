@@ -53,26 +53,81 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
 
 /// The gateway over Network.framework: URLSession for requests, an
 /// NWConnection with TLS for the tunnel.
+///
+/// With `requiredInterface`, every connection to the gateway (requests too)
+/// goes over NWConnection pinned to the interface it returns, so a full
+/// tunnel's 0/1 and 128/1 can't capture the gateway's own traffic and no host
+/// route is needed. The closure is asked on every connection, so it can
+/// follow Wi-Fi changes; nil from it means "don't pin this one".
 public final class NWGatewayConnector: GatewayConnector, @unchecked Sendable {
     public let http: URLSessionTransport
     public let trust: TrustPolicy
     public let connectTimeout: Int
+    public let requestTimeout: TimeInterval
+    public let requiredInterface: (@Sendable () -> NWInterface?)?
 
     /// `requestTimeout` is long because login.esp holds the answer to the
     /// second-factor challenge until the push is approved.
-    public init(trust: TrustPolicy, connectTimeout: Int = 15, requestTimeout: TimeInterval = 90) {
+    public init(trust: TrustPolicy, connectTimeout: Int = 15, requestTimeout: TimeInterval = 90,
+                requiredInterface: (@Sendable () -> NWInterface?)? = nil) {
         self.trust = trust
         self.connectTimeout = connectTimeout
+        self.requestTimeout = requestTimeout
+        self.requiredInterface = requiredInterface
         http = URLSessionTransport(trust: trust, timeout: requestTimeout)
     }
 
     public func send(_ request: HTTPRequest, to server: String) async throws -> HTTPResponse {
-        try await http.send(request, to: server)
+        guard let requiredInterface else { return try await http.send(request, to: server) }
+        let conn = try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout,
+                                                     interface: requiredInterface())
+        defer { conn.close() }
+        return try await withTimeout(requestTimeout) {
+            try await conn.write(HTTP1.encode(request, host: server))
+            var parser = HTTP1.ResponseParser()
+            while true {
+                guard let bytes = try await conn.read() else { return try parser.finish() }
+                if let r = try parser.feed(bytes) { return r }
+            }
+        } onTimeout: {
+            conn.close()
+        }
     }
 
     public func openTunnel(to server: String) async throws -> any TunnelConnection {
-        try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout)
+        try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout,
+                                          interface: requiredInterface?())
     }
+}
+
+struct RequestTimedOut: Error, CustomStringConvertible {
+    var description: String { "request timed out" }
+}
+
+/// Runs `body`, calling `onTimeout` (which should make it finish) after `seconds`.
+func withTimeout<T>(_ seconds: TimeInterval, _ body: () async throws -> T,
+                    onTimeout: @escaping @Sendable () -> Void) async throws -> T {
+    let fired = Flag()
+    let timer = Task {
+        try? await Task.sleep(for: .milliseconds(Int(seconds * 1000)))
+        guard !Task.isCancelled else { return }
+        fired.set()
+        onTimeout()
+    }
+    defer { timer.cancel() }
+    do {
+        return try await body()
+    } catch {
+        if fired.isSet { throw RequestTimedOut() }
+        throw error
+    }
+}
+
+final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.withLock { value = true } }
+    var isSet: Bool { lock.withLock { value } }
 }
 
 /// A TLS connection to the gateway for the GPST tunnel.
@@ -82,7 +137,8 @@ public final class NWTunnelConnection: TunnelConnection, @unchecked Sendable {
 
     init(_ c: NWConnection) { connection = c }
 
-    public static func open(server: String, trust: TrustPolicy, timeout: Int) async throws -> NWTunnelConnection {
+    public static func open(server: String, trust: TrustPolicy, timeout: Int,
+                            interface: NWInterface? = nil) async throws -> NWTunnelConnection {
         let (host, port) = splitHostPort(server)
         let tls = NWProtocolTLS.Options()
         let sec = tls.securityProtocolOptions
@@ -96,6 +152,7 @@ public final class NWTunnelConnection: TunnelConnection, @unchecked Sendable {
         tcp.noDelay = true
         tcp.connectionTimeout = timeout
         let params = NWParameters(tls: tls, tcp: tcp)
+        if let interface { params.requiredInterface = interface }
         let conn = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port) ?? 443, using: params)
         let tunnel = NWTunnelConnection(conn)
         try await tunnel.start()
@@ -183,11 +240,14 @@ public func splitHostPort(_ server: String) -> (String, UInt16) {
 
 /// Watches the network path and reports changes that should trigger a
 /// reconnect: the path becoming usable or unusable, a new primary
-/// interface, or a new router. The tunnel's own utun interface is ignored.
+/// interface, or a new router. The tunnel's own utun interface is ignored,
+/// and so is every other tunnel (type `.other`).
 public final class PathWatcher: @unchecked Sendable {
     private let monitor = NWPathMonitor(prohibitedInterfaceTypes: [.other, .loopback])
     private let queue = DispatchQueue(label: "albi.path")
+    private let lock = NSLock()
     private var last: (usable: Bool, primary: String?, gateways: [String])?
+    private var path: NWPath?
     private let onChange: @Sendable (_ usable: Bool) -> Void
 
     public init(onChange: @escaping @Sendable (_ usable: Bool) -> Void) {
@@ -201,7 +261,24 @@ public final class PathWatcher: @unchecked Sendable {
 
     public func stop() { monitor.cancel() }
 
+    /// The physical interface traffic would leave by, for pinning the
+    /// gateway connection. nil until the first path arrives.
+    public var primaryInterface: NWInterface? {
+        lock.withLock { path?.status == .satisfied ? path?.availableInterfaces.first : nil }
+    }
+
+    /// The first IPv4 router on the physical path, for excluded routes.
+    public var ipv4Router: String? {
+        lock.withLock {
+            for g in path?.gateways ?? [] {
+                if case .hostPort(.ipv4(let a), _) = g { return a.rawValue.map { String($0) }.joined(separator: ".") }
+            }
+            return nil
+        }
+    }
+
     private func update(_ path: NWPath) {
+        lock.withLock { self.path = path }
         // The primary interface catches Wi-Fi to Ethernet; the router address
         // catches moving between Wi-Fi networks on the same interface.
         let now = (usable: path.status == .satisfied, primary: path.availableInterfaces.first?.name,
