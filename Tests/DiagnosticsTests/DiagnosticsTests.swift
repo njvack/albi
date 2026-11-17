@@ -124,7 +124,10 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         defer { try? FileManager.default.removeItem(at: dir) }
         let clock = ContinuousSessionClock()
         var rp = FlightRecorder.Policy()
-        rp.grace = 0.5
+        // Startup counts as out until the first connect (IncidentRules), so
+        // grace has to outlast a connect on a loaded CI runner, or the file
+        // is a startup incident closed "connected again" before the drop.
+        rp.grace = 5
         rp.aftermath = 60
         let written = Mutex<[String]>([])
         let diag = Diagnostics(settings: DiagnosticsSettings(enabled: true), directory: dir, clock: clock,
@@ -153,7 +156,7 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         // The gateway starts refusing tunnels, then the open one drops.
         gw.m.withLock { $0.tunnelStatus = 503 }
         gw.dropTunnels()
-        await eventually("an incident file") { diag.lastIncident != nil }
+        await eventually("an incident file", timeout: 20) { diag.lastIncident != nil }
         let url = try #require(diag.lastIncident)
 
         let first = try String(contentsOf: url, encoding: .utf8)
