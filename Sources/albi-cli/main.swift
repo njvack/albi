@@ -22,6 +22,7 @@ import Diagnostics
 import Foundation
 import GPCore
 import GPMac
+import Network
 
 struct Options {
     var server = ""
@@ -331,9 +332,11 @@ if options.tun {
 // e2e fake) is never captured, so it isn't pinned.
 let gatewayHost = splitHostPort(options.server).0
 let loopbackGateway = gatewayHost == "localhost" || gatewayHost == "::1" || gatewayHost.hasPrefix("127.")
-let base = NWGatewayConnector(trust: trust, requiredInterface: options.tun ? { [watcher] in
-    loopbackGateway ? nil : watcher.primaryInterface
-} : nil)
+var pin: (@Sendable () -> NWInterface?)?
+if options.tun {
+    pin = { [watcher] in loopbackGateway ? nil : watcher.primaryInterface }
+}
+let base = NWGatewayConnector(trust: trust, requiredInterface: pin)
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 let credentials = CLICredentials(user: options.user, secondFactor: options.secondFactor)
 let cliHost = CLIHost(options: options, connector: connector, credentials: credentials)
