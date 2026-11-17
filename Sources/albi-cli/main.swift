@@ -36,7 +36,6 @@ struct Options {
     usage: albi-cli connect SERVER [options]
       --user NAME            username (else read from stdin)
       --portal               treat SERVER as a portal (default: try portal, then gateway)
-      --gateway-only         treat SERVER as a gateway; skip the portal
       --gateway NAME         gateway to pick from the portal's list, by name or address
                              (default: lowest priority number)
       --pin PIN              accept only this certificate (pin-sha256:BASE64); repeatable
@@ -73,7 +72,6 @@ struct Options {
             case "--user", "-u": o.user = value(a)
             case "--portal": o.target = { .portal($0) }
             case "--gateway": o.gateway = value(a)
-            case "--gateway-only": o.target = { .gateway($0) }
             case "--pin", "--servercert": o.pins.append(value(a))
             case "--second-factor": o.secondFactor = value(a)
             case "--hip-wrapper", "--csd-wrapper": o.hipWrapper = value(a)

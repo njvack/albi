@@ -178,7 +178,7 @@ if [ "$(sessions 'len(s)')" -eq $((before + 1)) ]; then pass "one gateway sessio
 if [ "$(sessions "sum(len(x['hip_reports'] or []) for x in s)")" -gt "$hips" ]; then pass "HIP report sent on connect"; else fail "no HIP report with the panos-11.1 profile"; fi
 stop_cli
 L=$WORK/cli6.log
-start_cli "$L" --gateway-only --hip-wrapper "$HIP"
+start_cli "$L" --gateway --hip-wrapper "$HIP"
 if wait_for 30 replies_above "$L" 1; then pass "connected straight to the gateway (one challenge)"; else fail "no traffic in gateway mode"; fi
 stop_cli
 
