@@ -105,6 +105,51 @@ import Testing
         #expect(r.signals.isEmpty)
     }
 
+    func logout(status: Int?, body: String? = nil, error: String? = nil) -> FlightRecorder.Trace {
+        .http(.init(server: "gw", method: "POST", path: "/ssl-vpn/logout.esp", request: Form(), status: status,
+                    body: body, error: error, duration: 0.1))
+    }
+
+    /// A dumped incident, then a stop that logs out.
+    func stoppedWithDump() -> Run {
+        var r = connected()
+        _ = r.rules.manual(reason: "SIGUSR1", now: 400)
+        r.at(500, .event(.stop(logout: true)))
+        r.at(500, .state(.stopped(reason: "disconnected")))
+        return r
+    }
+
+    @Test func stopWithLogoutClosesAfterTheLogoutRequest() {
+        var r = stoppedWithDump()
+        #expect(r.closes.isEmpty)
+        r.at(501, logout(status: 200, body: "<response status=\"success\"></response>"))
+        #expect(r.closes == ["stopped, logged out"])
+    }
+
+    @Test func failedLogoutIsInTheOutcome() {
+        var r = stoppedWithDump()
+        r.at(501, logout(status: 200, body: "<response status=\"error\"><error>Invalid authentication cookie</error></response>"))
+        #expect(r.closes == ["stopped, logout failed"])
+        var r2 = stoppedWithDump()
+        r2.at(530, logout(status: nil, error: "timed out"))
+        #expect(r2.closes == ["stopped, logout failed"])
+    }
+
+    @Test func missingLogoutClosesAfterTheWait() {
+        var r = stoppedWithDump()
+        r.tick(529)
+        #expect(r.closes.isEmpty)
+        r.tick(530)
+        #expect(r.closes == ["stopped, no logout recorded within 30 s"])
+    }
+
+    @Test func stopWithoutLogoutClosesAtOnce() {
+        var r = connected()
+        _ = r.rules.manual(reason: "SIGUSR1", now: 50)
+        r.at(100, .event(.stop(logout: false)))
+        #expect(r.closes == ["stopped"])
+    }
+
     @Test func longOutageClosesAfterAftermathAndStaysQuiet() {
         var r = Run(grace: 60, aftermath: 600)
         r.at(0, .event(.start))
