@@ -44,8 +44,8 @@ public final class NetConfig: @unchecked Sendable {
         /// Only the gateway's domains go to its DNS servers (supplemental
         /// match domains). Coexists with other VPNs' DNS, such as Tailscale's.
         case split
-        /// The tunnel's DNS servers become the default resolver
-        /// (OverridePrimary). Another VPN's DNS may still win.
+        /// The tunnel's DNS servers answer every name, as a supplemental
+        /// resolver matching "". Another VPN's DNS may still win.
         case full
     }
 
@@ -158,24 +158,21 @@ public final class NetConfig: @unchecked Sendable {
         }
         guard let store else { throw SystemError("SCDynamicStoreCreate", EIO) }
 
+        // Full DNS is a supplemental resolver that matches every name ("")
+        // rather than OverridePrimary: making the service primary also makes
+        // configd point the default route at the utun.
         let domains = s.matchDomains ?? s.searchDomains
-        let override = mode == .full || domains.isEmpty
+        let all = mode == .full || domains.isEmpty
         if mode == .split && domains.isEmpty { log("gateway sent no DNS domains; using its DNS for everything") }
-        var ipv4: [String: Any] = [
+        let ipv4: [String: Any] = [
             "Addresses": [v4],
             "SubnetMasks": ["255.255.255.255"],
             "DestAddresses": [v4],
             "InterfaceName": interface,
         ]
         var dns: [String: Any] = ["ServerAddresses": s.dnsServers]
-        if override {
-            // No Router: with one, configd also points the default route at
-            // the utun, and the default route is never ours to change.
-            ipv4["OverridePrimary"] = 1
-            if !s.searchDomains.isEmpty { dns["SearchDomains"] = s.searchDomains }
-        } else {
-            dns["SupplementalMatchDomains"] = domains
-        }
+        dns["SupplementalMatchDomains"] = all ? [""] + domains : domains
+        if all && !s.searchDomains.isEmpty { dns["SearchDomains"] = s.searchDomains }
         for (suffix, value) in [("IPv4", ipv4), ("DNS", dns)] {
             let key = "State:/Network/Service/\(serviceID)/\(suffix)"
             guard SCDynamicStoreAddTemporaryValue(store, key as CFString, value as NSDictionary) else {

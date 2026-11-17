@@ -114,7 +114,15 @@ scenario() {
   if [ "$(default_route)" = "$before_default" ]; then pass "$name: default route untouched"; else fail "$name: default route '$before_default' became '$(default_route)'"; fi
   if scutil --dns | grep -q 'nameserver\[0\] : 10.99.0.53'; then pass "$name: tunnel DNS published"; else fail "$name: 10.99.0.53 not in scutil --dns"; fi
   if [ "$dns" = full ]; then
-    if [ "$(first_resolver)" = 10.99.0.53 ]; then pass "$name: tunnel DNS is resolver #1"; else fail "$name: resolver #1 is $(first_resolver)"; fi
+    # Any name must go to the tunnel's DNS. (The runner's own resolver is on
+    # its LAN, so a full tunnel alone doesn't carry its queries.)
+    local m0 m1
+    m0=$(sessions "sum(x['packets_in'] for x in s)")
+    dscacheutil -q host -a name "albi-$RANDOM.example.com" >/dev/null
+    sleep 1
+    m1=$(sessions "sum(x['packets_in'] for x in s)")
+    if [ "$m1" -gt "$m0" ]; then pass "$name: any lookup goes to the tunnel's DNS"; else fail "$name: example.com lookup sent nothing through the tunnel"; fi
+    note "$name: resolver #1 is $(first_resolver)"
   else
     if scutil --dns | grep -q 'domain *: fake.test'; then pass "$name: fake.test is a match domain"; else fail "$name: no fake.test resolver"; fi
     if [ "$(first_resolver)" = "$before_resolver" ]; then pass "$name: default resolver unchanged"; else fail "$name: resolver #1 changed to $(first_resolver)"; fi

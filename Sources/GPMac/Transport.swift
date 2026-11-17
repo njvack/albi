@@ -3,6 +3,7 @@ import Foundation
 import GPCore
 import Network
 import Security
+import SystemConfiguration
 
 /// HTTPS requests to the portal and gateway over URLSession.
 public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDelegate, @unchecked Sendable {
@@ -238,15 +239,21 @@ public func splitHostPort(_ server: String) -> (String, UInt16) {
     return (server, 443)
 }
 
-/// Watches the network path and reports changes that should trigger a
-/// reconnect: the path becoming usable or unusable, a new primary
-/// interface, or a new router. The tunnel's own utun interface is ignored,
-/// and so is every other tunnel (type `.other`).
+/// Watches the physical network and reports changes that should trigger a
+/// reconnect: it becoming usable or unusable, a new primary interface, or a
+/// new router. Tunnels (type `.other`: our own utun, Tailscale) are left out.
+///
+/// The monitor itself is unrestricted: one that prohibits `.other` reports
+/// the path unsatisfied as soon as a full tunnel's 0/1 and 128/1 go in,
+/// since the best route is then the utun. What counts here is whether a
+/// physical interface is still there.
 public final class PathWatcher: @unchecked Sendable {
-    private let monitor = NWPathMonitor(prohibitedInterfaceTypes: [.other, .loopback])
+    private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "albi.path")
     private let lock = NSLock()
-    private var last: (usable: Bool, primary: String?, gateways: [String])?
+    private var last: (usable: Bool, primary: String?, router: String?)?
+    private var physical: [NWInterface] = []
+    private var router: String?
     private var path: NWPath?
     private let onChange: @Sendable (_ usable: Bool) -> Void
 
@@ -263,39 +270,49 @@ public final class PathWatcher: @unchecked Sendable {
 
     /// The physical interface traffic would leave by, for pinning the
     /// gateway connection. nil until the first path arrives.
-    public var primaryInterface: NWInterface? {
-        lock.withLock { path?.status == .satisfied ? path?.availableInterfaces.first : nil }
-    }
+    public var primaryInterface: NWInterface? { lock.withLock { physical.first } }
 
-    /// The first IPv4 router on the physical path, for excluded routes.
-    public var ipv4Router: String? {
-        lock.withLock {
-            for g in path?.gateways ?? [] {
-                if case .hostPort(.ipv4(let a), _) = g { return a.rawValue.map { String($0) }.joined(separator: ".") }
-            }
-            return nil
-        }
-    }
+    /// The IPv4 router of the primary physical interface, for excluded routes.
+    public var ipv4Router: String? { lock.withLock { router } }
 
     /// The last path, for logs.
     public var summary: String {
         lock.withLock {
             guard let p = path else { return "no path yet" }
-            return "status=\(p.status) interfaces=\(p.availableInterfaces.map(\.name)) gateways=\(p.gateways)"
+            return "physical=\(physical.map(\.name)) router=\(router ?? "-") status=\(p.status) interfaces=\(p.availableInterfaces.map(\.name))"
         }
     }
 
     private func update(_ path: NWPath) {
-        lock.withLock { self.path = path }
+        let phys = path.availableInterfaces.filter { $0.type != .other && $0.type != .loopback }
+        let r = phys.first.flatMap { Self.router(for: $0.name) }
+        lock.withLock {
+            self.path = path
+            physical = phys
+            router = r
+        }
         // The primary interface catches Wi-Fi to Ethernet; the router address
         // catches moving between Wi-Fi networks on the same interface.
-        let now = (usable: path.status == .satisfied, primary: path.availableInterfaces.first?.name,
-                   gateways: path.gateways.map { "\($0)" })
+        let now = (usable: !phys.isEmpty, primary: phys.first?.name, router: r)
         defer { last = now }
         guard let prev = last else { return }
-        if prev.usable != now.usable || (now.usable && (prev.primary != now.primary || prev.gateways != now.gateways)) {
+        if prev.usable != now.usable || (now.usable && (prev.primary != now.primary || prev.router != now.router)) {
             onChange(now.usable)
         }
+    }
+
+    /// The router of the network service on `ifname`, from configd's state
+    /// (not the global state, which a tunnel can take over).
+    static func router(for ifname: String) -> String? {
+        guard let store = SCDynamicStoreCreate(nil, "albi-path" as CFString, nil, nil),
+              let keys = SCDynamicStoreCopyKeyList(store, "State:/Network/Service/[^/]+/IPv4" as CFString) as? [String]
+        else { return nil }
+        for k in keys {
+            guard let d = SCDynamicStoreCopyValue(store, k as CFString) as? [String: Any],
+                  d["InterfaceName"] as? String == ifname, let r = d["Router"] as? String else { continue }
+            return r
+        }
+        return nil
     }
 }
 #endif
