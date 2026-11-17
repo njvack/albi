@@ -63,7 +63,8 @@ jobs:
     # through sudo, and diagnostics mode end to end (an outage writes a
     # redacted incident file, albi-diag replays it and drafts a scenario, the
     # draft reproduces it) plus albi-cli against every scenario. Uses the
-    # fake's branch of the same name as this one when there is one, else main.
+    # fake's branch of the same name as this one when it has commits main
+    # lacks, else main.
     #
     # Runs on pushes to main, by hand (Actions > client > Run workflow), and
     # on a PR once it carries the e2e label; later pushes to that PR run it
@@ -80,6 +81,11 @@ jobs:
         run: |
           git clone --quiet https://github.com/njvack/gp-fake-gateway.git gp-fake-gateway
           git -C gp-fake-gateway checkout --quiet "$BRANCH" 2>/dev/null || true
+          # A same-name branch that main already contains is stale (merged
+          # earlier); main is newer, so use it.
+          if git -C gp-fake-gateway merge-base --is-ancestor HEAD origin/main; then
+            git -C gp-fake-gateway checkout --quiet --detach origin/main
+          fi
           git -C gp-fake-gateway log --oneline -1
       - uses: actions/setup-go@v5
         with:
