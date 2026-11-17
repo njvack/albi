@@ -167,6 +167,21 @@ if [ ! -s "$WORK/cli.exit" ]; then pass "still up after the first cookie's lifet
 ctl PUT /config '{"lifetime": 86400}' >/dev/null
 stop_cli
 
+echo "== real gateway (panos-11.1 profile): Duo at portal and gateway, JavaScript challenge"
+ctl PUT /scenario '{"name": "panos-11.1", "profile": "panos-11.1"}' >/dev/null
+before=$(sessions 'len(s)')
+L=$WORK/cli5.log
+hips=$(sessions "sum(len(x['hip_reports'] or []) for x in s)")
+start_cli "$L" --hip-wrapper "$HIP"
+if wait_for 30 replies_above "$L" 1; then pass "connected through portal and gateway challenges"; else fail "no traffic with the panos-11.1 profile"; fi
+if [ "$(sessions 'len(s)')" -eq $((before + 1)) ]; then pass "one gateway session"; else fail "expected one new session"; fi
+if [ "$(sessions "sum(len(x['hip_reports'] or []) for x in s)")" -gt "$hips" ]; then pass "HIP report sent on connect"; else fail "no HIP report with the panos-11.1 profile"; fi
+stop_cli
+L=$WORK/cli6.log
+start_cli "$L" --gateway --hip-wrapper "$HIP"
+if wait_for 30 replies_above "$L" 1; then pass "connected straight to the gateway (one challenge)"; else fail "no traffic in gateway mode"; fi
+stop_cli
+
 if [ "$fails" -ne 0 ]; then
   echo "--- fakegp log"; tail -60 "$WORK/fakegp.log"
   for f in "$WORK"/cli*.log; do echo "--- $f"; tail -40 "$f"; echo "--- $f.err"; tail -40 "$f.err"; done
