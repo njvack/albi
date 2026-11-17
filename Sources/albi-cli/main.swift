@@ -1,9 +1,17 @@
-// albi-cli: the client core and macOS I/O layer in a command-line harness,
-// with no extension, no utun and no root. It pings through the tunnel from
+// albi-cli: the client core and macOS I/O layer in a command-line harness.
+// By default there's no utun and no root: it pings through the tunnel from
 // userspace, which is enough to test against gp-fake-gateway.
 //
 //   printf 'test\n' | albi-cli connect 127.0.0.1:8443 --user test \
 //       --pin pin-sha256:... --second-factor 1 --ping 10.99.0.1
+//
+// With --tun (as root) it brings up the real tunnel the root helper will:
+// a utun, routes on it, DNS as temporary dynamic-store keys, the gateway
+// connection pinned to the physical interface. Everything it changes goes
+// away when it exits, however it exits; excluded routes, the one exception,
+// are journaled and swept on the next start (or by `albi-cli sweep`).
+//
+//   sudo albi-cli connect --tun vpn.example.edu
 //
 // Output lines start with "albi: " so scripts can grep them. Exit status:
 // 0 stopped normally, 1 error, 2 the cookie was rejected and a login is needed.
@@ -14,6 +22,7 @@ import Diagnostics
 import Foundation
 import GPCore
 import GPMac
+import Network
 
 struct Options {
     var server = ""
@@ -32,9 +41,13 @@ struct Options {
     var policy = SessionPolicy()
     var diagnostics: String?
     var diagPolicy = FlightRecorder.Policy()
+    var tun = false
+    var dnsMode = NetConfig.DNSMode.split
+    var journal = NetConfig.defaultJournal
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
+           albi-cli sweep [--journal PATH]   remove excluded routes a killed --tun run left (root)
       --user NAME            username (else read from stdin)
       --portal               treat SERVER as a portal (default: try portal, then gateway)
       --gateway NAME         gateway to pick from the portal's list, by name or address
@@ -55,6 +68,11 @@ struct Options {
       --diagnostics DIR      diagnostics mode: write incident files to DIR (SIGUSR1 saves one now)
       --diag-grace SECONDS   outage that counts as an incident (default 60)
       --diag-window SECONDS  history to keep (default 600)
+      --tun                  real tunnel: utun, routes and DNS (root)
+      --dns split|full       with --tun: split (default) sends only the gateway's domains to its
+                             DNS; full makes its DNS the default resolver
+      --journal PATH         with --tun: excluded-route journal
+                             (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
     """
 
@@ -65,12 +83,24 @@ struct Options {
             exit(0)
         }
         var it = args.makeIterator()
-        guard it.next() == "connect", let server = it.next() else { fail(usage) }
-        o.server = server
         func value(_ flag: String) -> String {
             guard let v = it.next() else { fail("\(flag) needs a value\n\(usage)") }
             return v
         }
+        let command = it.next()
+        if command == "sweep" {
+            while let a = it.next() {
+                switch a {
+                case "--journal": o.journal = URL(fileURLWithPath: value(a))
+                default: fail("unknown option \(a)\n\(usage)")
+                }
+            }
+            NetConfig.sweep(journal: o.journal) { say($0) }
+            say("sweep done")
+            exit(0)
+        }
+        var positional: [String] = []
+        guard command == "connect" else { fail(usage) }
         while let a = it.next() {
             switch a {
             case "--user", "-u": o.user = value(a)
@@ -90,12 +120,22 @@ struct Options {
             case "--diagnostics": o.diagnostics = value(a)
             case "--diag-grace": o.diagPolicy.grace = Double(value(a)) ?? 60
             case "--diag-window": o.diagPolicy.window = Double(value(a)) ?? 600
-            default: fail("unknown option \(a)\n\(usage)")
+            case "--tun": o.tun = true
+            case "--dns":
+                guard let m = NetConfig.DNSMode(rawValue: value(a)) else { fail("--dns is split or full") }
+                o.dnsMode = m
+            case "--journal": o.journal = URL(fileURLWithPath: value(a))
+            default:
+                if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
+                positional.append(a)
             }
         }
+        guard positional.count == 1 else { fail(usage) }
+        o.server = positional[0]
+        if o.tun && o.ping != nil { fail("--ping is for the userspace tunnel; with --tun, use ping(8)") }
         o.policy.canReauthenticate = o.reauth
         if o.gatewayOnly {
-            let gw = o.gateway ?? server
+            let gw = o.gateway ?? o.server
             o.target = { _ in .gateway(gw) }
         }
         return o
@@ -258,11 +298,65 @@ let diagnostics: Diagnostics? = options.diagnostics.map { dir in
     d.start(every: .milliseconds(500))
     return d
 }
-let base = NWGatewayConnector(trust: trust)
+/// Lets callbacks made before the runner exists reach it once it does.
+final class RunnerBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: SessionRunner?
+    var runner: SessionRunner? {
+        get { lock.withLock { value } }
+        set { lock.withLock { value = newValue } }
+    }
+
+    func post(_ e: Session.Event) {
+        guard let r = runner else { return }
+        Task { await r.post(e) }
+    }
+}
+let box = RunnerBox()
+nonisolated(unsafe) var utunHost: UtunHost?
+nonisolated(unsafe) var watcherRef: PathWatcher?
+
+let watcher = PathWatcher { usable in
+    say("network path changed (usable=\(usable)): \(watcherRef?.summary ?? "")")
+    box.post(.pathChanged(usable: usable))
+    utunHost?.pathChanged()
+}
+watcherRef = watcher
+watcher.start()
+
+if options.tun {
+    guard getuid() == 0 else { fail("albi: --tun needs root") }
+    NetConfig.sweep(journal: options.journal) { say($0) }
+}
+
+// With --tun, every gateway connection is pinned to the physical interface,
+// so 0/1 and 128/1 on the utun can't capture it. A loopback gateway (the
+// e2e fake) is never captured, so it isn't pinned.
+let gatewayHost = splitHostPort(options.server).0
+let loopbackGateway = gatewayHost == "localhost" || gatewayHost == "::1" || gatewayHost.hasPrefix("127.")
+var pin: (@Sendable () -> NWInterface?)?
+if options.tun {
+    pin = { [watcher] in loopbackGateway ? nil : watcher.primaryInterface }
+}
+let base = NWGatewayConnector(trust: trust, requiredInterface: pin)
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 let credentials = CLICredentials(user: options.user, secondFactor: options.secondFactor)
-let host = CLIHost(options: options, connector: connector, credentials: credentials)
-var client = host.client
+let cliHost = CLIHost(options: options, connector: connector, credentials: credentials)
+var client = cliHost.client
+if options.tun {
+    do {
+        utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal, router: { [watcher] in watcher.ipv4Router },
+                                hooks: .init(hipReport: { try await cliHost.hipReport($0) },
+                                             reauthenticate: { try await cliHost.reauthenticate() },
+                                             saveCookie: { cliHost.saveCookie($0) },
+                                             stateChanged: { cliHost.stateChanged($0) },
+                                             log: { say($0) }))
+    } catch {
+        fail("albi: opening a utun failed: \(error)")
+    }
+    say("tun \(utunHost!.device.name) opened pid=\(getpid())")
+}
+let host: any TunnelHost = utunHost.map { $0 as any TunnelHost } ?? cliHost
 
 let login: LoginResult
 do {
@@ -286,11 +380,20 @@ let runner = SessionRunner(server: login.gateway, client: client,
                            session: Session(cookie: login.cookie, policy: options.policy, hipInterval: hipInterval),
                            io: connector, host: host, clock: clock, recorder: diagnostics?.recorder)
 
-let watcher = PathWatcher { [runner] usable in
-    say("network path changed (usable=\(usable))")
-    Task { await runner.post(.pathChanged(usable: usable)) }
+box.runner = runner
+utunHost?.pumpPackets(to: runner)
+
+let power = PowerWatcher { event in
+    switch event {
+    case .willSleep:
+        say("system will sleep")
+        box.post(.sleep)
+    case .didWake:
+        say("system woke")
+        box.post(.wake)
+    }
 }
-watcher.start()
+if !power.start() { say("could not watch for sleep and wake") }
 
 // SIGINT/SIGTERM: stop and log out (unless --no-logout). SIGHUP: stop, keep
 // the cookie. SIGUSR2: reconnect now, as openconnect does. SIGUSR1: save a
@@ -348,7 +451,9 @@ let final = await runner.waitUntilFinished()
 // Let a logout started by a signal finish.
 try? await Task.sleep(for: .milliseconds(500))
 say("finished: \(final)")
+utunHost?.shutdown()
 watcher.stop()
+power.stop()
 switch final {
 case .needsLogin: exit(2)
 default: exit(0)
