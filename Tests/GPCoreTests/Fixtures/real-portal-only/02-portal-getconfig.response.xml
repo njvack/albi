@@ -1,0 +1,5 @@
+<challenge>
+<user>user1</user>
+<inputstr>fa00000000000001</inputstr>
+<respmsg>Enter MFA-Duo passcode (or '1' for Duo Push)</respmsg>
+</challenge>

@@ -239,9 +239,13 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
     FileHandle.standardError.write(Data("Running openconnect (Ctrl-C ends the capture early; it still logs out).\n".utf8))
     do { try process.run() } catch { fail("could not start openconnect: \(error)") }
     // openconnect reads each answer from stdin when it asks: the password,
-    // then the challenge answer.
+    // then the challenge answer. A portal that hands out no cookie
+    // (portal-userauthcookie "empty") makes openconnect log in to the gateway
+    // too, with the same prompts, so the answers go twice. Lines it never
+    // reads are harmless.
     var answers = password + "\n"
     if !second.isEmpty { answers += second + "\n" }
+    answers += answers
     stdin.fileHandleForWriting.write(Data(answers.utf8))
     try? stdin.fileHandleForWriting.close()
 
