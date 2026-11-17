@@ -12,6 +12,7 @@ on:
       - 'Sources/albi-cli/**'
       - 'Sources/albi-diag/**'
       - 'Sources/gp-capture/**'
+      - 'Sources/albi-netprobe/**'
       - 'Tests/GPCoreTests/**'
       - 'Tests/GPMacTests/**'
       - 'Tests/GPCaptureTests/**'
@@ -20,6 +21,7 @@ on:
       - 'e2e/client.sh'
       - 'e2e/capture.sh'
       - 'e2e/diagnostics.sh'
+      - 'e2e/netprobe.sh'
       - 'Package.swift'
       - 'Package.resolved'
       - '.github/workflows/client.yml'
@@ -104,3 +106,14 @@ jobs:
       - name: e2e diagnostics
         if: ${{ !cancelled() }}
         run: e2e/diagnostics.sh "$(swift build --show-bin-path)/albi-cli" "$(swift build --show-bin-path)/albi-diag" "$PWD/fakegp" "$PWD/gp-fake-gateway/scenarios"
+
+  netprobe:
+    # Root-helper probe: a utun with routes and temporary DNS keys, made by
+    # albi-netprobe as root, must vanish when the process ends, on SIGTERM
+    # and on kill -9, with no cleanup code. Its own job: the full-tunnel
+    # scenarios cut the runner's network for a few seconds.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift build --product albi-netprobe
+      - run: e2e/netprobe.sh "$(swift build --show-bin-path)/albi-netprobe"
