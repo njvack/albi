@@ -43,6 +43,7 @@ struct ContentView: View {
                 HStack {
                     Button("Connect") { Task { await vpn.connect(password: password.isEmpty ? nil : password) } }
                     Button("Disconnect") { vpn.disconnect() }
+                    Button("Clear stored cookies") { Task { await vpn.clearStoredCookies() } }
                 }
                 LabeledContent("VPN status", value: vpn.vpnStatus)
                 LabeledContent("Session", value: vpn.sessionState)
