@@ -1,0 +1,42 @@
+Captured 66 s of traffic
+
+Portal
+  prelogin: username and password
+  panos-version: 1
+
+Gateway login
+  login requests: 2, second-factor challenges: 1
+  jnlp arguments: 22
+  password expires in (days): -1
+
+Gateway config (getconfig.esp)
+  getconfig answers: 1
+  lifetime: 259200 s (72 h)
+  disconnect-on-idle: 43200 s (12 h)
+  timeout (rekey): 43200 s (12 h)
+  mtu: 0
+  IPv4 address: yes, netmask 255.255.255.255
+  IPv6 address: no
+  access routes: 3 (0 IPv6), includes a default route
+  exclude routes: 0
+  DNS servers: 2, DNS suffixes: 2
+  quarantine: no
+  ESP offered: yes, aes-128-cbc / sha1, UDP port 4501
+  elements: need-tunnel ssl-tunnel-url portal user quarantine lifetime timeout lifetime-notify-prior lifetime-notify-message inactivity-notify-prior inactivity-notify-message admin-logout-notify-message user_expires disconnect-on-idle bw-c2s bw-s2c panos-version gw-address ipv6-connection ip-address netmask ip-address-preferred dns member wins dns-suffix default-gateway mtu no-direct-access-to-local-network access-routes exclude-access-routes ipsec udp-port ipsec-mode enc-algo hmac-algo c2s-spi s2c-spi akey-s2c bits val ekey-s2c akey-c2s ekey-c2s
+
+Tunnel
+  ESP: established
+  Configured, with SSL disconnected and ESP established
+  tunnel connects: 0
+  log lines mentioning "Tunnel timeout": 1
+  log lines mentioning "rekey": 1
+  log lines mentioning "DPD": 3
+  log lines mentioning "Idle timeout": 1
+
+HIP
+  hipreportcheck calls: 1
+  hip-report-needed: yes
+  hipreport submissions: 1, accepted: 1
+  openconnect: Portal set HIP report interval to 60 minutes).
+
+Last log line: User cancelled (SIGINT/SIGTERM); exiting.

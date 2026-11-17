@@ -1,0 +1,72 @@
+[2026-11-16 19:12:59] POST https://host1.example.test/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac
+[2026-11-16 19:12:59] Attempting to connect to server 198.18.1.1:443
+[2026-11-16 19:12:59] Connected to 198.18.1.1:443
+[2026-11-16 19:12:59] SSL negotiation with host1.example.test
+[2026-11-16 19:12:59] Connected to HTTPS on host1.example.test with ciphersuite (TLS1.3)-(ECDHE-SECP256R1)-(RSA-PSS-RSAE-SHA256)-(AES-256-GCM)
+[2026-11-16 19:12:59] --- exchange 01: POST /global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac -> HTTP/1.1 200 OK
+Enter NetID login credentials
+Password: 
+[2026-11-16 19:12:59] POST https://host1.example.test/global-protect/getconfig.esp
+[2026-11-16 19:12:59] --- exchange 02: POST /global-protect/getconfig.esp -> HTTP/1.1 200 OK
+Enter MFA-Duo passcode (or '1' for Duo Push)
+Challenge: 
+[2026-11-16 19:13:01] POST https://host1.example.test/global-protect/getconfig.esp
+[2026-11-16 19:13:01] --- exchange 03: POST /global-protect/getconfig.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:17] Portal reports GlobalProtect version 6.2.8-948; we will report the same client version.
+[2026-11-16 19:13:17] Portal set HIP report interval to 60 minutes).
+[2026-11-16 19:13:17] 1 gateway servers available:
+[2026-11-16 19:13:17]   Gateway 1 (host1.example.test)
+Please select GlobalProtect gateway.
+GATEWAY: [Gateway 1]:Gateway 1
+[2026-11-16 19:13:17] POST https://host1.example.test/ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac
+[2026-11-16 19:13:17] --- exchange 04: POST /ssl-vpn/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac -> HTTP/1.1 200 OK
+Enter NetID login credentials
+Password: 
+[2026-11-16 19:13:17] POST https://host1.example.test/ssl-vpn/login.esp
+[2026-11-16 19:13:17] --- exchange 05: POST /ssl-vpn/login.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:18] Challenge: Enter MFA-Duo passcode (or '1' for Duo Push)
+Enter MFA-Duo passcode (or '1' for Duo Push)
+Challenge: 
+[2026-11-16 19:13:19] POST https://host1.example.test/ssl-vpn/login.esp
+[2026-11-16 19:13:19] --- exchange 06: POST /ssl-vpn/login.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:34] GlobalProtect login returned authentication-source=auth-source1
+[2026-11-16 19:13:34] GlobalProtect login returned portal-userauthcookie=empty
+[2026-11-16 19:13:34] GlobalProtect login returned portal-prelogonuserauthcookie=empty
+[2026-11-16 19:13:34] GlobalProtect login returned usually-equals-4=4
+[2026-11-16 19:13:34] POST https://host1.example.test/ssl-vpn/getconfig.esp
+[2026-11-16 19:13:34] --- exchange 07: POST /ssl-vpn/getconfig.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:34] Tunnel timeout (rekey interval) is 720 minutes.
+[2026-11-16 19:13:34] example GlobalProtect config tag <lifetime-notify-prior>: 3600
+[2026-11-16 19:13:34] example GlobalProtect config tag <lifetime-notify-message>: Your GlobalProtect session will expire in 30 minutes. Please save your work before your session expires.
+[2026-11-16 19:13:34] example GlobalProtect config tag <inactivity-notify-prior>: 1800
+[2026-11-16 19:13:34] example GlobalProtect config tag <inactivity-notify-message>: Your GlobalProtect session will time out in 30 minutes. Please save your work before your session times out.
+[2026-11-16 19:13:34] example GlobalProtect config tag <admin-logout-notify-message>: Your administrator has logged you out.
+[2026-11-16 19:13:34] example GlobalProtect config tag <user_expires>: 1795137214
+[2026-11-16 19:13:34] Idle timeout is 720 minutes.
+[2026-11-16 19:13:34] example GlobalProtect config tag <panos-version>: 11.1.13-h16
+[2026-11-16 19:13:34] No MTU received. Calculated 1326 for ESP tunnel
+[2026-11-16 19:13:34] POST https://host1.example.test/ssl-vpn/hipreportcheck.esp
+[2026-11-16 19:13:34] --- exchange 08: POST /ssl-vpn/hipreportcheck.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:34] Gateway says HIP report submission is needed.
+[2026-11-16 19:13:34] Trying to run HIP Trojan script '.build/debug/hipreport'.
+[2026-11-16 19:13:34] HIP script '.build/debug/hipreport' completed successfully (report is 4817 bytes).
+[2026-11-16 19:13:34] POST https://host1.example.test/ssl-vpn/hipreport.esp
+[2026-11-16 19:13:34] --- exchange 09: POST /ssl-vpn/hipreport.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:13:34] HIP report submitted successfully.
+[2026-11-16 19:13:34] Send ESP probes
+[2026-11-16 19:13:34] UDP SO_SNDBUF: 42432
+[2026-11-16 19:13:34] Send ESP probes
+[2026-11-16 19:13:34] ESP session established with server
+[2026-11-16 19:13:34] ESP tunnel connected; exiting HTTPS mainloop.
+[2026-11-16 19:13:35] Configured as 10.1.1.1, with SSL disconnected and ESP established
+[2026-11-16 19:13:35] Session authentication will expire at Thu Nov 19 19:13:34 2026
+
+[2026-11-16 19:13:44] Send ESP probes for DPD
+[2026-11-16 19:13:54] Send ESP probes for DPD
+[2026-11-16 19:14:04] Send ESP probes for DPD
+[2026-11-16 19:14:04] POST https://host1.example.test/ssl-vpn/logout.esp
+[2026-11-16 19:14:04] SSL negotiation with host1.example.test
+[2026-11-16 19:14:04] Connected to HTTPS on host1.example.test with ciphersuite (TLS1.3)-(ECDHE-SECP256R1)-(RSA-PSS-RSAE-SHA256)-(AES-256-GCM)
+[2026-11-16 19:14:04] --- exchange 10: POST /ssl-vpn/logout.esp -> HTTP/1.1 200 OK
+[2026-11-16 19:14:05] Logout successful.
+[2026-11-16 19:14:05] User cancelled (SIGINT/SIGTERM); exiting.

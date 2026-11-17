@@ -1,0 +1,8 @@
+<html>
+  <head></head>
+  <body>
+  var respStatus = "Challenge";
+  var respMsg = "Enter MFA-Duo passcode (or '1' for Duo Push)";
+  thisForm.inputStr.value = "fa00000000000002";
+</body>
+</html>

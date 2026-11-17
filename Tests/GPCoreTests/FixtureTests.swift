@@ -112,3 +112,42 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
         }
     }
 }
+
+/// What the real portal and gateway in Fixtures/real-1 do, pinned so a
+/// parser change that misreads them fails here.
+@Suite struct RealGatewayTests {
+    let c = CapturedConversation.all.first { $0.name == "real-1" }!
+
+    func body(_ n: String) throws -> String {
+        let row = try #require(c.rows.first { $0.n == n })
+        return try #require(c.response(row))
+    }
+
+    @Test func portalHandsOutNoCookie() throws {
+        let pc = try PortalConfig(try Reply.document(status: 200, body: body("03")))
+        #expect(pc.userAuthCookie == nil && pc.prelogonUserAuthCookie == nil)
+        #expect(pc.hipReportInterval == 3600)
+        #expect(pc.gateways.count == 1)
+    }
+
+    @Test func portalAndGatewayBothChallenge() throws {
+        guard case .challenge(_, let portalInput) = try Reply.classify(status: 200, body: body("02")) else {
+            Issue.record("portal getconfig 02 is not a challenge"); return
+        }
+        #expect(!portalInput.isEmpty)
+        // The gateway's challenge is JavaScript, not XML.
+        guard case .challenge(_, let gatewayInput) = try Reply.classify(status: 200, body: body("05")) else {
+            Issue.record("gateway login 05 is not a challenge"); return
+        }
+        #expect(!gatewayInput.isEmpty)
+    }
+
+    @Test func gatewayTimers() throws {
+        let gc = try GatewayConfig(try Reply.document(status: 200, body: body("07")))
+        #expect(gc.lifetime == 259200)
+        #expect(gc.rekeyTimeout == 43200)
+        #expect(gc.idleTimeout == 43200)
+        #expect(gc.mtu == nil || gc.mtu == 0)
+        #expect(gc.esp != nil)
+    }
+}

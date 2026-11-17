@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<response status="success">
+<portal>portal2</portal>
+<user>user1</user>
+<domain>domain1</domain>
+<computer>computer2</computer>
+</response>
