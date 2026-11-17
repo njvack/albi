@@ -19,6 +19,7 @@ struct Options {
     var server = ""
     var target: (String) -> Login.Target = { .auto($0) }
     var gateway: String?
+    var gatewayOnly = false
     var user: String?
     var pins: [String] = []
     var secondFactor: String?
@@ -38,6 +39,9 @@ struct Options {
       --portal               treat SERVER as a portal (default: try portal, then gateway)
       --gateway NAME         gateway to pick from the portal's list, by name or address
                              (default: lowest priority number)
+      --gateway-only         skip the portal and log in straight to the gateway: the
+                             --gateway address if given, else SERVER. One second-factor
+                             prompt instead of two when both ask.
       --pin PIN              accept only this certificate (pin-sha256:BASE64); repeatable
       --second-factor ANSWER answer to the challenge (else read from stdin)
       --hip-wrapper PATH     run PATH as an openconnect --csd-wrapper for HIP reports
@@ -72,6 +76,7 @@ struct Options {
             case "--user", "-u": o.user = value(a)
             case "--portal": o.target = { .portal($0) }
             case "--gateway": o.gateway = value(a)
+            case "--gateway-only": o.gatewayOnly = true
             case "--pin", "--servercert": o.pins.append(value(a))
             case "--second-factor": o.secondFactor = value(a)
             case "--hip-wrapper", "--csd-wrapper": o.hipWrapper = value(a)
@@ -89,6 +94,10 @@ struct Options {
             }
         }
         o.policy.canReauthenticate = o.reauth
+        if o.gatewayOnly {
+            let gw = o.gateway ?? server
+            o.target = { _ in .gateway(gw) }
+        }
         return o
     }
 

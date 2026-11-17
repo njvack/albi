@@ -100,8 +100,20 @@ final class VPNController: NSObject, ObservableObject {
         }
     }
 
+    /// Disconnect keeps the gateway cookie, so the next connect skips the login.
     func disconnect() {
         manager?.connection.stopVPNTunnel()
+    }
+
+    /// Forgets saved cookies: a running tunnel drops its cookie now and logs
+    /// out when it stops, and the extension ignores any cookie saved before now.
+    func clearStoredCookies() async {
+        if manager?.connection.status != .disconnected, manager?.connection.status != .invalid {
+            await poll(ProviderMessage.Request(clearCookies: true))
+        }
+        profile.cookiesClearedAt = Date()
+        await save()
+        message = "Stored cookies cleared. The next connect logs in again."
     }
 
     // MARK: Status and HIP

@@ -25,6 +25,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private var lastState: SessionState = .idle
     private let stateLock = NSLock()
     private var diagnostics: Diagnostics?
+    private var cookies: CookieStore?
+    /// Set by "Clear stored cookies" while connected: log out on stop.
+    private var logoutOnStop = false
 
     /// Secrets live in the System keychain: this process runs as root.
     private let keychain = KeychainStore(service: "com.github.njvack.albi.tunnel")
@@ -75,13 +78,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         let base = NWGatewayConnector(trust: profile.trust)
         let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
-        // A saved cookie lets a restarted extension come back without a new
-        // login (and without a push). If the gateway rejects it, the session
-        // logs in again.
+        // A saved cookie lets the extension come back after a disconnect,
+        // sleep or restart without a new login (and without a push). If the
+        // gateway rejects it, the session logs in again.
+        let cookies = CookieStore(store: keychain, username: profile.username, server: profile.server)
+        self.cookies = cookies
         var cookie: AuthCookie?
         var gateway: String?
         var hipInterval: Double?
-        if let d = keychain.get("cookie:" + account), let saved = try? JSONDecoder().decode(SavedCookie.self, from: d) {
+        if let saved = cookies.load(mode: profile.mode, clearedAt: profile.cookiesClearedAt) {
+            log.info("reusing the saved cookie for \(saved.gateway, privacy: .public)")
             cookie = saved.cookie
             gateway = saved.gateway
             hipInterval = saved.hipInterval
@@ -97,7 +103,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if let v = r.portal?.version { client.appVersion = v }
             diag?.recorder.setInfo("portal-version", r.portal?.version)
             hipInterval = r.portal?.hipReportInterval.map(Double.init)
-            saveCookie(r.cookie, gateway: r.gateway, appVersion: client.appVersion, hipInterval: hipInterval, account: account)
+            saveCookie(r.cookie, gateway: r.gateway, appVersion: client.appVersion, hipInterval: hipInterval)
         }
         guard let cookie, let gateway else { throw TunnelError("login gave no cookie") }
         self.gateway = gateway
@@ -128,9 +134,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             saveCookie: { [weak self] c in
                 guard let self else { return }
                 if let c {
-                    self.saveCookie(c, gateway: gateway, appVersion: clientInfo.appVersion, hipInterval: interval, account: account)
+                    self.saveCookie(c, gateway: gateway, appVersion: clientInfo.appVersion, hipInterval: interval)
                 } else {
-                    self.keychain.set("cookie:" + account, nil)
+                    cookies.remove(gateway: gateway)
                 }
             },
             stateChanged: { [weak self] s in self?.stateChanged(s) },
@@ -160,9 +166,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
 
-    private func saveCookie(_ c: AuthCookie, gateway: String, appVersion: String, hipInterval: Double?, account: String) {
-        let saved = SavedCookie(cookie: c, gateway: gateway, appVersion: appVersion, hipInterval: hipInterval)
-        if let d = try? JSONEncoder().encode(saved) { keychain.set("cookie:" + account, d) }
+    private func saveCookie(_ c: AuthCookie, gateway: String, appVersion: String, hipInterval: Double?) {
+        cookies?.save(SavedCookie(cookie: c, gateway: gateway, appVersion: appVersion, hipInterval: hipInterval,
+                                  savedAt: Date()))
     }
 
     private func stateChanged(_ s: SessionState) {
@@ -181,9 +187,10 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        // Only a user's Disconnect logs out; anything else (sleep, a new
-        // configuration, a crash restart) keeps the cookie for next time.
-        let logout = reason == .userInitiated
+        // Nothing logs out, Disconnect included: the cookie stays saved so
+        // the next connect skips the login while the gateway still takes it.
+        // Only "Clear stored cookies" while connected ends the session here.
+        let logout = logoutOnStop
         log.info("stopping (reason \(reason.rawValue), logout \(logout))")
         watcher?.stop()
         Task {
@@ -216,6 +223,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 await hip.answer(report: nil)
             }
             if req.diagnosticsDump == true { diagnostics?.saveNow() }
+            if req.clearCookies == true {
+                cookies?.remove(gateway: gateway)
+                logoutOnStop = true
+                log.notice("stored cookie cleared; logging out on stop")
+            }
             if req.probeBundledHIP == true {
                 let p = await bundledHIP.probe()
                 log.notice("bundled hipreport probe: \(p.summary, privacy: .public) stderr: \(p.stderrHead ?? "", privacy: .public)")
@@ -231,13 +243,6 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             completionHandler?(try? JSONEncoder().encode(status))
         }
     }
-}
-
-struct SavedCookie: Codable {
-    var cookie: AuthCookie
-    var gateway: String
-    var appVersion: String?
-    var hipInterval: Double?
 }
 
 struct TunnelError: LocalizedError {
