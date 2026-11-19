@@ -182,6 +182,16 @@ public final class AppModel {
         await service.disconnect()
     }
 
+    /// Quitting takes the tunnel down: the app is the VPN's only UI, so
+    /// nothing should stay connected without its menu-bar icon. Unlike
+    /// Disconnect, it leaves "Restore last state" to reconnect at the next
+    /// launch.
+    public func disconnectForQuit() async {
+        guard status.state.isActive else { return }
+        userDisconnected = true
+        await service.disconnect()
+    }
+
     private func start(_ id: VPNProfile.ID, password: String?) async {
         userDisconnected = false
         lastError = nil

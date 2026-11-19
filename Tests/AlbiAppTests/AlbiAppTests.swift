@@ -346,6 +346,23 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
         #expect(service.connectCalls.isEmpty)
     }
 
+    @Test func quittingDisconnectsButRestoresNextLaunch() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        let notifier = RecordingNotifier()
+        let first = AppModel(service: service, notifier: notifier, loginItem: FakeLoginItem(), defaults: defaults)
+        await first.start()
+        await first.connect()
+        try await waitFor(first) { $0.isConnected }
+        await first.disconnectForQuit()
+        try await waitFor(first) { $0 == .disconnected }
+        #expect(!notifier.posted.contains("disconnected"))
+        service.connectCalls.removeAll()
+        let second = await relaunch(service, defaults)
+        #expect(await second.connectAtLaunch() == .started)
+    }
+
     @Test func restoreLeavesARunningTunnelAlone() async throws {
         let service = MockVPNService.demo()
         service.step = .zero

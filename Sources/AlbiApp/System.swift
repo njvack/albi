@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import AppKit
 import Foundation
 import ServiceManagement
 import UserNotifications
@@ -23,6 +24,33 @@ public final class UserNotifier: Notifier {
             if ask { _ = try? await center.requestAuthorization(options: [.alert, .sound]) }
             try? await center.add(request)
         }
+    }
+}
+
+/// Disconnects before the app quits, however it quits (the menu, Cmd-Q,
+/// logout, restart). Install with `@NSApplicationDelegateAdaptor` and set
+/// `model`.
+@MainActor
+public final class QuitDisconnects: NSObject, NSApplicationDelegate {
+    public weak var model: AppModel?
+
+    override public init() {}
+
+    public func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let model, model.status.state.isActive else { return .terminateNow }
+        Task {
+            // Don't hold up a logout for long if the helper doesn't answer.
+            let done = Task { await model.disconnectForQuit() }
+            let timeout = Task { try? await Task.sleep(for: .seconds(5)) }
+            await withTaskGroup(of: Void.self) { g in
+                g.addTask { await done.value }
+                g.addTask { await timeout.value }
+                await g.next()
+                g.cancelAll()
+            }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 }
 
