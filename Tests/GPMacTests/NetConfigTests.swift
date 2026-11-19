@@ -75,7 +75,7 @@ import Foundation
         #expect(!src.allows([0x60] + [UInt8](repeating: 0, count: 39)))
         #expect(!src.allows([]))
         #expect(UtunHost.sourceString(v4(from: [192, 168, 7, 49])) == "192.168.7.49")
-        #expect(UtunHost.describe(v4(from: [10, 0, 0, 2])) == "proto 0 10.0.0.2 > 1.1.1.1 len=20")
+        #expect(UtunHost.describe(v4(from: [10, 0, 0, 2])) == "icmp 10.0.0.2 > 1.1.1.1 type=? len=20")
     }
 
     @Test func ipv6Source() throws {
