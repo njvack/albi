@@ -326,8 +326,7 @@ actor HelperCore {
             },
             makeHost: { hooks, gateway, watcher in
                 try UtunHost(dnsMode: .split, gatewayHosts: [serverHost, Self.host(gateway)],
-                             router: { [watcher] in watcher.ipv4Router },
-                             physicalInterface: { [watcher] in watcher.primaryInterface?.name }, hooks: hooks)
+                             router: { [watcher] in watcher.ipv4Router }, hooks: hooks)
             },
             onEvent: { [weak self] e in
                 Task { await self?.event(e, generation: gen) }

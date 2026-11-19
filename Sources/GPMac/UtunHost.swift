@@ -23,9 +23,8 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private let router: @Sendable () -> String?
     private var gatewayHosts: [String]
     /// The gateway hosts' addresses while routes are in, for dialling the
-    /// gateway when no lookup works.
+    /// gateway without DNS.
     public let addresses = GatewayAddressBook()
-    private let physicalInterface: @Sendable () -> String?
     private let mtu: Int?
     private let routes: [TunnelSettings.IPv4Route]?
     private let traceLimit: Int
@@ -48,8 +47,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     public init(dnsMode: NetConfig.DNSMode = .split, journal: URL = NetConfig.defaultJournal,
                 gatewayHosts: [String] = [], mtu: Int? = nil,
                 routes: [TunnelSettings.IPv4Route]? = nil, tracePackets: Int = 0,
-                router: @escaping @Sendable () -> String?,
-                physicalInterface: @escaping @Sendable () -> String? = { nil }, hooks: Hooks) throws {
+                router: @escaping @Sendable () -> String?, hooks: Hooks) throws {
         device = try UtunDevice()
         self.dnsMode = dnsMode
         self.gatewayHosts = gatewayHosts
@@ -57,7 +55,6 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         self.routes = routes
         traceLimit = tracePackets
         self.router = router
-        self.physicalInterface = physicalInterface
         self.hooks = hooks
         net = NetConfig(journal: journal, log: hooks.log)
     }
@@ -182,37 +179,11 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         }
     }
 
-    /// Where to dial a gateway host while the routes are in: a fresh lookup
-    /// scoped to the physical interface, else the address saved when the
-    /// routes went in. A new address gets its host route first. nil for other
-    /// hosts, and when the routes are out (the system resolver works then).
-    public func dialAddress(for host: String) async -> String? {
-        guard let saved = addresses.address(for: host) else { return nil }
-        guard let ifname = physicalInterface() else { return saved }
-        let fresh = await withCheckedContinuation { (c: CheckedContinuation<String?, Never>) in
-            DispatchQueue.global().async { c.resume(returning: ScopedDNS.ipv4(host, interface: ifname, timeout: 3)) }
-        }
-        guard let fresh else {
-            hooks.log("looking up \(host) on \(ifname) failed; using \(saved)")
-            return saved
-        }
-        if fresh != saved {
-            let ok = queue.sync { () -> Bool in
-                guard applied != nil, !shutDown else { return false }
-                do {
-                    try net.addGatewayRoute(fresh, router: router())
-                    return true
-                } catch {
-                    hooks.log("adding a host route to \(fresh): \(error)")
-                    return false
-                }
-            }
-            guard ok else { return saved }
-            addresses.set(host, fresh)
-            hooks.log("gateway \(host) is now at \(fresh) (was \(saved))")
-        }
-        return fresh
-    }
+    /// Where to dial a gateway host while the routes are in: the address
+    /// saved for it when they went in. nil for other hosts, and when the
+    /// routes are out (the system resolver works then). If the gateway's
+    /// address changes while the tunnel is down, the reconnect fails.
+    public func dialAddress(for host: String) -> String? { addresses.address(for: host) }
 
     /// Adds a gateway host learnt after the host was made (the gateway login
     /// chose), for the host routes and the address book.
@@ -325,10 +296,6 @@ public final class GatewayAddressBook: @unchecked Sendable {
     public init() {}
 
     public func address(for host: String) -> String? { lock.withLock { map[host.lowercased()] } }
-
-    public func set(_ host: String, _ address: String) {
-        lock.withLock { map[host.lowercased()] = address }
-    }
 
     public func set(_ m: [String: String]) {
         let lowered = Dictionary(m.map { ($0.key.lowercased(), $0.value) }) { a, _ in a }
