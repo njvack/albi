@@ -33,9 +33,12 @@ public final class HelperVPNService: VPNService {
         c.exportedInterface = AlbiHelper.clientInterface()
         c.exportedObject = receiver
         // The helper restarted (interrupted) or went away (invalidated):
-        // ask again, which reconnects and resubscribes.
-        c.interruptionHandler = { [weak self] in Task { @MainActor in self?.lost() } }
-        c.invalidationHandler = { [weak self] in Task { @MainActor in self?.lost(invalidated: true) } }
+        // ask again, which reconnects and resubscribes. XPC calls these and
+        // the proxy's error handler on its own queue, so they must be
+        // @Sendable: written bare in this @MainActor class they'd be
+        // main-actor isolated, and Swift 6 traps when XPC calls them.
+        c.interruptionHandler = { @Sendable [weak self] in Task { @MainActor in self?.lost() } }
+        c.invalidationHandler = { @Sendable [weak self] in Task { @MainActor in self?.lost(invalidated: true) } }
         c.resume()
         connection = c
         return c
@@ -74,7 +77,7 @@ public final class HelperVPNService: VPNService {
         let data = HelperCoding.encode(req)
         let reply: Data = try await withCheckedThrowingContinuation { cont in
             let once = ResumeOnce(cont)
-            let proxy = c.remoteObjectProxyWithErrorHandler { e in
+            let proxy = c.remoteObjectProxyWithErrorHandler { @Sendable e in
                 once.resume(throwing: Failure(message: "The Albi helper isn't answering (\(e.localizedDescription))."))
             } as? AlbiHelperXPC
             guard let proxy else {

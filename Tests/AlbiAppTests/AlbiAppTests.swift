@@ -472,4 +472,17 @@ import Diagnostics
         #expect(model.diagnosticsLocation == DiagnosticsSettings.systemDirectory)
     }
 }
+
+@Suite struct HelperConnectionTests {
+    /// With no helper registered, launchd has no such service and XPC
+    /// invalidates the connection from its own queue. That used to trap on
+    /// the main-actor check and kill the app at launch.
+    @MainActor @Test func noHelperFailsTheCallInsteadOfCrashing() async {
+        let service = HelperVPNService()
+        await #expect(throws: (any Error).self) { try await service.call(.hello, timeout: 2) }
+        // Let the invalidation handler and the retry it schedules run too.
+        try? await Task.sleep(for: .seconds(2))
+        #expect(await service.currentStatus().state == .disconnected)
+    }
+}
 #endif
