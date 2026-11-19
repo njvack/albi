@@ -2,7 +2,9 @@ import AlbiApp
 import SwiftUI
 
 /// The menu-bar app. It runs the tunnel through albi-helper, the root
-/// LaunchDaemon in its bundle, and disconnects when it quits. Launched with `-demo YES` (or ALBI_DEMO=1) it
+/// LaunchDaemon in its bundle, and disconnects when it quits. Launch at
+/// login is a LaunchAgent, so launchd also restarts the app after a crash;
+/// the helper keeps the tunnel up for a minute while it does. Launched with `-demo YES` (or ALBI_DEMO=1) it
 /// runs against the mock tunnel instead, with a Demo submenu to drop the
 /// connection or fail a HIP check.
 @main
@@ -16,7 +18,7 @@ struct AlbiMenuApp: App {
         let demo = wantsDemo ? MockVPNService.demo() : nil
         self.demo = demo
         let service: any VPNService = demo ?? HelperVPNService()
-        _model = State(initialValue: AppModel(service: service, notifier: UserNotifier(), loginItem: MainAppLoginItem()))
+        _model = State(initialValue: AppModel(service: service, notifier: UserNotifier(), loginItem: AgentLoginItem()))
     }
 
     var body: some Scene {

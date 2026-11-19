@@ -143,6 +143,11 @@ targets:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchDaemons
+      - path: AlbiHelper/com.github.njvack.albi.menu.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchAgents
     dependencies:
       - package: Albi
         product: AlbiApp

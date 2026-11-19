@@ -159,8 +159,37 @@ actor HelperCore {
         controller = nil
     }
 
-    func add(_ c: HelperClient) { clients.insert(c) }
-    func remove(_ c: HelperClient) { clients.remove(c) }
+    /// How long the tunnel outlives the app when the app goes away without
+    /// quitting (a crash): long enough for launchd to start it again.
+    static let orphanGrace: Duration = .seconds(60)
+    private var orphanTimer: Task<Void, Never>?
+
+    func add(_ c: HelperClient) {
+        clients.insert(c)
+        orphanTimer?.cancel()
+        orphanTimer = nil
+    }
+
+    /// A quitting app disconnects first, so a client that goes away while
+    /// the tunnel is up crashed or was killed. Keep the tunnel for
+    /// `orphanGrace` in case it comes back; then take it down, since nothing
+    /// is left showing it.
+    func remove(_ c: HelperClient) {
+        guard clients.remove(c) != nil, clients.isEmpty, controller != nil, orphanTimer == nil else { return }
+        log.notice("the app went away with the tunnel up; disconnecting unless it's back within \(Int(Self.orphanGrace.components.seconds)) s")
+        orphanTimer = Task { [weak self] in
+            try? await Task.sleep(for: Self.orphanGrace)
+            guard !Task.isCancelled else { return }
+            await self?.orphaned()
+        }
+    }
+
+    private func orphaned() async {
+        orphanTimer = nil
+        guard clients.isEmpty, controller != nil else { return }
+        log.notice("the app didn't come back; disconnecting")
+        _ = await handle(.disconnect)
+    }
 
     // MARK: Requests
 
