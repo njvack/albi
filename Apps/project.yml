@@ -56,6 +56,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX)
         PRODUCT_NAME: Albi
         PROVISIONING_PROFILE_SPECIFIER: $(ALBI_APP_PROFILE)
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
   AlbiTunnel:
     type: system-extension
     platform: macOS

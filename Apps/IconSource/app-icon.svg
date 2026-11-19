@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<defs><linearGradient id="r" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e3261e"/><stop offset="1" stop-color="#b40f15"/></linearGradient>
+<clipPath id="sq"><path d="M285,100 L739,100 A185,185 0 0 1 924,285 L924,739 A185,185 0 0 1 739,924 L285,924 A185,185 0 0 1 100,739 L100,285 A185,185 0 0 1 285,100 Z"/></clipPath></defs>
+<g clip-path="url(#sq)">
+ <rect width="1024" height="1024" fill="url(#r)"/>
+ <rect y="790" width="1024" height="300" fill="#6a0910"/>
+ <path d="M296,790 L296,610 A88.0,88.0 0 0 1 472,610 L472,790 Z M552,790 L552,610 A88.0,88.0 0 0 1 728,610 L728,790 Z" fill="#4a060b"/>
+ <clipPath id="ac"><path d="M296,790 L296,610 A88.0,88.0 0 0 1 472,610 L472,790 Z M552,790 L552,610 A88.0,88.0 0 0 1 728,610 L728,790 Z"/></clipPath><g clip-path="url(#ac)"><rect x="331" y="500" width="18" height="230" fill="#f2c40f"/><path d="M326,730 L340,762 L354,730 Z" fill="#f2c40f"/><rect x="375" y="500" width="18" height="230" fill="#f2c40f"/><path d="M370,730 L384,762 L398,730 Z" fill="#f2c40f"/><rect x="419" y="500" width="18" height="230" fill="#f2c40f"/><path d="M414,730 L428,762 L442,730 Z" fill="#f2c40f"/><rect x="296" y="600" width="176" height="18" fill="#f2c40f"/><rect x="587" y="500" width="18" height="230" fill="#f2c40f"/><path d="M582,730 L596,762 L610,730 Z" fill="#f2c40f"/><rect x="631" y="500" width="18" height="230" fill="#f2c40f"/><path d="M626,730 L640,762 L654,730 Z" fill="#f2c40f"/><rect x="675" y="500" width="18" height="230" fill="#f2c40f"/><path d="M670,730 L684,762 L698,730 Z" fill="#f2c40f"/><rect x="552" y="600" width="176" height="18" fill="#f2c40f"/></g>
+ <path d="M216,440 L808,440 L808,790 L216,790 Z M296,790 L296,610 A88.0,88.0 0 0 1 472,610 L472,790 Z M552,790 L552,610 A88.0,88.0 0 0 1 728,610 L728,790 Z" fill="#fff" fill-rule="evenodd"/>
+ <path d="M216.0,441 L216.0,350 L316.0,350 L316.0,441 Z M380.0,441 L380.0,350 L480.0,350 L480.0,441 Z M544.0,441 L544.0,350 L644.0,350 L644.0,441 Z M708.0,441 L708.0,350 L808.0,350 L808.0,441 Z" fill="#fff"/>
+</g></svg>
