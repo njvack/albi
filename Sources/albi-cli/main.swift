@@ -505,8 +505,8 @@ func ipv4Route(_ s: String) -> TunnelSettings.IPv4Route? {
     let parts = s.split(separator: "/", maxSplits: 1).map(String.init)
     let len = parts.count == 2 ? Int(parts[1]) : 32
     guard let len, (0...32).contains(len) else { return nil }
-    var a = in_addr()
-    guard inet_pton(AF_INET, parts[0], &a) == 1 else { return nil }
+    let octets = parts[0].split(separator: ".", omittingEmptySubsequences: false).compactMap { UInt8($0) }
+    guard octets.count == 4 else { return nil }
     let m: UInt32 = len == 0 ? 0 : ~UInt32(0) << (32 - len)
     let mask = [24, 16, 8, 0].map { String((m >> UInt32($0)) & 0xff) }.joined(separator: ".")
     return TunnelSettings.IPv4Route(address: parts[0], mask: mask, prefixLength: len)
