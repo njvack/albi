@@ -44,6 +44,7 @@ public final class NetConfig: @unchecked Sendable {
     public enum DNSMode: String, Sendable {
         /// Only the gateway's domains go to its DNS servers (supplemental
         /// match domains). Coexists with other VPNs' DNS, such as Tailscale's.
+        /// A full tunnel still sends every name; see `resolverScope`.
         case split
         /// The tunnel's DNS servers answer every name, as a supplemental
         /// resolver matching "". Another VPN's DNS may still win.
@@ -169,9 +170,11 @@ public final class NetConfig: @unchecked Sendable {
         // Full DNS is a supplemental resolver that matches every name ("")
         // rather than OverridePrimary: making the service primary also makes
         // configd point the default route at the utun.
-        let domains = s.matchDomains ?? s.searchDomains
-        let all = mode == .full || domains.isEmpty
-        if mode == .split && domains.isEmpty { log("gateway sent no DNS domains; using its DNS for everything") }
+        let (all, domains) = Self.resolverScope(s, mode: mode)
+        if mode == .split && all {
+            log(s.isFullTunnel ? "full tunnel; using the gateway's DNS for everything"
+                               : "gateway sent no DNS domains; using its DNS for everything")
+        }
         let ipv4: [String: Any] = [
             "Addresses": [v4],
             "SubnetMasks": ["255.255.255.255"],
@@ -188,6 +191,21 @@ public final class NetConfig: @unchecked Sendable {
             }
             dnsKeys.append(key)
         }
+    }
+
+    /// Which names the tunnel's DNS servers answer: every name (`all`), or
+    /// only `domains`.
+    ///
+    /// A full tunnel always gets every name, even in split mode. Its routes
+    /// capture the physical network's DNS servers unless they're on the local
+    /// subnet, and a campus network's usually aren't. Lookups outside the
+    /// gateway's domains would then go into the tunnel to a server that
+    /// doesn't answer clients there. This matches the extension, where a
+    /// full tunnel's `NEDNSSettings` has no match domains.
+    static func resolverScope(_ s: TunnelSettings, mode: DNSMode) -> (all: Bool, domains: [String]) {
+        let domains = s.matchDomains ?? s.searchDomains
+        let all = mode == .full || s.isFullTunnel || domains.isEmpty
+        return (all, domains)
     }
 
     private func removeDNS() {
