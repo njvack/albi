@@ -45,7 +45,7 @@ let package = Package(
         // The GlobalProtect client core: protocol requests and parsing, GPST
         // framing, the session state machine and its runner. No Apple-only
         // APIs and no Foundation, so it builds and tests on Linux.
-        .target(name: "GPCore"),
+        .target(name: "GPCore", dependencies: ["AlbiConstants"]),
         .testTarget(name: "GPCoreTests", dependencies: ["GPCore"], exclude: ["Fixtures"]),
 
         // The macOS I/O layer: URLSession, NWConnection, NWPathMonitor and

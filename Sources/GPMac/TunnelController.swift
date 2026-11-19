@@ -162,7 +162,7 @@ public final class TunnelController: @unchecked Sendable {
         }
         let password = password
         let clock = ContinuousSessionClock()
-        var client = ClientInfo(computer: ProcessInfo.processInfo.hostName)
+        var client = ClientInfo(computer: ProcessInfo.processInfo.hostName, reportedVersion: profile.reportedVersion)
         let log: @Sendable (String) -> Void = { [onEvent] in onEvent(.log($0)) }
 
         // Diagnostics mode: record the session and write a redacted incident
@@ -205,7 +205,7 @@ public final class TunnelController: @unchecked Sendable {
             cookie = saved.cookie
             gateway = saved.gateway
             hipInterval = saved.hipInterval
-            if let v = saved.appVersion { client.appVersion = v }
+            client.adopt(version: saved.appVersion)
             lock.withLock { loggedInAt = saved.savedAt }
         }
         if cookie == nil {
@@ -216,7 +216,7 @@ public final class TunnelController: @unchecked Sendable {
                 .run(profile.target)
             cookie = r.cookie
             gateway = r.gateway
-            if let v = r.portal?.version { client.appVersion = v }
+            client.adopt(version: r.portal?.version)
             diag?.recorder.setInfo("portal-version", r.portal?.version)
             hipInterval = r.portal?.hipReportInterval.map(Double.init)
             saveCookie(r.cookie, gateway: r.gateway, appVersion: client.appVersion, hipInterval: hipInterval)

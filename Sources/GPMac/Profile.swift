@@ -25,6 +25,9 @@ public struct Profile: Codable, Equatable, Sendable {
     /// "Clear stored cookies": the extension ignores cookies it saved at or
     /// before this time.
     public var cookiesClearedAt: Date?
+    /// GlobalProtect version to report at login and in HIP reports, whatever
+    /// the portal says. nil uses the portal's version.
+    public var reportedVersion: String?
 
     public init(server: String, username: String) {
         self.server = server

@@ -34,7 +34,7 @@ options:
 
 """
 
-public let hipreportVersion = "0.1.0"
+public let hipreportVersion = AlbiVersion.albi
 
 /// The hipreport command line. Output goes to `out` and `err`; the result
 /// is the exit status.

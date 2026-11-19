@@ -50,6 +50,7 @@ struct Options {
     var routes: [TunnelSettings.IPv4Route]?
     var trace = 0
     var verbose = false
+    var reportVersion: String?
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -83,6 +84,8 @@ struct Options {
       --route A.B.C.D/N      with --tun: route only this through the tunnel instead of
                              the gateway's routes; repeatable (for debugging)
       --trace N              with --tun: log the first N packets each way
+      --report-version V     report GlobalProtect version V at login and in HIP reports, whatever
+                             the portal says (default: the portal's version, else \(AlbiVersion.globalProtect))
       -v, --verbose          also log connection phases, HIP report generation and cookie saves
       --journal PATH         with --tun: excluded-route journal
                              (default \(AlbiPaths.helperJournal))
@@ -146,6 +149,7 @@ struct Options {
                 guard let r = ipv4Route(v) else { fail("albi: bad --route \(v)") }
                 o.routes = (o.routes ?? []) + [r]
             case "--trace": o.trace = Int(value(a)) ?? 0
+            case "--report-version": o.reportVersion = value(a)
             case "-v", "--verbose": o.verbose = true
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
@@ -298,7 +302,7 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         FileHandle.standardError.write(Data("albi: \(m)\n".utf8))
     }
 
-    var client: ClientInfo { ClientInfo(computer: ProcessInfo.processInfo.hostName) }
+    var client: ClientInfo { ClientInfo(computer: ProcessInfo.processInfo.hostName, reportedVersion: options.reportVersion) }
 }
 
 /// Runs a program and returns its stdout. Fails on a non-zero exit.
@@ -422,7 +426,7 @@ do {
 }
 say("logged in to \(login.gateway) as \(login.cookie.user)")
 utunHost?.addGatewayHost(splitHostPort(login.gateway).0)
-if let v = login.portal?.version { client.appVersion = v }
+client.adopt(version: login.portal?.version)
 diagnostics?.updateSecrets {
     $0.password = credentials.stored?.password
     $0.cookies.append(login.cookie)
