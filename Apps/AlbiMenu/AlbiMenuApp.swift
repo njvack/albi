@@ -1,17 +1,21 @@
 import AlbiApp
 import SwiftUI
 
-/// The menu-bar app. For now it runs against the mock tunnel, with a Demo
-/// submenu to drop the connection or fail a HIP check.
+/// The menu-bar app. It runs the tunnel through albi-helper, the root
+/// LaunchDaemon in its bundle. Launched with `-demo YES` (or ALBI_DEMO=1) it
+/// runs against the mock tunnel instead, with a Demo submenu to drop the
+/// connection or fail a HIP check.
 @main
 struct AlbiMenuApp: App {
     @State private var model: AppModel
-    private let demo: MockVPNService
+    private let demo: MockVPNService?
 
     init() {
-        let demo = MockVPNService.demo()
+        let wantsDemo = UserDefaults.standard.bool(forKey: "demo") || ProcessInfo.processInfo.environment["ALBI_DEMO"] == "1"
+        let demo = wantsDemo ? MockVPNService.demo() : nil
         self.demo = demo
-        _model = State(initialValue: AppModel(service: demo, notifier: UserNotifier(), loginItem: MainAppLoginItem()))
+        let service: any VPNService = demo ?? HelperVPNService()
+        _model = State(initialValue: AppModel(service: service, notifier: UserNotifier(), loginItem: MainAppLoginItem()))
     }
 
     var body: some Scene {

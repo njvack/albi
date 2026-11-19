@@ -124,15 +124,38 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport
         SKIP_INSTALL: YES
   AlbiMenu:
-    # The Phase 3 menu-bar app, running against the mock tunnel until the
-    # live VPNService lands. Signs ad hoc so it runs from Xcode as is; it
-    # becomes the Albi target (and embeds the extension) after Step 1.
+    # The menu-bar app. Its tunnel runs in albi-helper, a root LaunchDaemon
+    # in Contents/MacOS that the app registers with SMAppService from
+    # Contents/Library/LaunchDaemons; no paid team needed. Signs ad hoc by
+    # default; set ALBI_MENU_SIGN_IDENTITY and ALBI_MENU_TEAM in
+    # Signing.xcconfig to sign with a free Apple Development certificate,
+    # which keeps the helper's launchd registration valid across rebuilds.
     type: application
     platform: macOS
-    sources: [AlbiMenu]
+    sources:
+      - AlbiMenu
+      # hipreport's built-in checks, in Contents/Resources/Library.
+      - path: ../Sources/HIPCore/Library
+        type: folder
+        buildPhase: resources
+      - path: AlbiHelper/com.github.njvack.albi.helper.plist
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Contents/Library/LaunchDaemons
     dependencies:
       - package: Albi
         product: AlbiApp
+      - target: albi-helper
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
+      - target: albi-hipreport
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     info:
       path: AlbiMenu/Info.plist
       properties:
@@ -145,5 +168,49 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).menu
         PRODUCT_NAME: Albi Menu
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
+        ENABLE_HARDENED_RUNTIME: NO
+  albi-helper:
+    # The root LaunchDaemon. Signed with the app's identity: launchd
+    # records its code requirement when the app registers it.
+    type: tool
+    platform: macOS
+    sources:
+      - path: ../Sources/albi-helper
+    dependencies:
+      - package: Albi
+        product: GPCore
+      - package: Albi
+        product: GPMac
+      - package: Albi
+        product: Diagnostics
+    settings:
+      base:
+        PRODUCT_NAME: albi-helper
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).helper
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
+        ENABLE_HARDENED_RUNTIME: NO
+  albi-hipreport:
+    # hipreport for the helper to run as root: the same program as the
+    # extension's, without the sandbox entitlements (a sandbox-inheriting
+    # binary can't start from an unsandboxed parent).
+    type: tool
+    platform: macOS
+    sources:
+      - path: ../Sources/hipreport
+    dependencies:
+      - package: Albi
+        product: HIPCore
+    settings:
+      base:
+        PRODUCT_NAME: albi-hipreport
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport-root
+        SKIP_INSTALL: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
         ENABLE_HARDENED_RUNTIME: NO

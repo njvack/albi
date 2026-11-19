@@ -174,27 +174,48 @@ public struct HIPCheck: Identifiable, Equatable, Sendable {
 
 /// The pieces macOS has to approve before Albi can connect.
 public struct SetupStatus: Equatable, Sendable {
+    /// What runs the tunnel.
+    public enum Backend: Equatable, Sendable {
+        /// The packet tunnel system extension (needs a paid team).
+        case systemExtension
+        /// The albi-helper LaunchDaemon (no paid team).
+        case helper
+    }
     public enum Extension: Equatable, Sendable {
         case notActivated, awaitingApproval, active
         case failed(String)
     }
     public enum Helper: Equatable, Sendable {
         case notRegistered, awaitingApproval, registered
+        /// Registered, but the running helper isn't this build or doesn't
+        /// answer: registering again fixes it.
+        case needsReinstall(String)
+        /// This copy of the app can't install it.
+        case unavailable(String)
     }
 
+    public var backend: Backend
     public var systemExtension: Extension
     public var vpnConfigurationAllowed: Bool
-    /// The HIP helper is optional: without it, root-only checks report n/a.
-    public var hipHelper: Helper
+    /// With the helper backend, the helper that runs the tunnel. With the
+    /// extension, the optional HIP helper: without it, root-only checks
+    /// report n/a.
+    public var helper: Helper
 
-    public init(systemExtension: Extension = .notActivated, vpnConfigurationAllowed: Bool = false,
-                hipHelper: Helper = .notRegistered) {
+    public init(backend: Backend = .systemExtension, systemExtension: Extension = .notActivated,
+                vpnConfigurationAllowed: Bool = false, helper: Helper = .notRegistered) {
+        self.backend = backend
         self.systemExtension = systemExtension
         self.vpnConfigurationAllowed = vpnConfigurationAllowed
-        self.hipHelper = hipHelper
+        self.helper = helper
     }
 
-    /// Ready to connect. The optional helper doesn't count.
-    public var isReady: Bool { systemExtension == .active && vpnConfigurationAllowed }
+    /// Ready to connect. With the extension, the optional HIP helper doesn't count.
+    public var isReady: Bool {
+        switch backend {
+        case .systemExtension: systemExtension == .active && vpnConfigurationAllowed
+        case .helper: helper == .registered
+        }
+    }
 }
 #endif

@@ -11,41 +11,12 @@ struct SetupView: View {
     var body: some View {
         let setup = model.setup
         VStack(alignment: .leading, spacing: 16) {
-            Text("Albi needs your OK for a few things before it can connect.")
+            Text(setup.backend == .helper ? "Albi needs your OK before it can connect." : "Albi needs your OK for a few things before it can connect.")
                 .fixedSize(horizontal: false, vertical: true)
             Form {
-                SetupRow(
-                    done: setup.systemExtension == .active,
-                    title: "Tunnel extension",
-                    detail: extensionDetail(setup.systemExtension)
-                ) {
-                    switch setup.systemExtension {
-                    case .notActivated, .failed:
-                        Button("Install") { Task { await model.activateSystemExtension() } }
-                    case .awaitingApproval:
-                        Button("Open System Settings…") { openLoginItemsSettings() }
-                    case .active:
-                        EmptyView()
-                    }
-                }
-                SetupRow(
-                    done: setup.vpnConfigurationAllowed,
-                    title: "VPN configuration",
-                    detail: "macOS asks once before Albi can add VPN configurations."
-                ) {
-                    Button("Allow…") { Task { await model.allowVPNConfiguration() } }
-                        .disabled(setup.systemExtension != .active)
-                }
-                SetupRow(
-                    done: setup.hipHelper == .registered,
-                    title: "HIP helper (optional)",
-                    detail: "Lets HIP checks read settings only root can see, such as the packet filter. Without it, those checks report n/a."
-                ) {
-                    switch setup.hipHelper {
-                    case .notRegistered: Button("Register") { Task { await model.registerHIPHelper() } }
-                    case .awaitingApproval: Button("Open System Settings…") { openLoginItemsSettings() }
-                    case .registered: EmptyView()
-                    }
+                switch setup.backend {
+                case .helper: helperRow(setup.helper)
+                case .systemExtension: extensionRows(setup)
                 }
             }
             .formStyle(.grouped)
@@ -59,9 +30,76 @@ struct SetupView: View {
         }
         .padding(20)
         .frame(width: 500)
-        .task { await model.refreshSetup() }
+        .task {
+            // Approvals happen in System Settings, so look again every few
+            // seconds while something is still missing.
+            await model.refreshSetup()
+            while !Task.isCancelled && !model.setup.isReady {
+                try? await Task.sleep(for: .seconds(2))
+                await model.refreshSetup()
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await model.refreshSetup() }
+        }
+    }
+
+    /// The helper backend's one item: the albi-helper LaunchDaemon, which
+    /// also makes the HIP checks that need root.
+    @ViewBuilder private func helperRow(_ h: SetupStatus.Helper) -> some View {
+        SetupRow(done: h == .registered, title: "Approve the Albi helper", detail: helperDetail(h)) {
+            switch h {
+            case .notRegistered: Button("Approve…") { Task { await model.registerHelper() } }
+            case .awaitingApproval: Button("Open System Settings…") { openLoginItemsSettings() }
+            case .needsReinstall: Button("Reinstall") { Task { await model.registerHelper() } }
+            case .registered, .unavailable: EmptyView()
+            }
+        }
+    }
+
+    private func helperDetail(_ h: SetupStatus.Helper) -> String {
+        switch h {
+        case .notRegistered: "Albi's tunnel runs in a small helper that macOS starts as root. It also lets HIP checks read settings only root can see. You allow it once."
+        case .awaitingApproval: "Turn on Albi in System Settings › General › Login Items & Extensions, under Allow in the Background."
+        case .registered: "Installed and running."
+        case .needsReinstall(let why): "\(why) Reinstall it; macOS may ask you to allow it again."
+        case .unavailable(let why): why
+        }
+    }
+
+    @ViewBuilder private func extensionRows(_ setup: SetupStatus) -> some View {
+        SetupRow(
+            done: setup.systemExtension == .active,
+            title: "Tunnel extension",
+            detail: extensionDetail(setup.systemExtension)
+        ) {
+            switch setup.systemExtension {
+            case .notActivated, .failed:
+                Button("Install") { Task { await model.activateSystemExtension() } }
+            case .awaitingApproval:
+                Button("Open System Settings…") { openLoginItemsSettings() }
+            case .active:
+                EmptyView()
+            }
+        }
+        SetupRow(
+            done: setup.vpnConfigurationAllowed,
+            title: "VPN configuration",
+            detail: "macOS asks once before Albi can add VPN configurations."
+        ) {
+            Button("Allow…") { Task { await model.allowVPNConfiguration() } }
+                .disabled(setup.systemExtension != .active)
+        }
+        SetupRow(
+            done: setup.helper == .registered,
+            title: "HIP helper (optional)",
+            detail: "Lets HIP checks read settings only root can see, such as the packet filter. Without it, those checks report n/a."
+        ) {
+            switch setup.helper {
+            case .notRegistered, .needsReinstall: Button("Register") { Task { await model.registerHelper() } }
+            case .awaitingApproval: Button("Open System Settings…") { openLoginItemsSettings() }
+            case .registered, .unavailable: EmptyView()
+            }
         }
     }
 

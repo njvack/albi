@@ -316,7 +316,7 @@ public final class AppModel {
     public func refreshSetup() async { setup = await service.setupStatus() }
     public func activateSystemExtension() async { await service.activateSystemExtension(); await refreshSetup() }
     public func allowVPNConfiguration() async { await service.allowVPNConfiguration(); await refreshSetup() }
-    public func registerHIPHelper() async { await service.registerHIPHelper(); await refreshSetup() }
+    public func registerHelper() async { await service.registerHelper(); await refreshSetup() }
 
     // MARK: Launch at login
 

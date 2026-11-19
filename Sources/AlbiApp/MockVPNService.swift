@@ -37,7 +37,7 @@ public final class MockVPNService: VPNService {
         lab.secondFactor = .askEachTime
         lab.settings.savePassword = false
         let m = MockVPNService(profiles: [work, lab],
-                               setup: SetupStatus(systemExtension: .active, vpnConfigurationAllowed: true, hipHelper: .notRegistered))
+                               setup: SetupStatus(systemExtension: .active, vpnConfigurationAllowed: true, helper: .notRegistered))
         m.savedPasswords = [work.id]
         return m
     }
@@ -205,6 +205,6 @@ public final class MockVPNService: VPNService {
 
     public func allowVPNConfiguration() async { setup.vpnConfigurationAllowed = true }
 
-    public func registerHIPHelper() async { setup.hipHelper = .registered }
+    public func registerHelper() async { setup.helper = .registered }
 }
 #endif

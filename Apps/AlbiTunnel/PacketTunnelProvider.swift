@@ -7,27 +7,20 @@ import os
 
 private let log = Logger(subsystem: "com.github.njvack.albi", category: "tunnel")
 
-/// The packet tunnel. Logs in (or reuses a saved cookie), runs the session,
-/// and lets macOS own routes and DNS: they go away when this process does.
+/// The packet tunnel. `TunnelController` logs in (or reuses a saved cookie)
+/// and runs the session; macOS owns routes and DNS, which go away when this
+/// process does.
 final class PacketTunnelProvider: NEPacketTunnelProvider {
-    private var runner: SessionRunner?
-    private var host: PacketFlowHost?
-    private var watcher: PathWatcher?
+    private var controller: TunnelController?
     private let hip = HIPBridge()
     /// hipreport inside this extension's bundle (Contents/MacOS), out of
     /// the user's reach. Used when the profile sets `bundledHIP`.
     private let bundledHIP = BundledHIP()
     private let probeLock = NSLock()
     private var lastProbe: ProviderMessage.HIPProbe?
-    private var profile: Profile?
-    private var gateway: String?
     private var connectedOnce = false
     private var lastState: SessionState = .idle
     private let stateLock = NSLock()
-    private var diagnostics: Diagnostics?
-    private var cookies: CookieStore?
-    /// Set by "Clear stored cookies" while connected: log out on stop.
-    private var logoutOnStop = false
 
     /// Secrets live in the System keychain: this process runs as root.
     private let keychain = KeychainStore(service: "com.github.njvack.albi.tunnel")
@@ -38,137 +31,39 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             completionHandler(TunnelError("the VPN configuration has no Albi profile"))
             return
         }
-        self.profile = profile
         let diagSettings = DiagnosticsSettings(providerConfiguration: proto.providerConfiguration) ?? DiagnosticsSettings()
-        let account = "\(profile.username)@\(profile.server)"
-        if let pw = options?["password"] as? String {
-            keychain.set("password:" + account, profile.savePassword ? Data(pw.utf8) : nil)
-        }
-        let password = (options?["password"] as? String) ??
-            keychain.get("password:" + account).map { String(decoding: $0, as: UTF8.self) }
+        let config = TunnelController.Configuration(profile: profile, password: options?["password"] as? String,
+                                                    diagnostics: diagSettings, keychain: keychain)
+        let controller = TunnelController(
+            config,
+            hipReport: { [hip, bundledHIP] ctx in
+                if profile.bundledHIP == true { return try await bundledHIP.report(for: ctx) }
+                return try await hip.report(for: ctx, timeout: 20)
+            },
+            makeHost: { [weak self] hooks, _, _ in
+                guard let self else { throw TunnelError("the provider went away") }
+                return PacketFlowHost(provider: self, hooks: hooks)
+            },
+            onEvent: { [weak self] e in
+                switch e {
+                case .state(let s): self?.stateChanged(s)
+                case .log(let m): log.info("\(m, privacy: .public)")
+                default: break
+                }
+            })
+        self.controller = controller
 
         Task {
             do {
-                try await self.start(profile: profile, account: account, password: password, diagnostics: diagSettings)
+                try await controller.start()
+                // Report success to macOS once the tunnel is up the first time.
+                try await controller.waitUntilConnected()
                 completionHandler(nil)
             } catch {
                 log.error("start failed: \(String(describing: error), privacy: .public)")
                 completionHandler(TunnelError("\(error)"))
             }
         }
-    }
-
-    private func start(profile: Profile, account: String, password: String?, diagnostics settings: DiagnosticsSettings) async throws {
-        let clock = ContinuousSessionClock()
-        var client = ClientInfo(computer: ProcessInfo.processInfo.hostName)
-
-        // Diagnostics mode: record the session and write a redacted incident
-        // file when an outage isn't recovered. The connector is wrapped
-        // before login so the setup exchanges are recorded too.
-        var diag: Diagnostics?
-        if settings.enabled {
-            let d = Diagnostics(settings: settings, directory: DiagnosticsSettings.systemDirectory, clock: clock,
-                                secrets: KnownSecrets(password: password, servers: [profile.server], computer: client.computer)) { _, line in
-                log.notice("diagnostics: \(line, privacy: .public)")
-            }
-            d.start()
-            diag = d
-            self.diagnostics = d
-        }
-        let base = NWGatewayConnector(trust: profile.trust)
-        let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
-
-        // A saved cookie lets the extension come back after a disconnect,
-        // sleep or restart without a new login (and without a push). If the
-        // gateway rejects it, the session logs in again.
-        let cookies = CookieStore(store: keychain, username: profile.username, server: profile.server)
-        self.cookies = cookies
-        var cookie: AuthCookie?
-        var gateway: String?
-        var hipInterval: Double?
-        if let saved = cookies.load(mode: profile.mode, clearedAt: profile.cookiesClearedAt) {
-            log.info("reusing the saved cookie for \(saved.gateway, privacy: .public)")
-            cookie = saved.cookie
-            gateway = saved.gateway
-            hipInterval = saved.hipInterval
-            if let v = saved.appVersion { client.appVersion = v }
-        }
-        if cookie == nil {
-            guard let password else { throw TunnelError("no password: connect from the app") }
-            let creds = StoredCredentials(username: profile.username, password: password, secondFactor: profile.secondFactor)
-            let r = try await Login(transport: connector, credentials: creds, client: client, username: profile.username)
-                .run(profile.target)
-            cookie = r.cookie
-            gateway = r.gateway
-            if let v = r.portal?.version { client.appVersion = v }
-            diag?.recorder.setInfo("portal-version", r.portal?.version)
-            hipInterval = r.portal?.hipReportInterval.map(Double.init)
-            saveCookie(r.cookie, gateway: r.gateway, appVersion: client.appVersion, hipInterval: hipInterval)
-        }
-        guard let cookie, let gateway else { throw TunnelError("login gave no cookie") }
-        self.gateway = gateway
-        diag?.updateSecrets {
-            $0.cookies.append(cookie)
-            $0.servers.append(gateway)
-        }
-
-        var policy = SessionPolicy()
-        policy.canReauthenticate = password != nil && profile.secondFactor != nil
-
-        let clientInfo = client
-        let interval = hipInterval
-        let hooks = PacketFlowHost.Hooks(
-            hipReport: { [hip, bundledHIP] ctx in
-                if profile.bundledHIP == true { return try await bundledHIP.report(for: ctx) }
-                return try await hip.report(for: ctx, timeout: 20)
-            },
-            reauthenticate: { [keychain] in
-                guard let pw = keychain.get("password:" + account).map({ String(decoding: $0, as: UTF8.self) }) ?? password
-                else { throw StoredCredentials.NeedsUser() }
-                let creds = StoredCredentials(username: profile.username, password: pw, secondFactor: profile.secondFactor)
-                let r = try await Login(transport: connector, credentials: creds, client: clientInfo, username: profile.username)
-                    .run(profile.target)
-                // The session keeps talking to the gateway it started with.
-                return r.cookie
-            },
-            saveCookie: { [weak self] c in
-                guard let self else { return }
-                if let c {
-                    self.saveCookie(c, gateway: gateway, appVersion: clientInfo.appVersion, hipInterval: interval)
-                } else {
-                    cookies.remove(gateway: gateway)
-                }
-            },
-            stateChanged: { [weak self] s in self?.stateChanged(s) },
-            log: { m in log.info("\(m, privacy: .public)") }
-        )
-        let host = PacketFlowHost(provider: self, hooks: hooks)
-        let runner = SessionRunner(server: gateway, client: client,
-                                   session: Session(cookie: cookie, policy: policy, hipInterval: hipInterval),
-                                   io: connector, host: host, clock: clock, recorder: diag?.recorder)
-        self.host = host
-        self.runner = runner
-
-        let watcher = PathWatcher { usable in Task { await runner.post(.pathChanged(usable: usable)) } }
-        watcher.start()
-        self.watcher = watcher
-
-        await runner.start()
-        host.pumpPackets(to: runner)
-
-        // Report success to macOS once the tunnel is up the first time.
-        while true {
-            switch await runner.state {
-            case .connected: return
-            case .needsLogin(let why), .stopped(let why): throw TunnelError(why)
-            default: try await Task.sleep(for: .milliseconds(100))
-            }
-        }
-    }
-
-    private func saveCookie(_ c: AuthCookie, gateway: String, appVersion: String, hipInterval: Double?) {
-        cookies?.save(SavedCookie(cookie: c, gateway: gateway, appVersion: appVersion, hipInterval: hipInterval,
-                                  savedAt: Date()))
     }
 
     private func stateChanged(_ s: SessionState) {
@@ -187,28 +82,22 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        // Nothing logs out, Disconnect included: the cookie stays saved so
-        // the next connect skips the login while the gateway still takes it.
-        // Only "Clear stored cookies" while connected ends the session here.
-        let logout = logoutOnStop
-        log.info("stopping (reason \(reason.rawValue), logout \(logout))")
-        watcher?.stop()
+        log.info("stopping (reason \(reason.rawValue))")
         Task {
-            await runner?.stop(logout: logout)
-            diagnostics?.stop()
+            await controller?.stop()
             completionHandler()
         }
     }
 
     override func sleep(completionHandler: @escaping () -> Void) {
         Task {
-            await runner?.post(.sleep)
+            await controller?.sleep()
             completionHandler()
         }
     }
 
     override func wake() {
-        Task { await runner?.post(.wake) }
+        Task { await controller?.wake() }
     }
 
     override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
@@ -222,10 +111,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             } else if req.hipUnavailable == true {
                 await hip.answer(report: nil)
             }
-            if req.diagnosticsDump == true { diagnostics?.saveNow() }
+            if req.diagnosticsDump == true { controller?.saveDiagnosticsNow() }
             if req.clearCookies == true {
-                cookies?.remove(gateway: gateway)
-                logoutOnStop = true
+                controller?.clearCookies()
                 log.notice("stored cookie cleared; logging out on stop")
             }
             if req.probeBundledHIP == true {
@@ -234,11 +122,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 probeLock.withLock { lastProbe = p }
             }
             let state = stateLock.withLock { lastState }
-            let config = await runner?.config
-            var status = ProviderMessage.Status(state: "\(state)", gateway: gateway, ipv4: config?.ipv4,
+            let snap = await controller?.snapshot()
+            var status = ProviderMessage.Status(state: "\(state)", gateway: snap?.gateway, ipv4: snap?.settings?.ipv4Address,
                                                 hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
-                                                lastIncident: diagnostics?.lastIncident?.path,
-                                                diagnosticsEnabled: diagnostics != nil)
+                                                lastIncident: snap?.lastIncident,
+                                                diagnosticsEnabled: controller?.configuration.diagnostics.enabled)
             status.hipProbe = probeLock.withLock { lastProbe }
             completionHandler?(try? JSONEncoder().encode(status))
         }
