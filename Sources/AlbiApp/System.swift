@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import AlbiConstants
 import AppKit
 import Foundation
 import ServiceManagement
@@ -61,7 +62,7 @@ public final class QuitDisconnects: NSObject, NSApplicationDelegate {
 public final class AgentLoginItem: LoginItem {
     let service: SMAppService
 
-    public init(plistName: String = "com.github.njvack.albi.menu.plist") {
+    public init(plistName: String = AlbiIDs.menuAgentPlist) {
         service = SMAppService.agent(plistName: plistName)
     }
 

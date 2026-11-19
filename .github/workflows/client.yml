@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: &paths
+      - 'Sources/AlbiConstants/**'
+      - 'Tests/AlbiConstantsTests/**'
+      - 'Apps/AlbiHelper/*.plist'
       - 'Sources/GPCore/**'
       - 'Sources/GPMac/**'
       - 'Sources/GPCapture/**'
@@ -49,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift build --target GPCore
-      - run: swift test --filter 'GPCoreTests|GPCaptureTests|DiagnosticsTests'
+      - run: swift test --filter 'AlbiConstantsTests|GPCoreTests|GPCaptureTests|DiagnosticsTests'
 
   macos:
     # Unit tests for everything that needs SwiftPM on a Mac.
@@ -58,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - run: swift test --filter 'GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests'
+      - run: swift test --filter 'AlbiConstantsTests|GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests'
 
   e2e:
     # Against gp-fake-gateway: albi-cli (userspace ping through the tunnel,

@@ -1,4 +1,5 @@
 #if os(macOS)
+import AlbiConstants
 import Diagnostics
 import Foundation
 
@@ -17,14 +18,14 @@ import Foundation
 
 public enum AlbiHelper {
     /// The Mach service and launchd label.
-    public static let label = "com.github.njvack.albi.helper"
+    public static let label = AlbiIDs.helperLabel
     /// The launchd plist inside the app's Contents/Library/LaunchDaemons.
-    public static let plistName = "com.github.njvack.albi.helper.plist"
+    public static let plistName = AlbiIDs.helperPlist
     /// Root-owned state, readable by everyone.
-    public static let directory = URL(fileURLWithPath: "/Library/Application Support/Albi")
-    public static let profilesFile = directory.appendingPathComponent("profiles.json")
+    public static let directory = URL(fileURLWithPath: AlbiPaths.supportDirectory)
+    public static let profilesFile = URL(fileURLWithPath: AlbiPaths.profiles)
     /// `{profile, wantConnected}`: what launchd's KeepAlive restart reconnects.
-    public static let stateFile = directory.appendingPathComponent("helper-state.json")
+    public static let stateFile = URL(fileURLWithPath: AlbiPaths.helperState)
     /// Bumped when requests or replies change incompatibly.
     public static let protocolVersion = 1
 

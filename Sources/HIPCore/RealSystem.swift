@@ -1,3 +1,4 @@
+import AlbiConstants
 import Foundation
 #if canImport(Darwin)
 import Darwin
@@ -64,7 +65,7 @@ public final class RealSystem: System {
     /// /Library/Caches/Albi for root, so the root helper's cache can't be
     /// written by users; otherwise the user's own.
     public func cacheDirectory() -> String {
-        if getuid() == 0 { return "/Library/Caches/Albi" }
+        if getuid() == 0 { return AlbiPaths.rootCacheDirectory }
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.path
         return (base ?? NSTemporaryDirectory()) + "/Albi"
     }

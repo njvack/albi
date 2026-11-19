@@ -1,3 +1,4 @@
+import AlbiConstants
 import Foundation
 #if canImport(Darwin)
 import Darwin
@@ -12,7 +13,7 @@ func loginName() -> String {
 }
 
 /// Local check files. Must be owned by root and writable by nobody else.
-public let defaultChecksDir = "/Library/Application Support/Albi/checks.d"
+public let defaultChecksDir = AlbiPaths.checksDirectory
 
 public let usage = """
 usage:

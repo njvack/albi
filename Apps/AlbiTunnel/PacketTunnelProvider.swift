@@ -1,3 +1,4 @@
+import AlbiConstants
 import Diagnostics
 import Foundation
 import GPCore
@@ -5,7 +6,7 @@ import GPMac
 import NetworkExtension
 import os
 
-private let log = Logger(subsystem: "com.github.njvack.albi", category: "tunnel")
+private let log = Logger(subsystem: AlbiIDs.logSubsystem, category: "tunnel")
 
 /// The packet tunnel. `TunnelController` logs in (or reuses a saved cookie)
 /// and runs the session; macOS owns routes and DNS, which go away when this
@@ -23,7 +24,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     private let stateLock = NSLock()
 
     /// Secrets live in the System keychain: this process runs as root.
-    private let keychain = KeychainStore(service: "com.github.njvack.albi.tunnel")
+    private let keychain = KeychainStore(service: AlbiIDs.tunnelKeychainService)
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         guard let proto = protocolConfiguration as? NETunnelProviderProtocol,

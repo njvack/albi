@@ -1,7 +1,8 @@
+import AlbiConstants
 import Foundation
 
 /// The only PATH commands ever see.
-public let safePath = "/usr/bin:/bin:/usr/sbin:/sbin"
+public let safePath = AlbiPaths.safePATH
 
 /// What a command left behind.
 public struct RunResult: Sendable, Equatable {

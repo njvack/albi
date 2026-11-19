@@ -17,6 +17,7 @@
 // 0 stopped normally, 1 error, 2 the cookie was rejected and a login is needed.
 
 #if canImport(Network)
+import AlbiConstants
 import Darwin
 import Diagnostics
 import Foundation
@@ -84,7 +85,7 @@ struct Options {
       --trace N              with --tun: log the first N packets each way
       -v, --verbose          also log connection phases, HIP report generation and cookie saves
       --journal PATH         with --tun: excluded-route journal
-                             (default /Library/Application Support/Albi/helper-journal.json)
+                             (default \(AlbiPaths.helperJournal))
     The password is read from the first line of stdin.
     """
 

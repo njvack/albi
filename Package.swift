@@ -7,6 +7,7 @@ let package = Package(
     // project. The package stays lower so GitHub's macOS runners can build it.
     platforms: [.macOS(.v15)],
     products: [
+        .library(name: "AlbiConstants", targets: ["AlbiConstants"]),
         .library(name: "HIPCore", targets: ["HIPCore"]),
         .executable(name: "hipreport", targets: ["hipreport"]),
         .library(name: "GPCore", targets: ["GPCore"]),
@@ -23,11 +24,17 @@ let package = Package(
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
     ],
     targets: [
+        // Paths and identifiers every process must agree on: AlbiPaths and
+        // AlbiIDs. String literals only, no Foundation, so anything can
+        // import it, on Linux too.
+        .target(name: "AlbiConstants"),
+        .testTarget(name: "AlbiConstantsTests", dependencies: ["AlbiConstants"]),
+
         // HIP report collection: check files, probes, report XML. Pure Swift
         // with Foundation, so its tests run on Linux too.
         .target(
             name: "HIPCore",
-            dependencies: [.product(name: "TOMLDecoder", package: "TOMLDecoder")],
+            dependencies: ["AlbiConstants", .product(name: "TOMLDecoder", package: "TOMLDecoder")],
             // The built-in check library ships as a resource bundle; see
             // builtinLibraryURL() in Library.swift.
             resources: [.copy("Library")]
@@ -44,12 +51,12 @@ let package = Package(
         // The macOS I/O layer: URLSession, NWConnection, NWPathMonitor and
         // NetworkExtension glue. Its files are wrapped in #if canImport so the
         // package still builds on Linux, where the target is empty.
-        .target(name: "GPMac", dependencies: ["GPCore", "Diagnostics"]),
+        .target(name: "GPMac", dependencies: ["AlbiConstants", "GPCore", "Diagnostics"]),
         .testTarget(name: "GPMacTests", dependencies: ["GPMac", "GPCore"]),
 
         // Command-line harness: GPCore plus GPMac, pinging through the tunnel
         // from userspace. Used by e2e/client.sh against gp-fake-gateway.
-        .executableTarget(name: "albi-cli", dependencies: ["GPCore", "GPMac"]),
+        .executableTarget(name: "albi-cli", dependencies: ["AlbiConstants", "GPCore", "GPMac"]),
 
         // Records a real session through openconnect as redacted fixtures:
         // log parsing, redaction and the summary live in GPCapture
@@ -62,14 +69,14 @@ let package = Package(
         // redacted incident file, using GPCapture's redactor, and reads it
         // back for replay and for drafting gp-fake-gateway scenarios.
         // albi-diag is the command-line side.
-        .target(name: "Diagnostics", dependencies: ["GPCore", "GPCapture"]),
+        .target(name: "Diagnostics", dependencies: ["AlbiConstants", "GPCore", "GPCapture"]),
         .executableTarget(name: "albi-diag", dependencies: ["Diagnostics", "GPCore"]),
         .testTarget(name: "DiagnosticsTests", dependencies: ["Diagnostics", "GPCore", "GPCapture"]),
 
         // The menu-bar app's SwiftUI scenes and view models, against the
         // VPNService protocol (a mock for now). macOS only: wrapped in
         // #if canImport(SwiftUI), so it is empty on Linux.
-        .target(name: "AlbiApp", dependencies: ["GPMac", "Diagnostics"]),
+        .target(name: "AlbiApp", dependencies: ["AlbiConstants", "GPMac", "Diagnostics"]),
         .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
 
         // Root-helper probe: makes a utun, routes and temporary DNS keys
@@ -84,7 +91,7 @@ let package = Package(
         // macOS only.
         .executableTarget(
             name: "albi-helper",
-            dependencies: ["GPCore", "GPMac", "Diagnostics"],
+            dependencies: ["AlbiConstants", "GPCore", "GPMac", "Diagnostics"],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
     ]

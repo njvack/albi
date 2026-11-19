@@ -1,11 +1,12 @@
 #if os(macOS)
+import AlbiConstants
 import Diagnostics
 import Foundation
 import GPCore
 import GPMac
 import os
 
-private let log = Logger(subsystem: "com.github.njvack.albi", category: "helper")
+private let log = Logger(subsystem: AlbiIDs.logSubsystem, category: "helper")
 
 enum HelperDaemon {
     /// Identifies this binary: its size and modification time. The app
@@ -121,7 +122,7 @@ actor HelperCore {
     private var clients: Set<HelperClient> = []
     private var codeWaiter: CheckedContinuation<String, Error>?
     private var power: PowerWatcher?
-    private let keychain = KeychainStore(service: "com.github.njvack.albi.helper")
+    private let keychain = KeychainStore(service: AlbiIDs.helperKeychainService)
     private let hip = BundledHIP(executable: HelperCore.hipreport())
 
     /// The hipreport beside this binary: albi-hipreport in the app (the
