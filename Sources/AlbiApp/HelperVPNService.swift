@@ -22,6 +22,11 @@ public final class HelperVPNService: VPNService {
         Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/albi-helper")
     }
 
+    /// The helper's launchd job: Contents/Library/LaunchDaemons/<plistName>.
+    static var bundledPlist: URL {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/\(AlbiHelper.plistName)")
+    }
+
     static var daemon: SMAppService { SMAppService.daemon(plistName: AlbiHelper.plistName) }
 
     // MARK: XPC
@@ -168,7 +173,13 @@ public final class HelperVPNService: VPNService {
         switch Self.daemon.status {
         case .notRegistered: return .notRegistered
         case .requiresApproval: return .awaitingApproval
-        case .notFound: return .unavailable("macOS can't find the helper's launchd plist in Contents/Library/LaunchDaemons.")
+        case .notFound:
+            // macOS also says notFound for a daemon that was never
+            // registered, so only a missing plist means we can't offer it.
+            guard FileManager.default.fileExists(atPath: Self.bundledPlist.path) else {
+                return .unavailable("This copy of Albi has no helper plist in Contents/Library/LaunchDaemons.")
+            }
+            return .notRegistered
         case .enabled: break
         @unknown default: return .notRegistered
         }
@@ -201,6 +212,7 @@ public final class HelperVPNService: VPNService {
             try svc.register()
         } catch {
             // Usually "Operation not permitted" until the user allows it.
+            NSLog("Albi: registering the helper: %@", String(describing: error))
         }
         if svc.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
     }
