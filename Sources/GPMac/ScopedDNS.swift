@@ -10,11 +10,15 @@ import Foundation
 /// tunnel's 0/1 and 128/1 capture the physical network's DNS servers and the
 /// tunnel is down. getaddrinfo (and so URLSession) can't be scoped.
 public enum ScopedDNS {
-    /// The first IPv4 address for `host` from `interface`'s resolvers, or nil
-    /// if none came within `timeout` seconds. Blocks.
-    public static func ipv4(_ host: String, interface: String, timeout: Double) -> String? {
+    public struct Failure: Error, CustomStringConvertible {
+        public var description: String
+    }
+
+    /// The first IPv4 address for `host` from `interface`'s resolvers, or why
+    /// there was none within `timeout` seconds. Blocks.
+    public static func ipv4(_ host: String, interface: String, timeout: Double) -> Result<String, Failure> {
         let index = if_nametoindex(interface)
-        guard index != 0 else { return nil }
+        guard index != 0 else { return .failure(Failure(description: "no interface \(interface)")) }
         let box = Box()
         let ctx = Unmanaged.passRetained(box)
         defer { ctx.release() }
@@ -24,6 +28,7 @@ public enum ScopedDNS {
             guard let ctx else { return }
             let box = Unmanaged<Box>.fromOpaque(ctx).takeUnretainedValue()
             guard err == DNSServiceErrorType(kDNSServiceErr_NoError) else {
+                box.error = err
                 box.done = true
                 return
             }
@@ -37,7 +42,9 @@ public enum ScopedDNS {
             }
             if flags & DNSServiceFlags(kDNSServiceFlagsMoreComing) == 0, box.address != nil { box.done = true }
         }, ctx.toOpaque())
-        guard err == DNSServiceErrorType(kDNSServiceErr_NoError), let ref else { return nil }
+        guard err == DNSServiceErrorType(kDNSServiceErr_NoError), let ref else {
+            return .failure(Failure(description: "DNSServiceGetAddrInfo error \(err)"))
+        }
         defer { DNSServiceRefDeallocate(ref) }
 
         let fd = DNSServiceRefSockFD(ref)
@@ -49,13 +56,20 @@ public enum ScopedDNS {
             let n = poll(&p, 1, Int32(left * 1000) + 1)
             if n < 0 && errno == EINTR { continue }
             guard n > 0 else { break }
-            guard DNSServiceProcessResult(ref) == DNSServiceErrorType(kDNSServiceErr_NoError) else { break }
+            let e = DNSServiceProcessResult(ref)
+            guard e == DNSServiceErrorType(kDNSServiceErr_NoError) else {
+                box.error = e
+                break
+            }
         }
-        return box.address
+        if let a = box.address { return .success(a) }
+        if let e = box.error { return .failure(Failure(description: "dns_sd error \(e)")) }
+        return .failure(Failure(description: box.done ? "no IPv4 address" : "no answer in \(timeout) s"))
     }
 
     private final class Box {
         var address: String?
+        var error: DNSServiceErrorType?
         var done = false
     }
 }

@@ -25,6 +25,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     /// The gateway hosts' addresses while routes are in, for dialling the
     /// gateway when no lookup works.
     public let addresses = GatewayAddressBook()
+    private let refreshes = InFlight()
     private let physicalInterface: @Sendable () -> String?
     private let mtu: Int?
     private let routes: [TunnelSettings.IPv4Route]?
@@ -182,36 +183,40 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         }
     }
 
-    /// Where to dial a gateway host while the routes are in: a fresh lookup
-    /// scoped to the physical interface, else the address saved when the
-    /// routes went in. A new address gets its host route first. nil for other
-    /// hosts, and when the routes are out (the system resolver works then).
+    /// Where to dial a gateway host while the routes are in: the address
+    /// saved for it, right away. A lookup scoped to the physical interface
+    /// runs beside it, and a new address it finds (with its host route) is
+    /// used from the next connection on. nil for other hosts, and when the
+    /// routes are out (the system resolver works then).
     public func dialAddress(for host: String) async -> String? {
         guard let saved = addresses.address(for: host) else { return nil }
-        guard let ifname = physicalInterface() else { return saved }
-        let fresh = await withCheckedContinuation { (c: CheckedContinuation<String?, Never>) in
-            DispatchQueue.global().async { c.resume(returning: ScopedDNS.ipv4(host, interface: ifname, timeout: 3)) }
-        }
-        guard let fresh else {
-            hooks.log("looking up \(host) on \(ifname) failed; using \(saved)")
-            return saved
-        }
-        if fresh != saved {
-            let ok = queue.sync { () -> Bool in
-                guard applied != nil, !shutDown else { return false }
-                do {
-                    try net.addGatewayRoute(fresh, router: router())
-                    return true
-                } catch {
-                    hooks.log("adding a host route to \(fresh): \(error)")
-                    return false
+        if let ifname = physicalInterface(), refreshes.begin(host) {
+            DispatchQueue.global().async { [self] in
+                defer { refreshes.end(host) }
+                switch ScopedDNS.ipv4(host, interface: ifname, timeout: 5) {
+                case .failure(let e):
+                    hooks.log("looking up \(host) on \(ifname): \(e); keeping \(saved)")
+                case .success(let fresh) where fresh != saved:
+                    let ok = queue.sync { () -> Bool in
+                        guard applied != nil, !shutDown else { return false }
+                        do {
+                            try net.addGatewayRoute(fresh, router: router())
+                            return true
+                        } catch {
+                            hooks.log("adding a host route to \(fresh): \(error)")
+                            return false
+                        }
+                    }
+                    if ok {
+                        addresses.set(host, fresh)
+                        hooks.log("gateway \(host) is now at \(fresh) (was \(saved))")
+                    }
+                case .success:
+                    break
                 }
             }
-            guard ok else { return saved }
-            addresses.set(host, fresh)
-            hooks.log("gateway \(host) is now at \(fresh) (was \(saved))")
         }
-        return fresh
+        return saved
     }
 
     /// Adds a gateway host learnt after the host was made (the gateway login
@@ -315,6 +320,16 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         applied = nil
         if had { hooks.log("network removed") }
     }
+}
+
+/// Keys with work in flight, so a reconnect's several requests start one
+/// lookup between them.
+final class InFlight: @unchecked Sendable {
+    private let lock = NSLock()
+    private var keys: Set<String> = []
+    /// True if `key` wasn't in flight and now is.
+    func begin(_ key: String) -> Bool { lock.withLock { keys.insert(key.lowercased()).inserted } }
+    func end(_ key: String) { lock.withLock { _ = keys.remove(key.lowercased()) } }
 }
 
 /// Gateway host names and the address to dial each at. Lookups ignore case.

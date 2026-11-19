@@ -95,6 +95,16 @@ import Foundation
     }
 }
 
+@Suite struct InFlightTests {
+    @Test func oneAtATime() {
+        let f = InFlight()
+        #expect(f.begin("Bi.vpn.wisc.edu"))
+        #expect(!f.begin("bi.vpn.wisc.edu"))
+        f.end("bi.vpn.wisc.edu")
+        #expect(f.begin("bi.vpn.wisc.edu"))
+    }
+}
+
 @Suite struct GatewayAddressBookTests {
     @Test func looksUpIgnoringCase() {
         let b = GatewayAddressBook()
