@@ -32,7 +32,7 @@ public enum ScopedDNS {
                 var sin = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0.pointee }
                 var buf = [CChar](repeating: 0, count: Int(INET_ADDRSTRLEN))
                 if inet_ntop(AF_INET, &sin.sin_addr, &buf, socklen_t(buf.count)) != nil {
-                    box.address = String(cString: buf)
+                    box.address = String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
                 }
             }
             if flags & DNSServiceFlags(kDNSServiceFlagsMoreComing) == 0, box.address != nil { box.done = true }
