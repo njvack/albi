@@ -5,5 +5,8 @@ ALBI_BUNDLE_ID_PREFIX = com.github.njvack.albi
 DEVELOPMENT_TEAM =
 ALBI_APP_PROFILE =
 ALBI_TUNNEL_PROFILE =
+// The menu-bar app and its helper. "-" signs ad hoc; see Signing.example.xcconfig.
+ALBI_MENU_SIGN_IDENTITY = -
+ALBI_MENU_TEAM =
 
 #include? "Signing.xcconfig"

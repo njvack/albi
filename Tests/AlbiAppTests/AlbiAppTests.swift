@@ -235,7 +235,35 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
         #expect(!model.setup.isReady)
         await model.allowVPNConfiguration()
         #expect(model.setup.isReady)
-        #expect(model.setup.hipHelper == .notRegistered)
+        #expect(model.setup.helper == .notRegistered)
+    }
+
+    @Test func helperStatusMapsOntoTunnelStatus() {
+        let id = UUID()
+        var h = HelperStatus(profileID: id, state: .connecting(phase: "hip"))
+        #expect(HelperVPNService.tunnelStatus(h).state == .connecting(.hip))
+        h.state = .connected
+        h.routes = ["10.0.0.0/8"]
+        h.hipRequested = true
+        let t = HelperVPNService.tunnelStatus(h)
+        #expect(t.state == .connected(.https))
+        #expect(t.profileID == id)
+        #expect(t.routes == ["10.0.0.0/8"])
+        #expect(t.hip?.requested == true)
+        h.state = .needsLogin(reason: "x")
+        h.hipRequested = false
+        #expect(HelperVPNService.tunnelStatus(h).state == .needsLogin(reason: "x"))
+        #expect(HelperVPNService.tunnelStatus(h).hip == nil)
+    }
+
+    @Test func helperBackendNeedsOnlyTheHelper() async {
+        let service = MockVPNService(setup: SetupStatus(backend: .helper), step: .zero)
+        let model = await makeModel(service)
+        #expect(!model.setup.isReady)
+        await model.registerHelper()
+        #expect(model.setup.helper == .registered)
+        #expect(model.setup.isReady)
+        #expect(!SetupStatus(backend: .helper, helper: .needsReinstall("old build")).isReady)
     }
 
     @Test func launchAtLogin() async {
@@ -316,6 +344,23 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
         let second = await relaunch(service, defaults)
         #expect(await second.connectAtLaunch() == nil)
         #expect(service.connectCalls.isEmpty)
+    }
+
+    @Test func quittingDisconnectsButRestoresNextLaunch() async throws {
+        let service = MockVPNService.demo()
+        service.step = .zero
+        let defaults = freshDefaults()
+        let notifier = RecordingNotifier()
+        let first = AppModel(service: service, notifier: notifier, loginItem: FakeLoginItem(), defaults: defaults)
+        await first.start()
+        await first.connect()
+        try await waitFor(first) { $0.isConnected }
+        await first.disconnectForQuit()
+        try await waitFor(first) { $0 == .disconnected }
+        #expect(!notifier.posted.contains("disconnected"))
+        service.connectCalls.removeAll()
+        let second = await relaunch(service, defaults)
+        #expect(await second.connectAtLaunch() == .started)
     }
 
     @Test func restoreLeavesARunningTunnelAlone() async throws {

@@ -17,6 +17,7 @@ let package = Package(
         .executable(name: "albi-diag", targets: ["albi-diag"]),
         .library(name: "AlbiApp", targets: ["AlbiApp"]),
         .executable(name: "albi-netprobe", targets: ["albi-netprobe"]),
+        .executable(name: "albi-helper", targets: ["albi-helper"]),
     ],
     dependencies: [
         .package(url: "https://github.com/dduan/TOMLDecoder", from: "0.4.5"),
@@ -76,5 +77,15 @@ let package = Package(
         // test daemon with SMAppService. e2e/netprobe.sh and
         // scripts/smappservice-probe.sh drive it. macOS only.
         .executableTarget(name: "albi-netprobe"),
+
+        // The root LaunchDaemon that runs the tunnel in place of the system
+        // extension: TunnelController over UtunHost, driven by the app over
+        // XPC. The app embeds it and registers it with SMAppService.
+        // macOS only.
+        .executableTarget(
+            name: "albi-helper",
+            dependencies: ["GPCore", "GPMac", "Diagnostics"],
+            swiftSettings: [.swiftLanguageMode(.v5)]
+        ),
     ]
 )
