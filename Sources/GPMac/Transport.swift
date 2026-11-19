@@ -60,18 +60,27 @@ public final class URLSessionTransport: NSObject, HTTPTransport, URLSessionDeleg
 /// tunnel's 0/1 and 128/1 can't capture the gateway's own traffic and no host
 /// route is needed. The closure is asked on every connection, so it can
 /// follow Wi-Fi changes; nil from it means "don't pin this one".
+///
+/// With `address`, a host it gives an address for is dialled at that address
+/// (over NWConnection, with the host name for SNI and certificate checks)
+/// instead of being looked up through the system resolver. While a full
+/// tunnel's routes are in and the tunnel is down, that resolver goes nowhere,
+/// and a reconnect would otherwise wait on a lookup of the gateway's name.
 public final class NWGatewayConnector: GatewayConnector, @unchecked Sendable {
     public let http: URLSessionTransport
     public let trust: TrustPolicy
     public let connectTimeout: Int
     public let requestTimeout: TimeInterval
     public let requiredInterface: (@Sendable () -> NWInterface?)?
+    public let address: (@Sendable (String) async -> String?)?
 
     /// `requestTimeout` is long because login.esp holds the answer to the
     /// second-factor challenge until the push is approved.
     public init(trust: TrustPolicy, connectTimeout: Int = 15, requestTimeout: TimeInterval = 90,
-                requiredInterface: (@Sendable () -> NWInterface?)? = nil) {
+                requiredInterface: (@Sendable () -> NWInterface?)? = nil,
+                address: (@Sendable (String) async -> String?)? = nil) {
         self.trust = trust
+        self.address = address
         self.connectTimeout = connectTimeout
         self.requestTimeout = requestTimeout
         self.requiredInterface = requiredInterface
@@ -79,9 +88,10 @@ public final class NWGatewayConnector: GatewayConnector, @unchecked Sendable {
     }
 
     public func send(_ request: HTTPRequest, to server: String) async throws -> HTTPResponse {
-        guard let requiredInterface else { return try await http.send(request, to: server) }
+        let dial = await address?(splitHostPort(server).0)
+        guard requiredInterface != nil || dial != nil else { return try await http.send(request, to: server) }
         let conn = try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout,
-                                                     interface: requiredInterface())
+                                                     interface: requiredInterface?(), address: dial)
         defer { conn.close() }
         return try await withTimeout(requestTimeout) {
             try await conn.write(HTTP1.encode(request, host: server))
@@ -96,8 +106,9 @@ public final class NWGatewayConnector: GatewayConnector, @unchecked Sendable {
     }
 
     public func openTunnel(to server: String) async throws -> any TunnelConnection {
-        try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout,
-                                          interface: requiredInterface?())
+        let dial = await address?(splitHostPort(server).0)
+        return try await NWTunnelConnection.open(server: server, trust: trust, timeout: connectTimeout,
+                                                 interface: requiredInterface?(), address: dial)
     }
 }
 
@@ -138,12 +149,15 @@ public final class NWTunnelConnection: TunnelConnection, @unchecked Sendable {
 
     init(_ c: NWConnection) { connection = c }
 
+    /// `address`: dial this IP instead of looking up the host; TLS still uses
+    /// the host name.
     public static func open(server: String, trust: TrustPolicy, timeout: Int,
-                            interface: NWInterface? = nil) async throws -> NWTunnelConnection {
+                            interface: NWInterface? = nil, address: String? = nil) async throws -> NWTunnelConnection {
         let (host, port) = splitHostPort(server)
         let tls = NWProtocolTLS.Options()
         let sec = tls.securityProtocolOptions
         sec_protocol_options_set_min_tls_protocol_version(sec, .TLSv12)
+        if address != nil { sec_protocol_options_set_tls_server_name(sec, host) }
         let verifyQueue = DispatchQueue(label: "albi.tls-verify")
         sec_protocol_options_set_verify_block(sec, { _, secTrust, complete in
             let t = sec_trust_copy_ref(secTrust).takeRetainedValue()
@@ -154,7 +168,7 @@ public final class NWTunnelConnection: TunnelConnection, @unchecked Sendable {
         tcp.connectionTimeout = timeout
         let params = NWParameters(tls: tls, tcp: tcp)
         if let interface { params.requiredInterface = interface }
-        let conn = NWConnection(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port) ?? 443, using: params)
+        let conn = NWConnection(host: NWEndpoint.Host(address ?? host), port: NWEndpoint.Port(rawValue: port) ?? 443, using: params)
         let tunnel = NWTunnelConnection(conn)
         try await tunnel.start()
         return tunnel

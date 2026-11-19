@@ -35,6 +35,13 @@ public protocol PacketHost: TunnelHost {
     func pathChanged()
     /// Undoes whatever the host changed. Called once, after the session ends.
     func shutdown()
+    /// The address to dial `host` at instead of asking the system resolver,
+    /// or nil to look it up as usual.
+    func dialAddress(for host: String) async -> String?
+}
+
+extension PacketHost {
+    public func dialAddress(for host: String) async -> String? { nil }
 }
 
 extension UtunHost: PacketHost {}
@@ -179,7 +186,10 @@ public final class TunnelController: @unchecked Sendable {
 
         var pin: (@Sendable () -> NWInterface?)?
         if configuration.pinInterface { pin = { [watcher] in watcher.primaryInterface } }
-        let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin)
+        // The host is made after login.
+        let hostRef = HostRef()
+        let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin,
+                                      address: { await hostRef.value?.dialAddress(for: $0) })
         let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
         // A saved cookie lets the tunnel come back after a disconnect, sleep
@@ -253,6 +263,7 @@ public final class TunnelController: @unchecked Sendable {
             log: log
         )
         let host = try makeHost(hooks, gateway, watcher)
+        hostRef.value = host
         let runner = SessionRunner(server: gateway, client: client,
                                    session: Session(cookie: cookie, policy: policy, hipInterval: hipInterval),
                                    io: connector, host: host, clock: clock, recorder: diag?.recorder)
@@ -386,6 +397,15 @@ struct ControllerCredentials: CredentialProvider {
             onEvent(.authenticating)
             return code
         }
+    }
+}
+
+final class HostRef: @unchecked Sendable {
+    private let lock = NSLock()
+    private var host: (any PacketHost)?
+    var value: (any PacketHost)? {
+        get { lock.withLock { host } }
+        set { lock.withLock { host = newValue } }
     }
 }
 
