@@ -113,9 +113,10 @@ scenario() {
   fi
   if [ "$(default_route)" = "$before_default" ]; then pass "$name: default route untouched"; else fail "$name: default route '$before_default' became '$(default_route)'"; fi
   if scutil --dns | grep -q 'nameserver\[0\] : 10.99.0.53'; then pass "$name: tunnel DNS published"; else fail "$name: 10.99.0.53 not in scutil --dns"; fi
-  if [ "$dns" = full ]; then
-    # Any name must go to the tunnel's DNS. (The runner's own resolver is on
-    # its LAN, so a full tunnel alone doesn't carry its queries.)
+  if [ "$dns" = full ] || [ "$mode" = full ]; then
+    # Any name must go to the tunnel's DNS, in split mode too on a full
+    # tunnel: its routes would capture an off-link resolver. (The runner's
+    # own resolver is on its LAN, so the routes alone don't carry its queries.)
     local m0 m1
     m0=$(sessions "sum(x['packets_in'] for x in s)")
     dscacheutil -q host -a name "albi-$RANDOM.example.com" >/dev/null
