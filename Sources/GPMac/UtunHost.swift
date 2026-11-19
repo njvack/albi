@@ -21,7 +21,11 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private let net: NetConfig
     private let hooks: Hooks
     private let router: @Sendable () -> String?
-    private let gatewayHosts: [String]
+    private var gatewayHosts: [String]
+    /// The gateway hosts' addresses while routes are in, for dialling the
+    /// gateway without DNS.
+    public let addresses = GatewayAddressBook()
+    public var gatewayAddresses: GatewayAddressBook? { addresses }
     private let mtu: Int?
     private let routes: [TunnelSettings.IPv4Route]?
     private let traceLimit: Int
@@ -176,6 +180,12 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         }
     }
 
+    /// Adds a gateway host learnt after the host was made (the gateway login
+    /// chose), for the host routes and the address book.
+    public func addGatewayHost(_ h: String) {
+        queue.async { if !self.gatewayHosts.contains(h) { self.gatewayHosts.append(h) } }
+    }
+
     /// Removes routes and DNS and closes the utun. Call before exiting.
     public func shutdown() {
         queue.sync {
@@ -189,10 +199,16 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private func install() {
         guard !shutDown, let s = settings, s != applied else { return }
         // Resolved now, while DNS and routes are still the physical network's.
+        // Once the routes are in, a lookup only works while the tunnel is up.
         let gateways = Self.ipv4Addresses(of: [s.remoteAddress] + gatewayHosts)
+        var book: [String: String] = [:]
+        for h in gatewayHosts where !h.isEmpty && Self.bytes(v4: h) == nil {
+            if let a = Self.ipv4Addresses(of: [h]).first { book[h] = a }
+        }
         do {
             try net.apply(s, interface: device.name, router: router(), gateways: gateways, dnsMode: dnsMode)
             applied = s
+            addresses.set(book)
             hooks.log("network applied: \(net.summary)")
         } catch {
             hooks.log("applying network settings failed: \(error)")
@@ -260,9 +276,25 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
 
     private func removeNetwork() {
         let had = applied != nil
+        addresses.set([:])
         net.teardown()
         applied = nil
         if had { hooks.log("network removed") }
+    }
+}
+
+/// Gateway host names and the address to dial each at. Lookups ignore case.
+public final class GatewayAddressBook: @unchecked Sendable {
+    private let lock = NSLock()
+    private var map: [String: String] = [:]
+
+    public init() {}
+
+    public func address(for host: String) -> String? { lock.withLock { map[host.lowercased()] } }
+
+    public func set(_ m: [String: String]) {
+        let lowered = Dictionary(m.map { ($0.key.lowercased(), $0.value) }) { a, _ in a }
+        lock.withLock { map = lowered }
     }
 }
 #endif

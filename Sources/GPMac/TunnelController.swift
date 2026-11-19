@@ -35,6 +35,12 @@ public protocol PacketHost: TunnelHost {
     func pathChanged()
     /// Undoes whatever the host changed. Called once, after the session ends.
     func shutdown()
+    /// Addresses to dial the gateway at instead of looking it up, if any.
+    var gatewayAddresses: GatewayAddressBook? { get }
+}
+
+extension PacketHost {
+    public var gatewayAddresses: GatewayAddressBook? { nil }
 }
 
 extension UtunHost: PacketHost {}
@@ -179,7 +185,10 @@ public final class TunnelController: @unchecked Sendable {
 
         var pin: (@Sendable () -> NWInterface?)?
         if configuration.pinInterface { pin = { [watcher] in watcher.primaryInterface } }
-        let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin)
+        // The host, made after login, fills this in.
+        let book = BookRef()
+        let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin,
+                                      address: { book.value?.address(for: $0) })
         let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
         // A saved cookie lets the tunnel come back after a disconnect, sleep
@@ -253,6 +262,7 @@ public final class TunnelController: @unchecked Sendable {
             log: log
         )
         let host = try makeHost(hooks, gateway, watcher)
+        book.value = host.gatewayAddresses
         let runner = SessionRunner(server: gateway, client: client,
                                    session: Session(cookie: cookie, policy: policy, hipInterval: hipInterval),
                                    io: connector, host: host, clock: clock, recorder: diag?.recorder)
@@ -386,6 +396,15 @@ struct ControllerCredentials: CredentialProvider {
             onEvent(.authenticating)
             return code
         }
+    }
+}
+
+final class BookRef: @unchecked Sendable {
+    private let lock = NSLock()
+    private var book: GatewayAddressBook?
+    var value: GatewayAddressBook? {
+        get { lock.withLock { book } }
+        set { lock.withLock { book = newValue } }
     }
 }
 

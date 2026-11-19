@@ -350,8 +350,9 @@ nonisolated(unsafe) var watcherRef: PathWatcher?
 
 let watcher = PathWatcher { usable in
     say("network path changed (usable=\(usable)): \(watcherRef?.summary ?? "")")
-    box.post(.pathChanged(usable: usable))
+    // Excluded routes follow the new router before the session reconnects.
     utunHost?.pathChanged()
+    box.post(.pathChanged(usable: usable))
 }
 watcherRef = watcher
 watcher.start()
@@ -387,7 +388,8 @@ if options.tun && options.pinInterface {
         return i
     }
 }
-let base = NWGatewayConnector(trust: trust, requiredInterface: pin)
+let base = NWGatewayConnector(trust: trust, requiredInterface: pin,
+                              address: { utunHost?.addresses.address(for: $0) })
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 let credentials = CLICredentials(user: options.user, secondFactor: options.secondFactor)
 let cliHost = CLIHost(options: options, connector: connector, credentials: credentials)
@@ -419,6 +421,7 @@ do {
     fail("albi: login failed: \(error)")
 }
 say("logged in to \(login.gateway) as \(login.cookie.user)")
+utunHost?.addGatewayHost(splitHostPort(login.gateway).0)
 if let v = login.portal?.version { client.appVersion = v }
 diagnostics?.updateSecrets {
     $0.password = credentials.stored?.password
