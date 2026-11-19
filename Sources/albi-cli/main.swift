@@ -448,14 +448,17 @@ if !power.start() { say("could not watch for sleep and wake") }
 
 // SIGINT/SIGTERM: stop and log out (unless --no-logout). SIGHUP: stop, keep
 // the cookie. SIGUSR2: reconnect now, as openconnect does. SIGUSR1: save a
-// diagnostics file now.
+// diagnostics file now (without --diagnostics it only says so; the default
+// action would kill us with routes and DNS still in).
 // A closed stdout (`| tee` killed by the same Ctrl-C) must not kill us before logout.
 signal(SIGPIPE, SIG_IGN)
 var sources: [DispatchSourceSignal] = []
-if let diagnostics {
+do {
     signal(SIGUSR1, SIG_IGN)
     let src = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-    src.setEventHandler { diagnostics.saveNow(reason: "SIGUSR1") }
+    src.setEventHandler {
+        if let diagnostics { diagnostics.saveNow(reason: "SIGUSR1") } else { say("SIGUSR1: no --diagnostics, nothing saved") }
+    }
     src.resume()
     sources.append(src)
 }
