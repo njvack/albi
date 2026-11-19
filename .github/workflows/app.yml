@@ -51,3 +51,18 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
             build | tail -100
           exit "${PIPESTATUS[0]}"
+      # A misfiled AppIcon.icon builds fine and ships no icon, so look for
+      # it in each app's compiled asset catalog.
+      - name: Check app icons
+        if: ${{ !cancelled() }}
+        run: |
+          status=0
+          for app in Albi "Albi Menu"; do
+            dir=$(find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Debug/$app.app" -maxdepth 5 | head -1)
+            echo "== $app: $dir"
+            /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$dir/Contents/Info.plist" || status=1
+            ls "$dir/Contents/Resources"
+            xcrun assetutil --info "$dir/Contents/Resources/Assets.car" | grep -E '"(Name|RenditionName)"' | sort -u | head -40
+            xcrun assetutil --info "$dir/Contents/Resources/Assets.car" | grep -q '"AppIcon"' || { echo "no AppIcon in $app"; status=1; }
+          done
+          exit $status
