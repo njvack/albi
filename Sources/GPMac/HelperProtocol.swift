@@ -166,6 +166,7 @@ public enum HelperCoding {
     public static func encode<T: Encodable>(_ v: T) -> Data {
         let e = JSONEncoder()
         e.dateEncodingStrategy = .secondsSince1970
+        e.outputFormatting = .sortedKeys
         return (try? e.encode(v)) ?? Data()
     }
 
