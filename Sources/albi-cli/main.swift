@@ -48,6 +48,7 @@ struct Options {
     var mtu: Int?
     var routes: [TunnelSettings.IPv4Route]?
     var trace = 0
+    var verbose = false
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -81,6 +82,7 @@ struct Options {
       --route A.B.C.D/N      with --tun: route only this through the tunnel instead of
                              the gateway's routes; repeatable (for debugging)
       --trace N              with --tun: log the first N packets each way
+      -v, --verbose          also log connection phases, HIP report generation and cookie saves
       --journal PATH         with --tun: excluded-route journal
                              (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
@@ -143,6 +145,7 @@ struct Options {
                 guard let r = ipv4Route(v) else { fail("albi: bad --route \(v)") }
                 o.routes = (o.routes ?? []) + [r]
             case "--trace": o.trace = Int(value(a)) ?? 0
+            case "-v", "--verbose": o.verbose = true
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
                 positional.append(a)
@@ -256,7 +259,13 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         }
     }
 
-    func stateChanged(_ state: SessionState) { say("state \(state)") }
+    func stateChanged(_ state: SessionState) {
+        if case .connecting(let phase) = state {
+            if options.verbose { say("state connecting (\(phase))") }
+            return
+        }
+        say("state \(state)")
+    }
 
     func hipReport(_ c: HIPContext) async throws -> String? {
         guard let path = options.hipWrapper else { return nil }
@@ -265,7 +274,7 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         if let v6 = c.clientIPv6 { args += ["--client-ipv6", v6] }
         args += ["--md5", c.md5, "--client-os", c.clientOS]
         let report = try await run(path, args, env: ["APP_VERSION": c.appVersion])
-        say("hip report generated (\(report.utf8.count) bytes)")
+        if options.verbose { say("hip report generated (\(report.utf8.count) bytes)") }
         return report
     }
 
@@ -278,9 +287,13 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         return r.cookie
     }
 
-    func saveCookie(_ c: AuthCookie?) { say(c == nil ? "cookie cleared" : "cookie saved") }
+    func saveCookie(_ c: AuthCookie?) {
+        if options.verbose { say(c == nil ? "cookie cleared" : "cookie saved") }
+    }
 
     func log(_ m: String) {
+        // The runner logs each state too; stateChanged already printed it.
+        if m.hasPrefix("state: ") { return }
         FileHandle.standardError.write(Data("albi: \(m)\n".utf8))
     }
 
@@ -388,7 +401,7 @@ if options.tun {
                                              reauthenticate: { try await cliHost.reauthenticate() },
                                              saveCookie: { cliHost.saveCookie($0) },
                                              stateChanged: { cliHost.stateChanged($0) },
-                                             log: { say($0) }))
+                                             log: { if !$0.hasPrefix("state: ") { say($0) } }))
     } catch {
         fail("albi: opening a utun failed: \(error)")
     }

@@ -78,8 +78,9 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         var s = new
         if let mtu { s.mtu = mtu }
         if let routes { s.includedIPv4 = routes }
-        try queue.sync {
-            guard !shutDown else { return }
+        let changed = try queue.sync { () throws -> Bool in
+            guard !shutDown else { return false }
+            let changed = s != settings
             if let a = s.ipv4Address { try device.setIPv4(a, previous: settings?.ipv4Address) }
             if let a = s.ipv6Address, a != settings?.ipv6Address {
                 try device.addIPv6(a, prefixLength: s.ipv6PrefixLength ?? 128)
@@ -88,8 +89,10 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
             settings = s
             let src = Sources(v4: s.ipv4Address.flatMap(Self.bytes(v4:)), v6: s.ipv6Address.flatMap(Self.bytes(v6:)))
             sourceLock.withLock { sources = src }
+            return changed
         }
-        hooks.log("tun \(device.name) ipv4=\(s.ipv4Address ?? "-") ipv6=\(s.ipv6Address ?? "-") mtu=\(s.mtu)")
+        // Reconnects usually bring the same settings; say only what's new.
+        if changed { hooks.log("tun \(device.name) ipv4=\(s.ipv4Address ?? "-") ipv6=\(s.ipv6Address ?? "-") mtu=\(s.mtu)") }
     }
 
     public func deliver(_ packets: [[UInt8]]) {
