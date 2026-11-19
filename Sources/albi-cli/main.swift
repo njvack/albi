@@ -44,6 +44,11 @@ struct Options {
     var tun = false
     var dnsMode = NetConfig.DNSMode.split
     var journal = NetConfig.defaultJournal
+    var pinInterface = false
+    var mtu: Int?
+    var routes: [TunnelSettings.IPv4Route]?
+    var trace = 0
+    var verbose = false
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -71,6 +76,13 @@ struct Options {
       --tun                  real tunnel: utun, routes and DNS (root)
       --dns split|full       with --tun: split (default) sends only the gateway's domains to its
                              DNS; full makes its DNS the default resolver
+      --pin-interface        with --tun: also pin gateway connections to the physical
+                             interface (the host route to the gateway goes in either way)
+      --mtu N                with --tun: utun MTU (default: the gateway's, else 1361)
+      --route A.B.C.D/N      with --tun: route only this through the tunnel instead of
+                             the gateway's routes; repeatable (for debugging)
+      --trace N              with --tun: log the first N packets each way
+      -v, --verbose          also log connection phases, HIP report generation and cookie saves
       --journal PATH         with --tun: excluded-route journal
                              (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
@@ -125,6 +137,15 @@ struct Options {
                 guard let m = NetConfig.DNSMode(rawValue: value(a)) else { fail("--dns is split or full") }
                 o.dnsMode = m
             case "--journal": o.journal = URL(fileURLWithPath: value(a))
+            case "--pin-interface": o.pinInterface = true
+            case "--no-pin": o.pinInterface = false
+            case "--mtu": o.mtu = Int(value(a))
+            case "--route":
+                let v = value(a)
+                guard let r = ipv4Route(v) else { fail("albi: bad --route \(v)") }
+                o.routes = (o.routes ?? []) + [r]
+            case "--trace": o.trace = Int(value(a)) ?? 0
+            case "-v", "--verbose": o.verbose = true
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
                 positional.append(a)
@@ -238,7 +259,13 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         }
     }
 
-    func stateChanged(_ state: SessionState) { say("state \(state)") }
+    func stateChanged(_ state: SessionState) {
+        if case .connecting(let phase) = state {
+            if options.verbose { say("state connecting (\(phase))") }
+            return
+        }
+        say("state \(state)")
+    }
 
     func hipReport(_ c: HIPContext) async throws -> String? {
         guard let path = options.hipWrapper else { return nil }
@@ -247,7 +274,7 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         if let v6 = c.clientIPv6 { args += ["--client-ipv6", v6] }
         args += ["--md5", c.md5, "--client-os", c.clientOS]
         let report = try await run(path, args, env: ["APP_VERSION": c.appVersion])
-        say("hip report generated (\(report.utf8.count) bytes)")
+        if options.verbose { say("hip report generated (\(report.utf8.count) bytes)") }
         return report
     }
 
@@ -260,9 +287,13 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
         return r.cookie
     }
 
-    func saveCookie(_ c: AuthCookie?) { say(c == nil ? "cookie cleared" : "cookie saved") }
+    func saveCookie(_ c: AuthCookie?) {
+        if options.verbose { say(c == nil ? "cookie cleared" : "cookie saved") }
+    }
 
     func log(_ m: String) {
+        // The runner logs each state too; stateChanged already printed it.
+        if m.hasPrefix("state: ") { return }
         FileHandle.standardError.write(Data("albi: \(m)\n".utf8))
     }
 
@@ -334,9 +365,26 @@ if options.tun {
 // e2e fake) is never captured, so it isn't pinned.
 let gatewayHost = splitHostPort(options.server).0
 let loopbackGateway = gatewayHost == "localhost" || gatewayHost == "::1" || gatewayHost.hasPrefix("127.")
+/// Logs the interface gateway connections are pinned to when it changes.
+final class PinLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var last: String?? = .none
+    func note(_ name: String?) {
+        let changed = lock.withLock {
+            defer { last = .some(name) }
+            return last != .some(name)
+        }
+        if changed { say("gateway connections pinned to \(name ?? "nothing (unpinned)")") }
+    }
+}
+let pinLog = PinLog()
 var pin: (@Sendable () -> NWInterface?)?
-if options.tun {
-    pin = { [watcher] in loopbackGateway ? nil : watcher.primaryInterface }
+if options.tun && options.pinInterface {
+    pin = { [watcher] in
+        let i = loopbackGateway ? nil : watcher.primaryInterface
+        pinLog.note(i?.name)
+        return i
+    }
 }
 let base = NWGatewayConnector(trust: trust, requiredInterface: pin)
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
@@ -345,12 +393,15 @@ let cliHost = CLIHost(options: options, connector: connector, credentials: crede
 var client = cliHost.client
 if options.tun {
     do {
-        utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal, router: { [watcher] in watcher.ipv4Router },
+        utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal,
+                                gatewayHosts: [gatewayHost] + (options.gateway.map { [splitHostPort($0).0] } ?? []),
+                                mtu: options.mtu, routes: options.routes, tracePackets: options.trace,
+                                router: { [watcher] in watcher.ipv4Router },
                                 hooks: .init(hipReport: { try await cliHost.hipReport($0) },
                                              reauthenticate: { try await cliHost.reauthenticate() },
                                              saveCookie: { cliHost.saveCookie($0) },
                                              stateChanged: { cliHost.stateChanged($0) },
-                                             log: { say($0) }))
+                                             log: { if !$0.hasPrefix("state: ") { say($0) } }))
     } catch {
         fail("albi: opening a utun failed: \(error)")
     }
@@ -397,14 +448,17 @@ if !power.start() { say("could not watch for sleep and wake") }
 
 // SIGINT/SIGTERM: stop and log out (unless --no-logout). SIGHUP: stop, keep
 // the cookie. SIGUSR2: reconnect now, as openconnect does. SIGUSR1: save a
-// diagnostics file now.
+// diagnostics file now (without --diagnostics it only says so; the default
+// action would kill us with routes and DNS still in).
 // A closed stdout (`| tee` killed by the same Ctrl-C) must not kill us before logout.
 signal(SIGPIPE, SIG_IGN)
 var sources: [DispatchSourceSignal] = []
-if let diagnostics {
+do {
     signal(SIGUSR1, SIG_IGN)
     let src = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-    src.setEventHandler { diagnostics.saveNow(reason: "SIGUSR1") }
+    src.setEventHandler {
+        if let diagnostics { diagnostics.saveNow(reason: "SIGUSR1") } else { say("SIGUSR1: no --diagnostics, nothing saved") }
+    }
     src.resume()
     sources.append(src)
 }
@@ -457,6 +511,18 @@ power.stop()
 switch final {
 case .needsLogin: exit(2)
 default: exit(0)
+}
+
+/// "10.0.0.0/8" as a route; a bare address is a /32.
+func ipv4Route(_ s: String) -> TunnelSettings.IPv4Route? {
+    let parts = s.split(separator: "/", maxSplits: 1).map(String.init)
+    let len = parts.count == 2 ? Int(parts[1]) : 32
+    guard let len, (0...32).contains(len) else { return nil }
+    let octets = parts[0].split(separator: ".", omittingEmptySubsequences: false).compactMap { UInt8($0) }
+    guard octets.count == 4 else { return nil }
+    let m: UInt32 = len == 0 ? 0 : ~UInt32(0) << (32 - len)
+    let mask = [24, 16, 8, 0].map { String((m >> UInt32($0)) & 0xff) }.joined(separator: ".")
+    return TunnelSettings.IPv4Route(address: parts[0], mask: mask, prefixLength: len)
 }
 #else
 print("albi-cli needs macOS (Network.framework)")

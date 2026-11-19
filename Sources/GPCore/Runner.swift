@@ -137,17 +137,17 @@ public actor SessionRunner {
     }
 
     /// Packets from the OS to send through the tunnel. Dropped while the
-    /// tunnel is down, as a real link would.
+    /// tunnel is down, as a real link would. Each frame is its own write, so
+    /// each goes in its own TLS record, as openconnect sends them: a PAN-OS
+    /// gateway went silent when frames were batched into one write.
     public func send(packets: [[UInt8]]) {
         guard let w = writer, session.isTunnelUp else { return }
-        var buf: [UInt8] = []
         var n = 0, bytes = 0
         for p in packets where !p.isEmpty {
-            buf += GPST.encode(packet: p)
+            w.yield(GPST.encode(packet: p))
             n += 1
             bytes += p.count
         }
-        if !buf.isEmpty { w.yield(buf) }
         if n > 0 { recorder?.count(at: clock.now(), packetsOut: n, bytesOut: bytes) }
     }
 
