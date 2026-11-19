@@ -496,9 +496,6 @@ switch final {
 case .needsLogin: exit(2)
 default: exit(0)
 }
-#else
-print("albi-cli needs macOS (Network.framework)")
-#endif
 
 /// "10.0.0.0/8" as a route; a bare address is a /32.
 func ipv4Route(_ s: String) -> TunnelSettings.IPv4Route? {
@@ -511,3 +508,6 @@ func ipv4Route(_ s: String) -> TunnelSettings.IPv4Route? {
     let mask = [24, 16, 8, 0].map { String((m >> UInt32($0)) & 0xff) }.joined(separator: ".")
     return TunnelSettings.IPv4Route(address: parts[0], mask: mask, prefixLength: len)
 }
+#else
+print("albi-cli needs macOS (Network.framework)")
+#endif
