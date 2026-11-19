@@ -1,7 +1,10 @@
 import Foundation
 
-/// The GlobalProtect version we claim to be. Keep it in step with the
-/// client version Albi sends at login.
+/// The GlobalProtect version we claim to be when the VPN client doesn't
+/// pass one. Albi always passes the version it reported at login, so this
+/// only shows when hipreport runs by hand. It matches the Go and zsh
+/// reporters (and the shared golden report), not AlbiVersion.globalProtect,
+/// which is openconnect's login default.
 public let defaultClientVersion = "6.2.8-1045"
 
 /// What the VPN client tells the reporter, plus our own options.

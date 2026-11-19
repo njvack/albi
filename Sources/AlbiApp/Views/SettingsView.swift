@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import AlbiConstants
 import AppKit
 import Diagnostics
 import GPMac
@@ -198,6 +199,16 @@ private struct ProfileEditor: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            Section {
+                TextField("GlobalProtect version", text: reportedVersion,
+                          prompt: Text("Use the portal's version"))
+            } header: {
+                Text("Advanced")
+            } footer: {
+                Text("The client version Albi reports at login and in HIP reports. Leave empty to report what the portal asks for (\(AlbiVersion.globalProtect) if it doesn't say).")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
             if connected {
                 Text("Changes take effect the next time you connect.")
                     .font(.callout)
@@ -216,6 +227,15 @@ private struct ProfileEditor: View {
         Binding(
             get: { draft.secondFactor == .askEachTime },
             set: { draft.secondFactor = $0 ? .askEachTime : .fixed(fixedAnswer) })
+    }
+
+    private var reportedVersion: Binding<String> {
+        Binding(
+            get: { draft.settings.reportedVersion ?? "" },
+            set: {
+                let v = $0.trimmingCharacters(in: .whitespaces)
+                draft.settings.reportedVersion = v.isEmpty ? nil : v
+            })
     }
 
     private var pins: Binding<String> {

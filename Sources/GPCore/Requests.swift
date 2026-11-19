@@ -1,3 +1,5 @@
+import AlbiConstants
+
 /// An HTTPS request to a portal or gateway, relative to its host.
 public struct HTTPRequest: Equatable, Sendable {
     public var method: String
@@ -34,12 +36,28 @@ public struct ClientInfo: Equatable, Sendable {
     public var osVersion = "mac-intel"
     /// The host name the gateway records for this session.
     public var computer: String
-    /// Sent as app-version; replaced by the portal's version when there is one.
-    public var appVersion = "6.3.0-33"
+    /// Sent as app-version, and as the HIP report's client-version. Login
+    /// replaces the default with the portal's version (see `adopt`) unless
+    /// `reportedVersion` pins one.
+    public var appVersion = AlbiVersion.globalProtect
+    /// Report this version whatever the portal says. nil keeps the default
+    /// behaviour.
+    public private(set) var reportedVersion: String?
     public var ipv6Support = true
 
-    public init(computer: String) {
+    public init(computer: String, reportedVersion: String? = nil) {
         self.computer = computer
+        if let v = reportedVersion, !v.isEmpty {
+            self.reportedVersion = v
+            appVersion = v
+        }
+    }
+
+    /// Takes a version the portal (or a saved cookie) gave, unless
+    /// `reportedVersion` pins one.
+    public mutating func adopt(version: String?) {
+        guard reportedVersion == nil, let version, !version.isEmpty else { return }
+        appVersion = version
     }
 }
 

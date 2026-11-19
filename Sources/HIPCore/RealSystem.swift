@@ -76,8 +76,7 @@ public final class RealSystem: System {
         #if os(macOS)
         guard let u = URL(string: url) else { return nil }
         var req = URLRequest(url: u, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
-        // SOFA asks custom tools to identify themselves.
-        req.setValue("Albi-hipreport (+https://github.com/njvack/albi)", forHTTPHeaderField: "User-Agent")
+        req.setValue(AlbiVersion.userAgent, forHTTPHeaderField: "User-Agent")
         let cfg = URLSessionConfiguration.ephemeral
         cfg.timeoutIntervalForResource = timeout
         let session = URLSession(configuration: cfg)

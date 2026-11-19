@@ -293,3 +293,32 @@ let fakeGetConfig = """
         #expect(Ping.reply(p, to: "10.99.0.3") == nil)
     }
 }
+
+@Suite struct ClientInfoTests {
+    @Test func takesThePortalsVersion() {
+        var c = ClientInfo(computer: "mac")
+        #expect(c.appVersion == "6.3.0-33")
+        c.adopt(version: nil)
+        c.adopt(version: "")
+        #expect(c.appVersion == "6.3.0-33")
+        c.adopt(version: "6.2.8-948")
+        #expect(c.appVersion == "6.2.8-948")
+    }
+
+    @Test func reportedVersionWins() {
+        var c = ClientInfo(computer: "mac", reportedVersion: "6.1.4-12")
+        #expect(c.appVersion == "6.1.4-12")
+        c.adopt(version: "6.2.8-948")
+        #expect(c.appVersion == "6.1.4-12")
+        let cookie = AuthCookie(authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: nil,
+                                preferredIPv6: nil, computer: "mac")
+        #expect(Requests.getConfig(cookie, client: c).body["app-version"] == "6.1.4-12")
+    }
+
+    @Test func emptyReportedVersionIsTheDefault() {
+        var c = ClientInfo(computer: "mac", reportedVersion: "")
+        #expect(c.reportedVersion == nil)
+        c.adopt(version: "6.2.8-948")
+        #expect(c.appVersion == "6.2.8-948")
+    }
+}

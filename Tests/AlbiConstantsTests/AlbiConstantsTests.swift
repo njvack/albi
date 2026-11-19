@@ -45,4 +45,11 @@ import Testing
             #expect(!f.dropFirst(AlbiPaths.supportDirectory.count + 1).contains("/"), "\(f)")
         }
     }
+
+    @Test func versionMatchesTheAppProject() throws {
+        let yml = try String(contentsOf: Self.appsDir.deletingLastPathComponent().appendingPathComponent("project.yml"),
+                             encoding: .utf8)
+        #expect(yml.contains("MARKETING_VERSION: \"\(AlbiVersion.albi)\""))
+        #expect(AlbiVersion.userAgent.hasPrefix("Albi/\(AlbiVersion.albi) "))
+    }
 }
