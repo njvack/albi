@@ -41,6 +41,10 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private let router: @Sendable () -> String?
     private let gatewayHosts: [String]
     private let mtu: Int?
+    private let routes: [TunnelSettings.IPv4Route]?
+    private let traceLimit: Int
+    private let traceLock = NSLock()
+    private var traced = (out: 0, in: 0)
     private let queue = DispatchQueue(label: "albi.utun-host")
     private let readQueue = DispatchQueue(label: "albi.utun-read")
     // Touched only on `queue`.
@@ -57,11 +61,14 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     /// are resolved for those host routes, along with getconfig's gw-address.
     public init(dnsMode: NetConfig.DNSMode = .split, journal: URL = NetConfig.defaultJournal,
                 gatewayHosts: [String] = [], mtu: Int? = nil,
+                routes: [TunnelSettings.IPv4Route]? = nil, tracePackets: Int = 0,
                 router: @escaping @Sendable () -> String?, hooks: Hooks) throws {
         device = try UtunDevice()
         self.dnsMode = dnsMode
         self.gatewayHosts = gatewayHosts
         self.mtu = mtu
+        self.routes = routes
+        traceLimit = tracePackets
         self.router = router
         self.hooks = hooks
         net = NetConfig(journal: journal, log: hooks.log)
@@ -70,6 +77,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     public func apply(_ new: TunnelSettings) async throws {
         var s = new
         if let mtu { s.mtu = mtu }
+        if let routes { s.includedIPv4 = routes }
         try queue.sync {
             guard !shutDown else { return }
             if let a = s.ipv4Address { try device.setIPv4(a, previous: settings?.ipv4Address) }
@@ -84,7 +92,54 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
         hooks.log("tun \(device.name) ipv4=\(s.ipv4Address ?? "-") ipv6=\(s.ipv6Address ?? "-") mtu=\(s.mtu)")
     }
 
-    public func deliver(_ packets: [[UInt8]]) { device.write(packets) }
+    public func deliver(_ packets: [[UInt8]]) {
+        trace(packets, out: false)
+        device.write(packets)
+    }
+
+    /// Logs the first `traceLimit` packets each way, one line each.
+    private func trace(_ packets: [[UInt8]], out: Bool) {
+        guard traceLimit > 0 else { return }
+        for p in packets {
+            let n: Int = traceLock.withLock {
+                if out { traced.out += 1; return traced.out } else { traced.in += 1; return traced.in }
+            }
+            guard n <= traceLimit else { return }
+            hooks.log("\(out ? "out" : "in ") #\(n) \(Self.describe(p))")
+        }
+    }
+
+    /// One line about an IP packet: addresses, protocol, ports, TCP flags, length.
+    static func describe(_ p: [UInt8]) -> String {
+        guard let v = p.first.map({ $0 >> 4 }) else { return "empty" }
+        let proto: UInt8, l4: Int, src: String, dst: String
+        if v == 4, p.count >= 20 {
+            proto = p[9]
+            l4 = Int(p[0] & 0x0f) * 4
+            src = p[12..<16].map(String.init).joined(separator: ".")
+            dst = p[16..<20].map(String.init).joined(separator: ".")
+        } else if v == 6, p.count >= 40 {
+            proto = p[6]
+            l4 = 40
+            src = sourceString(p)
+            dst = stride(from: 24, to: 40, by: 2).map { String(UInt16(p[$0]) << 8 | UInt16(p[$0 + 1]), radix: 16) }.joined(separator: ":")
+        } else {
+            return "v\(v) len=\(p.count)"
+        }
+        func port(_ o: Int) -> String { p.count >= l4 + o + 2 ? String(Int(p[l4 + o]) << 8 | Int(p[l4 + o + 1])) : "?" }
+        switch proto {
+        case 6:
+            var f = ""
+            if p.count > l4 + 13 {
+                let b = p[l4 + 13]
+                for (bit, c) in [(0x02, "S"), (0x10, "."), (0x08, "P"), (0x01, "F"), (0x04, "R")] where b & UInt8(bit) != 0 { f += c }
+            }
+            return "tcp \(src):\(port(0)) > \(dst):\(port(2)) [\(f)] len=\(p.count)"
+        case 17: return "udp \(src):\(port(0)) > \(dst):\(port(2)) len=\(p.count)"
+        case 1, 58: return "icmp \(src) > \(dst) type=\(p.count > l4 ? String(p[l4]) : "?") len=\(p.count)"
+        default: return "proto \(proto) \(src) > \(dst) len=\(p.count)"
+        }
+    }
 
     public func stateChanged(_ state: SessionState) {
         switch state {
@@ -120,6 +175,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
                     hooks.log("dropped \(dropped) packet(s) not from the tunnel address (e.g. from \(first))")
                 }
             }
+            trace(keep, out: true)
             if !keep.isEmpty { cont.yield(keep) }
         }
         Task {

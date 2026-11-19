@@ -46,6 +46,8 @@ struct Options {
     var journal = NetConfig.defaultJournal
     var pinInterface = false
     var mtu: Int?
+    var routes: [TunnelSettings.IPv4Route]?
+    var trace = 0
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -76,6 +78,9 @@ struct Options {
       --pin-interface        with --tun: also pin gateway connections to the physical
                              interface (the host route to the gateway goes in either way)
       --mtu N                with --tun: utun MTU (default: the gateway's, else 1361)
+      --route A.B.C.D/N      with --tun: route only this through the tunnel instead of
+                             the gateway's routes; repeatable (for debugging)
+      --trace N              with --tun: log the first N packets each way
       --journal PATH         with --tun: excluded-route journal
                              (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
@@ -133,6 +138,11 @@ struct Options {
             case "--pin-interface": o.pinInterface = true
             case "--no-pin": o.pinInterface = false
             case "--mtu": o.mtu = Int(value(a))
+            case "--route":
+                let v = value(a)
+                guard let r = ipv4Route(v) else { fail("albi: bad --route \(v)") }
+                o.routes = (o.routes ?? []) + [r]
+            case "--trace": o.trace = Int(value(a)) ?? 0
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
                 positional.append(a)
@@ -372,7 +382,7 @@ if options.tun {
     do {
         utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal,
                                 gatewayHosts: [gatewayHost] + (options.gateway.map { [splitHostPort($0).0] } ?? []),
-                                mtu: options.mtu,
+                                mtu: options.mtu, routes: options.routes, tracePackets: options.trace,
                                 router: { [watcher] in watcher.ipv4Router },
                                 hooks: .init(hipReport: { try await cliHost.hipReport($0) },
                                              reauthenticate: { try await cliHost.reauthenticate() },
@@ -489,3 +499,15 @@ default: exit(0)
 #else
 print("albi-cli needs macOS (Network.framework)")
 #endif
+
+/// "10.0.0.0/8" as a route; a bare address is a /32.
+func ipv4Route(_ s: String) -> TunnelSettings.IPv4Route? {
+    let parts = s.split(separator: "/", maxSplits: 1).map(String.init)
+    let len = parts.count == 2 ? Int(parts[1]) : 32
+    guard let len, (0...32).contains(len) else { return nil }
+    var a = in_addr()
+    guard inet_pton(AF_INET, parts[0], &a) == 1 else { return nil }
+    let m: UInt32 = len == 0 ? 0 : ~UInt32(0) << (32 - len)
+    let mask = [24, 16, 8, 0].map { String((m >> UInt32($0)) & 0xff) }.joined(separator: ".")
+    return TunnelSettings.IPv4Route(address: parts[0], mask: mask, prefixLength: len)
+}

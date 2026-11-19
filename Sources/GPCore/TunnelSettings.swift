@@ -7,6 +7,12 @@ public struct TunnelSettings: Equatable, Sendable {
         public var mask: String
         public var prefixLength: Int
         public static let `default` = IPv4Route(address: "0.0.0.0", mask: "0.0.0.0", prefixLength: 0)
+
+        public init(address: String, mask: String, prefixLength: Int) {
+            self.address = address
+            self.mask = mask
+            self.prefixLength = prefixLength
+        }
     }
 
     public struct IPv6Route: Equatable, Hashable, Sendable {
