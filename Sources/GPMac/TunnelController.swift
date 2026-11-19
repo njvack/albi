@@ -37,11 +37,11 @@ public protocol PacketHost: TunnelHost {
     func shutdown()
     /// The address to dial `host` at instead of asking the system resolver,
     /// or nil to look it up as usual.
-    func dialAddress(for host: String) async -> String?
+    func dialAddress(for host: String) -> String?
 }
 
 extension PacketHost {
-    public func dialAddress(for host: String) async -> String? { nil }
+    public func dialAddress(for host: String) -> String? { nil }
 }
 
 extension UtunHost: PacketHost {}
@@ -189,7 +189,7 @@ public final class TunnelController: @unchecked Sendable {
         // The host is made after login.
         let hostRef = HostRef()
         let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin,
-                                      address: { await hostRef.value?.dialAddress(for: $0) })
+                                      address: { hostRef.value?.dialAddress(for: $0) })
         let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
         // A saved cookie lets the tunnel come back after a disconnect, sleep
