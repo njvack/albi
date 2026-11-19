@@ -10,7 +10,8 @@
 # contrib/, which holds the reference's third-party checks. Differences that are
 # expected are normalized first: generate-time; Packet Filter's
 # is-enabled, which hipreport.zsh reads with `sudo -n pfctl` and hipreport
-# reports as n/a unless it runs as root; and whitespace-only element
+# reports as n/a unless it runs as root; missing-patches, which only
+# hipreport fills in (from softwareupdate); and whitespace-only element
 # content (hipreport.zsh writes an empty list as <list>, newline, </list>).
 # Prints one line per section (top-level fields, each category, custom
 # checks), then a diff for each section that differs. Exits non-zero if any
@@ -30,6 +31,7 @@ args=(--cookie "authcookie=x&portal=p&user=${USER}&domain=Parity+Test&computer=$
 normalize() {
   perl -0pe '
     s{<generate-time>[^<]*</generate-time>}{<generate-time/>}g;
+    s{<missing-patches>.*?</missing-patches>}{<missing-patches/>}gs;
     s{<([\w-]+)>\s*</\1>}{<$1/>}g;
     s{(name="Packet Filter"[^>]*/>\s*<is-enabled>)[^<]*(</is-enabled>)}{$1-$2}g;
   '

@@ -50,6 +50,49 @@ public final class RealSystem: System {
         FileManager.default.contents(atPath: path)
     }
 
+    public func writeFile(_ path: String, _ data: Data) -> Bool {
+        let u = URL(fileURLWithPath: path)
+        do {
+            try FileManager.default.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: u, options: .atomic)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// /Library/Caches/Albi for root, so the root helper's cache can't be
+    /// written by users; otherwise the user's own.
+    public func cacheDirectory() -> String {
+        if getuid() == 0 { return "/Library/Caches/Albi" }
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.path
+        return (base ?? NSTemporaryDirectory()) + "/Albi"
+    }
+
+    /// URLSession, on macOS only: on Linux hipreport only runs from
+    /// fixtures, and this keeps FoundationNetworking out of the static build.
+    public func fetch(_ url: String, timeout: TimeInterval) -> Data? {
+        #if os(macOS)
+        guard let u = URL(string: url) else { return nil }
+        var req = URLRequest(url: u, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+        // SOFA asks custom tools to identify themselves.
+        req.setValue("Albi-hipreport (+https://github.com/njvack/albi)", forHTTPHeaderField: "User-Agent")
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForResource = timeout
+        let session = URLSession(configuration: cfg)
+        defer { session.invalidateAndCancel() }
+        let box = FetchBox()
+        session.dataTask(with: req) { d, resp, _ in
+            if (resp as? HTTPURLResponse)?.statusCode == 200 { box.data = d }
+            box.done.signal()
+        }.resume()
+        _ = box.done.wait(timeout: .now() + timeout + 1)
+        return box.data
+        #else
+        return nil
+        #endif
+    }
+
     public func stat(_ path: String) -> FileStat? { statPath(path, follow: true) }
     public func lstat(_ path: String) -> FileStat? { statPath(path, follow: false) }
 
@@ -91,6 +134,13 @@ typealias posixStat = stat
 
 private func cStat(_ p: String, _ st: inout posixStat) -> Int32 { stat(p, &st) }
 private func cLstat(_ p: String, _ st: inout posixStat) -> Int32 { lstat(p, &st) }
+
+/// The result of a fetch, handed back from URLSession's queue. The
+/// semaphore orders the write before the read.
+private final class FetchBox: @unchecked Sendable {
+    var data: Data?
+    let done = DispatchSemaphore(value: 0)
+}
 
 /// Reads a pipe to EOF on a background queue.
 private final class OutputReader: @unchecked Sendable {

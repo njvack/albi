@@ -45,6 +45,13 @@ public protocol System: AnyObject {
     /// and stderr discarded.
     func run(_ argv: [String], timeout: TimeInterval) -> RunResult
     func readFile(_ path: String) -> Data?
+    /// Writes atomically, creating parent directories. Only used for our
+    /// own cache.
+    func writeFile(_ path: String, _ data: Data) -> Bool
+    /// Where hipreport keeps its cache.
+    func cacheDirectory() -> String
+    /// GETs a URL; the body if the status was 200. Only the SOFA feeds.
+    func fetch(_ url: String, timeout: TimeInterval) -> Data?
     /// Follows symlinks.
     func stat(_ path: String) -> FileStat?
     /// Does not follow a final symlink.
