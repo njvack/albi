@@ -212,7 +212,10 @@ public struct CLI {
         }
         let mp = f.missingPatches
         out("\nmissing patches: \(mp.patches.count)  via \(mp.how)\(mp.error.map { "  (\($0))" } ?? "")\n")
-        for p in mp.patches { out("  severity \(p.severity)  \(p.title)\n") }
+        for n in mp.feeds { out("  sofa \(n)\n") }
+        for p in mp.patches {
+            out("  severity \(p.severity)  \(p.title)" + (p.kbArticleID.isEmpty ? "" : "  kb \(p.kbArticleID)") + "\n")
+        }
         return 0
     }
 

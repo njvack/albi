@@ -48,7 +48,11 @@ Each `.toml` file describes one product in one HIP category: vendor, name, when 
 
 ### Missing patches
 
-The patch-management category's `<missing-patches>` lists what Software Update has pending, from `softwareupdate --list --no-scan` (the last background scan, so it is fast and needs no network). This is what GlobalProtect reports too: its OPSWAT SDK lists Software Update's pending updates, which is why the same list appears under every patch-management product on the firewall. Each entry's title is the `softwareupdate` label. Severity uses OPSWAT's scale (0 low, 1 moderate, 2 important, 3 critical); we rate macOS updates and anything needing a restart 2 and the rest 1, which matches what GP sent for the same updates. GP also fills in `kb-article-id` with the number of Apple's security-content support article for the update (support.apple.com/149527 is Safari 27.2), from OPSWAT's database; we leave it blank. If `softwareupdate` fails, the list is empty and `hipreport facts` says why.
+The patch-management category's `<missing-patches>` lists what Software Update has pending, from `softwareupdate --list --no-scan` (the last background scan, so it is fast and needs no network). This is what GlobalProtect reports too: its OPSWAT SDK lists Software Update's pending updates, which is why the same list appears under every patch-management product on the firewall. Each entry's title is the `softwareupdate` label.
+
+GP fills in `kb-article-id` with the number of Apple's security-content support article for the update (support.apple.com/149527 is Safari 27.2). We get it, and `info-url`, from the [SOFA](https://github.com/macadmins/sofa) v2 feeds for macOS and Safari, matching macOS updates by build and Safari by version. Feeds are fetched only when something is pending, cached under `/Library/Caches/Albi/sofa` (root) or `~/Library/Caches/Albi/sofa`, and refetched when over six hours old; if a fetch fails, a stale copy is used, and with none the IDs are left blank.
+
+Severity uses OPSWAT's scale (0 low, 1 moderate, 2 important, 3 critical). The base is the severity in Apple's advisory (Low, Medium, High, Critical) when SOFA has one; otherwise macOS updates and anything needing a restart are 2 and the rest 1. A fix for an actively exploited CVE rates one higher. For the updates in a real GP report this gives the same numbers GP sent. `hipreport facts` shows the list, the feeds used, and why anything is missing.
 
 ### Policies
 

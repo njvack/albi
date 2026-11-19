@@ -50,6 +50,10 @@ public final class FakeSystem: System {
     public var zone: TimeZone
     public var commands: [Command]
     public var files: [File]
+    /// Bodies of URLs that fetch answers; any other URL fails.
+    public var fetches: [String: String] = [:]
+    public var cacheDir = FakeSystem.defaultCacheDir
+    public static let defaultCacheDir = "/var/cache/albi"
 
     // Native answers. When one is nil it is derived from the recorded
     // commands (sw_vers, ps, mount and diskutil, networksetup and ifconfig),
@@ -110,6 +114,21 @@ public final class FakeSystem: System {
         guard let f = resolve(path), !f.isDirectory else { return nil }
         return Data(f.content.utf8)
     }
+
+    /// Kept in memory, so a replay never changes the fixture.
+    public func writeFile(_ path: String, _ data: Data) -> Bool {
+        let f = File(path: path, content: String(decoding: data, as: UTF8.self), modified: time)
+        if let i = files.firstIndex(where: { cleanPath($0.path) == cleanPath(path) }) {
+            files[i] = f
+        } else {
+            files.append(f)
+        }
+        return true
+    }
+
+    public func cacheDirectory() -> String { cacheDir }
+
+    public func fetch(_ url: String, timeout: TimeInterval) -> Data? { fetches[url].map { Data($0.utf8) } }
 
     public func stat(_ path: String) -> FileStat? { resolve(path).map(info) }
     public func lstat(_ path: String) -> FileStat? { file(path).map(info) }
@@ -177,6 +196,11 @@ extension FakeSystem {
             f.zone = TimeZone(secondsFromGMT: Int(t.offset) * 60) ?? f.zone
         }
         f.os = doc["os_version"] as? String
+        if let c = doc["cache_dir"] as? String { f.cacheDir = c }
+        for x in doc["fetch"] as? [Any] ?? [] {
+            guard let x = x as? [String: Any], let u = x["url"] as? String else { continue }
+            f.fetches[u] = x["body"] as? String ?? ""
+        }
         if let p = doc["processes"] as? [Any] { f.processes = p.compactMap { $0 as? String } }
         if let vs = doc["volume"] as? [Any] {
             f.volumes = vs.compactMap { v in
@@ -223,6 +247,7 @@ extension FakeSystem {
         var out = "hostname = \(tomlString(host))\nuid = \(userID)\nnow = \(tomlDate(time, zone: zone))\n"
         func list(_ a: [String]) -> String { "[" + a.map(tomlString).joined(separator: ", ") + "]" }
         if let os { out += "os_version = \(tomlString(os))\n" }
+        if cacheDir != FakeSystem.defaultCacheDir { out += "cache_dir = \(tomlString(cacheDir))\n" }
         if let processes { out += "processes = \(list(processes))\n" }
         for v in volumes ?? [] {
             out += "\n[[volume]]\nmount = \(tomlString(v.mountPoint))\nname = \(tomlString(v.name))\n"
@@ -238,6 +263,9 @@ extension FakeSystem {
             out += "\n[[command]]\nargv = [\(c.argv.map(tomlString).joined(separator: ", "))]\n"
             out += "stdout = \(tomlString(c.stdout))\n"
             if c.exit != 0 { out += "exit = \(c.exit)\n" }
+        }
+        for (u, body) in fetches.sorted(by: { $0.key < $1.key }) {
+            out += "\n[[fetch]]\nurl = \(tomlString(u))\nbody = \(tomlString(body))\n"
         }
         for f in files {
             out += "\n[[file]]\npath = \(tomlString(f.path))\n"
@@ -296,6 +324,16 @@ public final class Recorder: System {
         recording = FakeSystem(host: inner.hostname(), uid: inner.uid(),
                                now: Date(timeIntervalSince1970: inner.now().timeIntervalSince1970.rounded(.down)),
                                zone: inner.timeZone())
+        recording.cacheDir = inner.cacheDirectory()
+    }
+
+    public func writeFile(_ path: String, _ data: Data) -> Bool { inner.writeFile(path, data) }
+    public func cacheDirectory() -> String { recording.cacheDir }
+
+    public func fetch(_ url: String, timeout: TimeInterval) -> Data? {
+        let d = inner.fetch(url, timeout: timeout)
+        if let d { recording.fetches[url] = String(decoding: d, as: UTF8.self) }
+        return d
     }
 
     public func run(_ argv: [String], timeout: TimeInterval) -> RunResult {

@@ -6,8 +6,8 @@ import Foundation
 /// Software Update has pending and looks each one up in OPSWAT's database.
 /// The title is the `softwareupdate --list` label. kb-article-id is the
 /// number of Apple's "About the security content of ..." support article,
-/// blank when Apple published none; we don't look those up, so it is always
-/// blank here. Severity is OPSWAT's rating: 0 low, 1 moderate, 2 important,
+/// blank when Apple published none; we look it up in the SOFA feeds (see
+/// Sofa.swift). Severity is OPSWAT's scale: 0 low, 1 moderate, 2 important,
 /// 3 critical.
 public struct MissingPatch: Sendable, Codable, Equatable {
     public var title: String
@@ -60,6 +60,9 @@ public struct PatchScan: Sendable, Codable, Equatable {
     public var patches: [MissingPatch]
     public var how: String
     public var error: String?
+    /// One line per SOFA feed consulted: where its data came from, or why
+    /// there was none.
+    public var feeds: [String] = []
 }
 
 /// Lists the updates from Software Update's last background scan. --no-scan
@@ -75,7 +78,58 @@ extension Env {
             let why = r.exitCode.map { "exit \($0)" } ?? "did not finish"
             return PatchScan(patches: [], how: how, error: "softwareupdate \(why); reporting none")
         }
-        return PatchScan(patches: parseSoftwareUpdateList(r.stdout), how: how, error: nil)
+        let pending = parseSoftwareUpdateList(r.stdout)
+        // Only ask SOFA about products that have something pending, so a
+        // Mac that is up to date never touches the network.
+        var feeds: [String] = []
+        var loaded: [SofaFeed: SofaIndex] = [:]
+        for feed in SofaFeed.allCases where pending.contains(where: { $0.feed == feed }) {
+            let (index, note) = sofaIndex(feed)
+            loaded[feed] = index
+            feeds.append("\(feed.rawValue): \(note)")
+        }
+        let patches = pending.map { u in u.patch(u.feed.flatMap { loaded[$0] }?.advisory(for: u)) }
+        return PatchScan(patches: patches, how: how, error: nil, feeds: feeds)
+    }
+}
+
+/// One entry of `softwareupdate --list`.
+struct PendingUpdate: Equatable {
+    var label: String
+    var title = ""
+    var version = ""
+    var restart = false
+
+    var isOS: Bool { title.hasPrefix("macOS") || title.hasPrefix("OS X") || title.hasPrefix("Mac OS") }
+
+    /// The build, for an OS update: labels are "macOS Tahoe 26.7.3-25G342".
+    var build: String? {
+        guard isOS, let dash = label.lastIndex(of: "-") else { return nil }
+        let b = label[label.index(after: dash)...]
+        return b.isEmpty ? nil : String(b)
+    }
+
+    var feed: SofaFeed? {
+        if isOS { return .macOS }
+        if title == "Safari" || label.hasPrefix("Safari") { return .safari }
+        return nil
+    }
+
+    func patch(_ adv: Advisory?) -> MissingPatch {
+        var desc = title
+        if !version.isEmpty && !title.hasSuffix(version) { desc += (desc.isEmpty ? "" : " ") + version }
+        return MissingPatch(title: label, description: desc, product: title, infoURL: adv?.url ?? "",
+                            kbArticleID: adv?.number ?? "", severity: severity(adv))
+    }
+
+    /// OPSWAT's ratings aren't available to us. Apple's advisory severity,
+    /// mapped to the same scale, is the base when SOFA has one; otherwise
+    /// the OS or anything needing a restart is 2 (important) and the rest 1
+    /// (moderate). A fix for an actively exploited CVE rates one higher.
+    /// For the updates in GP's own report this gives what GP sent.
+    func severity(_ adv: Advisory?) -> Int {
+        let base = adv?.severity ?? (isOS || restart ? 2 : 1)
+        return min(3, base + (adv?.exploited == true ? 1 : 0))
     }
 }
 
@@ -85,26 +139,21 @@ extension Env {
 ///     	Title: macOS Tahoe 26.7.3, Version: 26.7.3, Size: 1534223KiB, Recommended: YES, Action: restart,
 ///     * Label: Safari27.2TahoeAuto-27.2
 ///     	Title: Safari, Version: 27.2, Size: 182451K, Recommended: YES,
-func parseSoftwareUpdateList(_ out: String) -> [MissingPatch] {
-    var patches: [MissingPatch] = []
-    var label: String?
-    var attrs: [String: String] = [:]
-    func flush() {
-        if let l = label, !l.isEmpty { patches.append(patch(label: l, attrs)) }
-        label = nil
-        attrs = [:]
-    }
+func parseSoftwareUpdateList(_ out: String) -> [PendingUpdate] {
+    var updates: [PendingUpdate] = []
     for raw in out.split(separator: "\n", omittingEmptySubsequences: true) {
         let line = raw.trimmingCharacters(in: .whitespaces)
         if line.hasPrefix("* Label:") {
-            flush()
-            label = line.dropFirst("* Label:".count).trimmingCharacters(in: .whitespaces)
-        } else if label != nil, line.hasPrefix("Title:") {
-            attrs = parseAttributes(line)
+            let label = line.dropFirst("* Label:".count).trimmingCharacters(in: .whitespaces)
+            if !label.isEmpty { updates.append(PendingUpdate(label: label)) }
+        } else if !updates.isEmpty, line.hasPrefix("Title:") {
+            let attrs = parseAttributes(line)
+            updates[updates.count - 1].title = attrs["Title"] ?? ""
+            updates[updates.count - 1].version = attrs["Version"] ?? ""
+            updates[updates.count - 1].restart = attrs["Action"]?.lowercased() == "restart"
         }
     }
-    flush()
-    return patches
+    return updates
 }
 
 /// "Title: Safari, Version: 27.2, Size: 182451K, Recommended: YES," as a
@@ -117,20 +166,4 @@ private func parseAttributes(_ line: String) -> [String: String] {
         m[kv[0].trimmingCharacters(in: .whitespaces)] = kv[1].trimmingCharacters(in: CharacterSet(charactersIn: " ,"))
     }
     return m
-}
-
-private func patch(label: String, _ attrs: [String: String]) -> MissingPatch {
-    let title = attrs["Title"] ?? ""
-    let version = attrs["Version"] ?? ""
-    var desc = title
-    if !version.isEmpty && !title.hasSuffix(version) { desc += (desc.isEmpty ? "" : " ") + version }
-    return MissingPatch(title: label, description: desc, product: title, severity: severity(title: title, attrs))
-}
-
-/// OPSWAT's rating isn't available to us. GP rated macOS updates 2
-/// (important) and Safari 1 (moderate); we rate anything that is the OS or
-/// needs a restart 2 and everything else 1.
-private func severity(title: String, _ attrs: [String: String]) -> Int {
-    let os = title.hasPrefix("macOS") || title.hasPrefix("OS X") || title.hasPrefix("Mac OS")
-    return os || attrs["Action"]?.lowercased() == "restart" ? 2 : 1
 }
