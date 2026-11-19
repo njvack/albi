@@ -1,4 +1,5 @@
 #if canImport(Network)
+import AlbiConstants
 import Foundation
 import GPCore
 
@@ -57,7 +58,7 @@ public struct BundledHIP: Sendable {
         p.executableURL = executable
         p.arguments = args
         // A clean environment: nothing from the caller steers the checks.
-        p.environment = ["PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        p.environment = ["PATH": AlbiPaths.safePATH]
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err

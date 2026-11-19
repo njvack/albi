@@ -1,3 +1,4 @@
+import AlbiConstants
 import Foundation
 import GPCore
 
@@ -20,7 +21,7 @@ public struct DiagnosticsSettings: Codable, Equatable, Sendable {
     public static let key = "albi.diagnostics"
     /// Where the extension (root) writes dumps. Readable by everyone: dumps
     /// are redacted before they are written.
-    public static let systemDirectory = URL(fileURLWithPath: "/Library/Application Support/Albi/Diagnostics")
+    public static let systemDirectory = URL(fileURLWithPath: AlbiPaths.diagnosticsDirectory)
 
     public var recorderPolicy: FlightRecorder.Policy {
         var p = FlightRecorder.Policy()

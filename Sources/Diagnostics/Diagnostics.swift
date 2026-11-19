@@ -124,18 +124,21 @@ public final class Diagnostics: @unchecked Sendable {
     private func prune() {
         let fm = FileManager.default
         guard let names = try? fm.contentsOfDirectory(atPath: directory.path) else { return }
-        let dumps = names.filter { $0.hasPrefix("albi-incident-") && $0.hasSuffix(".json") }.sorted()
+        let dumps = names.filter { $0.hasPrefix(Self.filePrefix) && $0.hasSuffix(".json") }.sorted()
         for n in dumps.dropLast(max(1, settings.keep)) {
             try? fm.removeItem(at: directory.appendingPathComponent(n))
         }
     }
 
-    static func fileName(_ d: Date, id: Int) -> String {
+    /// Incident files are `albi-incident-<UTC stamp>Z-<id>.json`.
+    public static let filePrefix = "albi-incident-"
+
+    public static func fileName(_ d: Date, id: Int) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = TimeZone(identifier: "UTC")
         f.dateFormat = "yyyyMMdd-HHmmss"
-        return "albi-incident-\(f.string(from: d))Z-\(id).json"
+        return "\(filePrefix)\(f.string(from: d))Z-\(id).json"
     }
 
     private final class WeakBox: @unchecked Sendable {

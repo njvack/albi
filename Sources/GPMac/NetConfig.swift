@@ -1,4 +1,5 @@
 #if os(macOS)
+import AlbiConstants
 import Darwin
 import Foundation
 import GPCore
@@ -49,7 +50,7 @@ public final class NetConfig: @unchecked Sendable {
         case full
     }
 
-    public static let defaultJournal = URL(fileURLWithPath: "/Library/Application Support/Albi/helper-journal.json")
+    public static let defaultJournal = URL(fileURLWithPath: AlbiPaths.helperJournal)
 
     struct Journal: Codable {
         var routes: [RouteSpec]

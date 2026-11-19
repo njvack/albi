@@ -188,8 +188,8 @@ public final class MockVPNService: VPNService {
 
     /// Reports a new incident file, as after a drop that didn't recover.
     public func simulateIncident() {
-        let stamp = Int(Date().timeIntervalSince1970)
-        let path = DiagnosticsSettings.systemDirectory.appendingPathComponent("albi-incident-\(stamp)-\(UUID().uuidString.prefix(4)).json").path
+        let name = Diagnostics.fileName(Date(), id: Int.random(in: 1...9999))
+        let path = DiagnosticsSettings.systemDirectory.appendingPathComponent(name).path
         status.update { $0.lastIncident = path }
     }
 

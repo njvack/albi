@@ -75,6 +75,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: Albi
+        product: AlbiConstants
+      - package: Albi
         product: GPCore
       - package: Albi
         product: GPMac
@@ -194,6 +196,8 @@ targets:
     sources:
       - path: ../Sources/albi-helper
     dependencies:
+      - package: Albi
+        product: AlbiConstants
       - package: Albi
         product: GPCore
       - package: Albi
