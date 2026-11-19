@@ -136,7 +136,8 @@ actor HelperCore {
     /// Reads the saved files, before the listener takes requests.
     init() {
         stored = Self.read(HelperProfiles.self, AlbiHelper.profilesFile) ?? HelperProfiles()
-        desired = Self.read(HelperDesiredState.self, AlbiHelper.stateFile) ?? desired
+        desired = Self.read(HelperDesiredState.self, AlbiHelper.stateFile)
+            ?? HelperDesiredState(profile: nil, wantConnected: false)
     }
 
     /// Watches sleep and wake, and reconnects if the saved state says so.

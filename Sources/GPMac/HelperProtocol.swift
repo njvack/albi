@@ -81,8 +81,6 @@ public enum HelperRequest: Codable, Sendable {
     case diagnosticsSettings
     case setDiagnosticsSettings(DiagnosticsSettings)
     case saveDiagnosticsNow
-    /// Forget saved cookies for a profile; a running session logs out on stop.
-    case clearCookies(UUID)
 }
 
 public struct HelperReply: Codable, Sendable {
