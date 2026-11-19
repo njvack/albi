@@ -76,7 +76,7 @@ struct Options {
       --diag-window SECONDS  history to keep (default 600)
       --tun                  real tunnel: utun, routes and DNS (root)
       --dns split|full       with --tun: split (default) sends only the gateway's domains to its
-                             DNS; full makes its DNS the default resolver
+                             DNS, unless the gateway sends a full tunnel; full sends every name
       --pin-interface        with --tun: also pin gateway connections to the physical
                              interface (the host route to the gateway goes in either way)
       --mtu N                with --tun: utun MTU (default: the gateway's, else 1361)

@@ -2,6 +2,7 @@ import Testing
 #if os(macOS)
 import Darwin
 import Foundation
+@testable import GPCore
 @testable import GPMac
 
 @Suite struct RoutingSocketTests {
@@ -62,6 +63,35 @@ import Foundation
         try Data("not json".utf8).write(to: url)
         #expect(NetConfig.sweep(journal: url) { _ in }.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
+@Suite struct DNSScopeTests {
+    func settings(_ body: String) throws -> TunnelSettings {
+        TunnelSettings(config: try GatewayConfig(Reply.document(status: 200, body: "<response><ip-address>10.130.231.83</ip-address><dns><member>128.104.232.164</member></dns>\(body)</response>")), remoteAddress: "gw")
+    }
+
+    // A campus network's resolvers are off-link, so a full tunnel captures
+    // them; names outside the gateway's domains (www.wisc.edu's CNAME
+    // www.wisc.cloud) then never resolved in split mode.
+    @Test func fullTunnelSendsEveryNameToTheTunnel() throws {
+        let s = try settings("<dns-suffix><member>wisc.edu</member></dns-suffix><access-routes><member>0.0.0.0/0</member></access-routes>")
+        let scope = NetConfig.resolverScope(s, mode: .split)
+        #expect(scope.all)
+        #expect(scope.domains == ["wisc.edu"])
+    }
+
+    @Test func splitTunnelKeepsMatchDomains() throws {
+        let s = try settings("<dns-suffix><member>wisc.edu</member></dns-suffix><access-routes><member>10.0.0.0/8</member></access-routes>")
+        let scope = NetConfig.resolverScope(s, mode: .split)
+        #expect(!scope.all)
+        #expect(scope.domains == ["wisc.edu"])
+        #expect(NetConfig.resolverScope(s, mode: .full).all)
+    }
+
+    @Test func splitTunnelWithoutDomainsSendsEveryName() throws {
+        let s = try settings("<access-routes><member>10.0.0.0/8</member></access-routes>")
+        #expect(NetConfig.resolverScope(s, mode: .split).all)
     }
 }
 
