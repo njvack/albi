@@ -118,6 +118,15 @@ public final class NetConfig: @unchecked Sendable {
         try publishDNS(settings, interface: interface, mode: dnsMode)
     }
 
+    /// Adds a host route to another gateway address, via the physical router
+    /// and journaled like the others, until the next `apply` or teardown.
+    public func addGatewayRoute(_ address: String, router: String?) throws {
+        if !excludedWanted.contains(where: { $0.destination == address && $0.prefixLength == 32 }) {
+            excludedWanted.append(RouteSpec(destination: address, prefixLength: 32))
+        }
+        try routeExcluded(via: router)
+    }
+
     /// Re-points excluded routes at a new router after a network change.
     public func updateRouter(_ router: String?) throws {
         try routeExcluded(via: router)

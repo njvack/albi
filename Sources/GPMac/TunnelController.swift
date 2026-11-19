@@ -35,12 +35,13 @@ public protocol PacketHost: TunnelHost {
     func pathChanged()
     /// Undoes whatever the host changed. Called once, after the session ends.
     func shutdown()
-    /// Addresses to dial the gateway at instead of looking it up, if any.
-    var gatewayAddresses: GatewayAddressBook? { get }
+    /// The address to dial `host` at instead of asking the system resolver,
+    /// or nil to look it up as usual.
+    func dialAddress(for host: String) async -> String?
 }
 
 extension PacketHost {
-    public var gatewayAddresses: GatewayAddressBook? { nil }
+    public func dialAddress(for host: String) async -> String? { nil }
 }
 
 extension UtunHost: PacketHost {}
@@ -185,10 +186,10 @@ public final class TunnelController: @unchecked Sendable {
 
         var pin: (@Sendable () -> NWInterface?)?
         if configuration.pinInterface { pin = { [watcher] in watcher.primaryInterface } }
-        // The host, made after login, fills this in.
-        let book = BookRef()
+        // The host is made after login.
+        let hostRef = HostRef()
         let base = NWGatewayConnector(trust: profile.trust, requiredInterface: pin,
-                                      address: { book.value?.address(for: $0) })
+                                      address: { await hostRef.value?.dialAddress(for: $0) })
         let connector: any GatewayConnector = diag.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 
         // A saved cookie lets the tunnel come back after a disconnect, sleep
@@ -262,7 +263,7 @@ public final class TunnelController: @unchecked Sendable {
             log: log
         )
         let host = try makeHost(hooks, gateway, watcher)
-        book.value = host.gatewayAddresses
+        hostRef.value = host
         let runner = SessionRunner(server: gateway, client: client,
                                    session: Session(cookie: cookie, policy: policy, hipInterval: hipInterval),
                                    io: connector, host: host, clock: clock, recorder: diag?.recorder)
@@ -399,12 +400,12 @@ struct ControllerCredentials: CredentialProvider {
     }
 }
 
-final class BookRef: @unchecked Sendable {
+final class HostRef: @unchecked Sendable {
     private let lock = NSLock()
-    private var book: GatewayAddressBook?
-    var value: GatewayAddressBook? {
-        get { lock.withLock { book } }
-        set { lock.withLock { book = newValue } }
+    private var host: (any PacketHost)?
+    var value: (any PacketHost)? {
+        get { lock.withLock { host } }
+        set { lock.withLock { host = newValue } }
     }
 }
 

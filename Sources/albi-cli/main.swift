@@ -389,7 +389,7 @@ if options.tun && options.pinInterface {
     }
 }
 let base = NWGatewayConnector(trust: trust, requiredInterface: pin,
-                              address: { utunHost?.addresses.address(for: $0) })
+                              address: { await utunHost?.dialAddress(for: $0) })
 let connector: any GatewayConnector = diagnostics.map { RecordingConnector(base, recorder: $0.recorder, clock: clock) } ?? base
 let credentials = CLICredentials(user: options.user, secondFactor: options.secondFactor)
 let cliHost = CLIHost(options: options, connector: connector, credentials: credentials)
@@ -400,6 +400,7 @@ if options.tun {
                                 gatewayHosts: [gatewayHost] + (options.gateway.map { [splitHostPort($0).0] } ?? []),
                                 mtu: options.mtu, routes: options.routes, tracePackets: options.trace,
                                 router: { [watcher] in watcher.ipv4Router },
+                                physicalInterface: { [watcher] in watcher.primaryInterface?.name },
                                 hooks: .init(hipReport: { try await cliHost.hipReport($0) },
                                              reauthenticate: { try await cliHost.reauthenticate() },
                                              saveCookie: { cliHost.saveCookie($0) },

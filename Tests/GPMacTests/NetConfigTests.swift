@@ -102,6 +102,8 @@ import Foundation
         b.set(["BI.vpn.wisc.edu": "144.92.20.213"])
         #expect(b.address(for: "bi.vpn.wisc.edu") == "144.92.20.213")
         #expect(b.address(for: "other.example") == nil)
+        b.set("Bi.VPN.wisc.edu", "144.92.20.214")
+        #expect(b.address(for: "bi.vpn.wisc.edu") == "144.92.20.214")
         b.set([:])
         #expect(b.address(for: "bi.vpn.wisc.edu") == nil)
     }
