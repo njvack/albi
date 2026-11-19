@@ -324,8 +324,8 @@ public final class TunnelController: @unchecked Sendable {
     /// The gateway config the session has now, as tunnel settings.
     private func refreshSettings() async {
         guard let runner = lock.withLock({ runner }), let config = await runner.config else { return }
-        let gateway = runner.server
         lock.withLock {
+            guard let gateway = snapshotValue.gateway else { return }
             snapshotValue.settings = TunnelSettings(config: config, remoteAddress: gateway)
             if let lifetime = config.lifetime {
                 let start = loggedInAt ?? snapshotValue.connectedSince ?? Date()
