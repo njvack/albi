@@ -73,7 +73,7 @@ struct Options {
       --tun                  real tunnel: utun, routes and DNS (root)
       --dns split|full       with --tun: split (default) sends only the gateway's domains to its
                              DNS; full makes its DNS the default resolver
-      --pin                  with --tun: also pin gateway connections to the physical
+      --pin-interface        with --tun: also pin gateway connections to the physical
                              interface (the host route to the gateway goes in either way)
       --mtu N                with --tun: utun MTU (default: the gateway's, else 1361)
       --journal PATH         with --tun: excluded-route journal
@@ -130,7 +130,7 @@ struct Options {
                 guard let m = NetConfig.DNSMode(rawValue: value(a)) else { fail("--dns is split or full") }
                 o.dnsMode = m
             case "--journal": o.journal = URL(fileURLWithPath: value(a))
-            case "--pin": o.pinInterface = true
+            case "--pin-interface": o.pinInterface = true
             case "--no-pin": o.pinInterface = false
             case "--mtu": o.mtu = Int(value(a))
             default:
