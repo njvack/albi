@@ -40,6 +40,7 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private let hooks: Hooks
     private let router: @Sendable () -> String?
     private let gatewayHosts: [String]
+    private let mtu: Int?
     private let queue = DispatchQueue(label: "albi.utun-host")
     private let readQueue = DispatchQueue(label: "albi.utun-read")
     // Touched only on `queue`.
@@ -51,17 +52,20 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     /// excluded routes and the host routes to the gateway. `gatewayHosts`
     /// are resolved for those host routes, along with getconfig's gw-address.
     public init(dnsMode: NetConfig.DNSMode = .split, journal: URL = NetConfig.defaultJournal,
-                gatewayHosts: [String] = [],
+                gatewayHosts: [String] = [], mtu: Int? = nil,
                 router: @escaping @Sendable () -> String?, hooks: Hooks) throws {
         device = try UtunDevice()
         self.dnsMode = dnsMode
         self.gatewayHosts = gatewayHosts
+        self.mtu = mtu
         self.router = router
         self.hooks = hooks
         net = NetConfig(journal: journal, log: hooks.log)
     }
 
-    public func apply(_ s: TunnelSettings) async throws {
+    public func apply(_ new: TunnelSettings) async throws {
+        var s = new
+        if let mtu { s.mtu = mtu }
         try queue.sync {
             guard !shutDown else { return }
             if let a = s.ipv4Address { try device.setIPv4(a, previous: settings?.ipv4Address) }

@@ -45,6 +45,7 @@ struct Options {
     var dnsMode = NetConfig.DNSMode.split
     var journal = NetConfig.defaultJournal
     var pinInterface = true
+    var mtu: Int?
 
     static let usage = """
     usage: albi-cli connect SERVER [options]
@@ -74,6 +75,7 @@ struct Options {
                              DNS; full makes its DNS the default resolver
       --no-pin               with --tun: don't pin gateway connections to the physical
                              interface (the host route to the gateway still goes in)
+      --mtu N                with --tun: utun MTU (default: the gateway's, else 1361)
       --journal PATH         with --tun: excluded-route journal
                              (default /Library/Application Support/Albi/helper-journal.json)
     The password is read from the first line of stdin.
@@ -129,6 +131,7 @@ struct Options {
                 o.dnsMode = m
             case "--journal": o.journal = URL(fileURLWithPath: value(a))
             case "--no-pin": o.pinInterface = false
+            case "--mtu": o.mtu = Int(value(a))
             default:
                 if a.hasPrefix("-") { fail("unknown option \(a)\n\(usage)") }
                 positional.append(a)
@@ -368,6 +371,7 @@ if options.tun {
     do {
         utunHost = try UtunHost(dnsMode: options.dnsMode, journal: options.journal,
                                 gatewayHosts: [gatewayHost] + (options.gateway.map { [splitHostPort($0).0] } ?? []),
+                                mtu: options.mtu,
                                 router: { [watcher] in watcher.ipv4Router },
                                 hooks: .init(hipReport: { try await cliHost.hipReport($0) },
                                              reauthenticate: { try await cliHost.reauthenticate() },

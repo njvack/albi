@@ -37,9 +37,11 @@ public struct TunnelSettings: Equatable, Sendable {
     /// Whether all IPv4 traffic goes through the tunnel.
     public var isFullTunnel: Bool { includedIPv4.contains(.default) }
 
-    /// MTU when getconfig gives none (gateways often send 0). The tunnel runs
-    /// over TCP, so this mostly bounds packet size, not fragmentation.
-    public static let defaultMTU = 1400
+    /// MTU when getconfig gives none (gateways often send 0): openconnect's
+    /// figure for the HTTPS tunnel, 1406 minus TCP, IP and TLS record
+    /// headers. With 1400, a PAN-OS 11.1 gateway that sends 0 stopped
+    /// answering on the tunnel, keepalives included, once real traffic flowed.
+    public static let defaultMTU = 1361
 
     /// Maps a getconfig answer to tunnel settings.
     ///
