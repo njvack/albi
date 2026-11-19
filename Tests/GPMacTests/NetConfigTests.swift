@@ -64,4 +64,26 @@ import Foundation
         #expect(!FileManager.default.fileExists(atPath: url.path))
     }
 }
+
+@Suite struct UtunSourceTests {
+    func v4(from a: [UInt8]) -> [UInt8] { [0x45, 0, 0, 20, 0, 0, 0, 0, 64, 1, 0, 0] + a + [1, 1, 1, 1] }
+
+    @Test func dropsForeignSources() throws {
+        let src = UtunHost.Sources(v4: UtunHost.bytes(v4: "10.130.231.72"), v6: nil)
+        #expect(src.allows(v4(from: [10, 130, 231, 72])))
+        #expect(!src.allows(v4(from: [192, 168, 7, 49])))
+        #expect(!src.allows([0x60] + [UInt8](repeating: 0, count: 39)))
+        #expect(!src.allows([]))
+        #expect(UtunHost.sourceString(v4(from: [192, 168, 7, 49])) == "192.168.7.49")
+    }
+
+    @Test func ipv6Source() throws {
+        let a = try #require(UtunHost.bytes(v6: "fd00::5"))
+        var p = [UInt8](repeating: 0, count: 40)
+        p[0] = 0x60
+        p.replaceSubrange(8..<24, with: a)
+        #expect(UtunHost.Sources(v4: nil, v6: a).allows(p))
+        #expect(UtunHost.sourceString(p) == "fd00:0:0:0:0:0:0:5")
+    }
+}
 #endif

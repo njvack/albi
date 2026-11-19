@@ -47,6 +47,10 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     private var settings: TunnelSettings?
     private var applied: TunnelSettings?
     private var shutDown = false
+    // Tunnel source addresses, read on `readQueue`.
+    private let sourceLock = NSLock()
+    private var sources = Sources()
+    private var dropped = 0
 
     /// Opens a utun. `router` gives the physical network's IPv4 router, for
     /// excluded routes and the host routes to the gateway. `gatewayHosts`
@@ -74,6 +78,8 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
             }
             try device.setMTU(s.mtu)
             settings = s
+            let src = Sources(v4: s.ipv4Address.flatMap(Self.bytes(v4:)), v6: s.ipv6Address.flatMap(Self.bytes(v6:)))
+            sourceLock.withLock { sources = src }
         }
         hooks.log("tun \(device.name) ipv4=\(s.ipv4Address ?? "-") ipv6=\(s.ipv6Address ?? "-") mtu=\(s.mtu)")
     }
@@ -98,9 +104,24 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
     public func log(_ m: String) { hooks.log(m) }
 
     /// Sends what the system routes into the utun through `runner`, in order.
+    /// Packets not from the tunnel's own addresses are dropped: connections
+    /// opened before the routes went in keep their old source, and a gateway
+    /// may end the session over them.
     public func pumpPackets(to runner: SessionRunner) {
         let (stream, cont) = AsyncStream<[[UInt8]]>.makeStream()
-        device.startReading(on: readQueue) { cont.yield($0) }
+        device.startReading(on: readQueue) { [self] batch in
+            let src = sourceLock.withLock { sources }
+            let keep = batch.filter { src.allows($0) }
+            if keep.count < batch.count {
+                let before = dropped
+                dropped += batch.count - keep.count
+                if before == 0 || before / 1000 != dropped / 1000 {
+                    let first = batch.first { !src.allows($0) }.map(Self.sourceString) ?? "?"
+                    hooks.log("dropped \(dropped) packet(s) not from the tunnel address (e.g. from \(first))")
+                }
+            }
+            if !keep.isEmpty { cont.yield(keep) }
+        }
         Task {
             for await batch in stream { await runner.send(packets: batch) }
         }
@@ -160,6 +181,40 @@ public final class UtunHost: TunnelHost, @unchecked Sendable {
             }
         }
         return out
+    }
+
+    struct Sources: Equatable {
+        var v4: [UInt8]?
+        var v6: [UInt8]?
+
+        func allows(_ p: [UInt8]) -> Bool {
+            guard let first = p.first else { return false }
+            switch first >> 4 {
+            case 4: return v4 != nil && p.count >= 20 && p[12..<16].elementsEqual(v4!)
+            case 6: return v6 != nil && p.count >= 40 && p[8..<24].elementsEqual(v6!)
+            default: return false
+            }
+        }
+    }
+
+    static func bytes(v4 s: String) -> [UInt8]? {
+        var a = in_addr()
+        guard inet_pton(AF_INET, s, &a) == 1 else { return nil }
+        return withUnsafeBytes(of: &a) { Array($0) }
+    }
+
+    static func bytes(v6 s: String) -> [UInt8]? {
+        var a = in6_addr()
+        guard inet_pton(AF_INET6, s, &a) == 1 else { return nil }
+        return withUnsafeBytes(of: &a) { Array($0) }
+    }
+
+    static func sourceString(_ p: [UInt8]) -> String {
+        if p.first.map({ $0 >> 4 }) == 4, p.count >= 20 { return p[12..<16].map(String.init).joined(separator: ".") }
+        if p.first.map({ $0 >> 4 }) == 6, p.count >= 40 {
+            return stride(from: 8, to: 24, by: 2).map { String(UInt16(p[$0]) << 8 | UInt16(p[$0 + 1]), radix: 16) }.joined(separator: ":")
+        }
+        return "?"
     }
 
     private func removeNetwork() {
