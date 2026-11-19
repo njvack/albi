@@ -46,6 +46,10 @@ Each `.toml` file describes one product in one HIP category: vendor, name, when 
 
 [docs/check-files.md](docs/check-files.md) is the full reference: every key, the categories and their fields, what each probe does and gives on failure, load order and overrides, the trust rule, and how to write and test a check.
 
+### Missing patches
+
+The patch-management category's `<missing-patches>` lists what Software Update has pending, from `softwareupdate --list --no-scan` (the last background scan, so it is fast and needs no network). This is what GlobalProtect reports too: its OPSWAT SDK lists Software Update's pending updates, which is why the same list appears under every patch-management product on the firewall. Each entry's title is the `softwareupdate` label. Severity uses OPSWAT's scale (0 low, 1 moderate, 2 important, 3 critical); we rate macOS updates and anything needing a restart 2 and the rest 1, which matches what GP sent for the same updates. GP also fills in `kb-article-id` with the number of Apple's security-content support article for the update (support.apple.com/149527 is Safari 27.2), from OPSWAT's database; we leave it blank. If `softwareupdate` fails, the list is empty and `hipreport facts` says why.
+
 ### Policies
 
 The gateway never says whether a report passed. Write down what the firewall admins say it requires, and `hipreport check` says whether this Mac meets it, with the value and probe behind each answer. Each requirement passes if any matching product passes; tests are `equals`, `matches` (regexp) and `min_version`, and `field = "drive:All"` tests a disk-encryption drive.

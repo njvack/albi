@@ -46,12 +46,14 @@ public struct Facts: Sendable, Codable {
     public var trusted: Bool
     public var interfaces: [Interface]
     public var products: [Product]
+    /// Pending updates, reported under patch-management.
+    public var missingPatches: PatchScan
 
     enum CodingKeys: String, CodingKey {
         case userName = "user_name", domain, computer, hostName = "host_name", hostID = "host_id"
         case clientIP = "client_ip", clientIPv6 = "client_ipv6", clientVersion = "client_version"
         case osVersion = "os_version", md5, generated, timeZoneOffset = "time_zone_offset", trusted
-        case interfaces, products
+        case interfaces, products, missingPatches = "missing_patches"
     }
 
     var zone: TimeZone { TimeZone(secondsFromGMT: timeZoneOffset) ?? .current }
@@ -68,7 +70,8 @@ public func collect(_ env: Env, _ set: CheckSet, _ req: Request) -> Facts {
         clientVersion: req.clientVersion.isEmpty ? defaultClientVersion : req.clientVersion,
         osVersion: env.osVersion(), md5: req.md5, generated: now,
         timeZoneOffset: env.sys.timeZone().secondsFromGMT(for: now),
-        trusted: set.trusted, interfaces: [], products: [])
+        trusted: set.trusted, interfaces: [], products: [],
+        missingPatches: PatchScan(patches: [], how: "", error: nil))
     // These must match what the client sent at login, so the cookie wins.
     if f.userName.isEmpty { f.userName = req.userName }
     if f.computer.isEmpty { f.computer = short }
@@ -78,6 +81,7 @@ public func collect(_ env: Env, _ set: CheckSet, _ req: Request) -> Facts {
     let idDev = req.hostIDDevice.isEmpty ? "en0" : req.hostIDDevice
     f.hostID = f.interfaces.first { $0.device == idDev }?.mac ?? ""
     f.products = set.checks.compactMap(env.evaluate)
+    f.missingPatches = env.missingPatches()
     return f
 }
 
@@ -176,8 +180,9 @@ extension Facts {
         }
         let e = Node.entry(def.name, [list])
         if def.name == "patch-management" {
-            // Pending updates aren't checked, so this always claims none.
-            e.add(Node("missing-patches"))
+            // One list for the category, not per product: GP's comes from
+            // Software Update whichever products are installed.
+            e.add(Node("missing-patches", missingPatches.patches.map(\.xml)))
         }
         return e
     }
