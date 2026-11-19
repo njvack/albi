@@ -37,7 +37,7 @@ public protocol VPNService: AnyObject {
     func setupStatus() async -> SetupStatus
     func activateSystemExtension() async
     func allowVPNConfiguration() async
-    func registerHIPHelper() async
+    func registerHelper() async
 }
 
 /// Hands each subscriber of `statusUpdates()` the latest status and every

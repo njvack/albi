@@ -7,3 +7,11 @@ DEVELOPMENT_TEAM = ABCDE12345
 ALBI_BUNDLE_ID_PREFIX = com.github.njvack.albi
 ALBI_APP_PROFILE = Albi Developer ID
 ALBI_TUNNEL_PROFILE = Albi Tunnel Developer ID
+
+// The menu-bar app (AlbiMenu) and albi-helper need no paid team. Ad hoc
+// ("-") works, but each rebuild changes the helper's signature and the app
+// has to reinstall the helper. A free Apple Development certificate (Xcode >
+// Settings > Accounts, add your Apple ID; the team ID is in Keychain Access
+// on the "Apple Development: ..." certificate, as the OU) keeps it stable:
+ALBI_MENU_SIGN_IDENTITY = Apple Development
+ALBI_MENU_TEAM = ABCDE12345

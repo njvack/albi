@@ -41,26 +41,8 @@ extension TunnelSettings {
 
 /// The `TunnelHost` for a packet tunnel provider: settings go to
 /// `setTunnelNetworkSettings`, packets to and from `packetFlow`.
-public final class PacketFlowHost: TunnelHost, @unchecked Sendable {
-    public struct Hooks: Sendable {
-        public var hipReport: @Sendable (HIPContext) async throws -> String?
-        public var reauthenticate: @Sendable () async throws -> AuthCookie
-        public var saveCookie: @Sendable (AuthCookie?) -> Void
-        public var stateChanged: @Sendable (SessionState) -> Void
-        public var log: @Sendable (String) -> Void
-
-        public init(hipReport: @escaping @Sendable (HIPContext) async throws -> String?,
-                    reauthenticate: @escaping @Sendable () async throws -> AuthCookie,
-                    saveCookie: @escaping @Sendable (AuthCookie?) -> Void,
-                    stateChanged: @escaping @Sendable (SessionState) -> Void,
-                    log: @escaping @Sendable (String) -> Void) {
-            self.hipReport = hipReport
-            self.reauthenticate = reauthenticate
-            self.saveCookie = saveCookie
-            self.stateChanged = stateChanged
-            self.log = log
-        }
-    }
+public final class PacketFlowHost: PacketHost, @unchecked Sendable {
+    public typealias Hooks = HostHooks
 
     private weak var provider: NEPacketTunnelProvider?
     private let hooks: Hooks
@@ -86,6 +68,10 @@ public final class PacketFlowHost: TunnelHost, @unchecked Sendable {
     public func reauthenticate() async throws -> AuthCookie { try await hooks.reauthenticate() }
     public func saveCookie(_ c: AuthCookie?) { hooks.saveCookie(c) }
     public func log(_ m: String) { hooks.log(m) }
+    /// macOS routes the extension's traffic itself.
+    public func pathChanged() {}
+    /// macOS removes the tunnel's settings when the provider stops.
+    public func shutdown() {}
 
     /// Reads packets from the OS and sends them through `runner`, in order,
     /// until the provider goes away.

@@ -14,25 +14,7 @@ import GPCore
 /// Routes stay through reconnects, so a full tunnel doesn't leak while it's
 /// down, and come out when the session stops or needs a login.
 public final class UtunHost: TunnelHost, @unchecked Sendable {
-    public struct Hooks: Sendable {
-        public var hipReport: @Sendable (HIPContext) async throws -> String?
-        public var reauthenticate: @Sendable () async throws -> AuthCookie
-        public var saveCookie: @Sendable (AuthCookie?) -> Void
-        public var stateChanged: @Sendable (SessionState) -> Void
-        public var log: @Sendable (String) -> Void
-
-        public init(hipReport: @escaping @Sendable (HIPContext) async throws -> String?,
-                    reauthenticate: @escaping @Sendable () async throws -> AuthCookie,
-                    saveCookie: @escaping @Sendable (AuthCookie?) -> Void,
-                    stateChanged: @escaping @Sendable (SessionState) -> Void,
-                    log: @escaping @Sendable (String) -> Void) {
-            self.hipReport = hipReport
-            self.reauthenticate = reauthenticate
-            self.saveCookie = saveCookie
-            self.stateChanged = stateChanged
-            self.log = log
-        }
-    }
+    public typealias Hooks = HostHooks
 
     public let device: UtunDevice
     public let dnsMode: NetConfig.DNSMode
