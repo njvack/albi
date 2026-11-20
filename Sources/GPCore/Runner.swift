@@ -180,7 +180,7 @@ public actor SessionRunner {
         case .fetchConfig(let cookie, let v4, let v6):
             configGen += 1
             let gen = configGen
-            spawn { [io, server, client] in
+            spawn { [io, server, client, host] in
                 let ev: Session.Event
                 do {
                     let resp = try await io.send(Requests.getConfig(cookie, client: client, previousIPv4: v4, previousIPv6: v6), to: server)
