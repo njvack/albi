@@ -372,8 +372,9 @@ let testClient = ClientInfo(computer: "albi-test")
         gw.dropTunnels()
         await eventually("new cookie") { let c = await runner.cookie; let st = await runner.state; return c.authcookie == "cookie2" && st == .connected }
         #expect(host.saved.last??.authcookie == "cookie2")
-        // The log says why the old cookie was given up on.
-        #expect(host.logs.contains { $0.hasPrefix("getconfig failed:") })
+        // The log says why the old cookie was given up on: the fake
+        // gateway refuses a logged-out cookie at the tunnel request.
+        #expect(host.logs.contains { $0.hasPrefix("tunnel request failed:") })
         await runner.stop(logout: true)
     }
 
