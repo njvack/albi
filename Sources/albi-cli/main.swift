@@ -13,7 +13,8 @@
 //
 //   sudo albi-cli connect --tun vpn.example.edu
 //
-// Output lines start with "albi: " so scripts can grep them. Exit status:
+// Output lines start with "albi: " and the local time, so scripts can grep
+// them and overnight logs show when things happened. Exit status:
 // 0 stopped normally, 1 error, 2 the cookie was rejected and a login is needed.
 
 #if canImport(Network)
@@ -181,8 +182,18 @@ struct Options {
 }
 
 func say(_ s: String) {
-    print("albi: \(s)")
+    print("albi: \(timestamp()) \(s)")
     fflush(stdout)
+}
+
+/// Local time to the second, like `2026-11-20 08:14:03`.
+func timestamp() -> String {
+    var t = time(nil)
+    var parts = tm()
+    localtime_r(&t, &parts)
+    var buf = [CChar](repeating: 0, count: 32)
+    let n = strftime(&buf, buf.count, "%Y-%m-%d %H:%M:%S", &parts)
+    return String(decoding: buf[..<n].map { UInt8(bitPattern: $0) }, as: UTF8.self)
 }
 
 func fail(_ s: String) -> Never {
@@ -299,7 +310,7 @@ final class CLIHost: TunnelHost, @unchecked Sendable {
     func log(_ m: String) {
         // The runner logs each state too; stateChanged already printed it.
         if m.hasPrefix("state: ") { return }
-        FileHandle.standardError.write(Data("albi: \(m)\n".utf8))
+        FileHandle.standardError.write(Data("albi: \(timestamp()) \(m)\n".utf8))
     }
 
     var client: ClientInfo { ClientInfo(computer: ProcessInfo.processInfo.hostName, reportedVersion: options.reportVersion) }
