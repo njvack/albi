@@ -227,26 +227,7 @@ public final class HelperVPNService: VPNService {
         VPNProfile(id: p.id, name: p.name, settings: p.profile)
     }
 
-    static func tunnelStatus(_ s: HelperStatus) -> TunnelStatus {
-        let state: TunnelState = switch s.state {
-        case .disconnected: .disconnected
-        case .authenticating: .authenticating
-        case .waitingForPush: .waitingForPush
-        case .needsSecondFactor(let p): .needsSecondFactor(prompt: p)
-        case .connecting(let phase): .connecting(phase == "hip" ? .hip : phase == "tunnel" ? .tunnel : .config)
-        case .connected: .connected(.https)
-        case .reconnecting(let n, let why): .reconnecting(attempt: n, reason: why)
-        case .waitingForNetwork: .waitingForNetwork
-        case .disconnecting: .disconnecting
-        case .needsLogin(let why): .needsLogin(reason: why)
-        case .failed(let why): .failed(reason: why)
-        }
-        return TunnelStatus(profileID: s.profileID, state: state, gateway: s.gateway, ipv4: s.ipv4,
-                            connectedSince: s.connectedSince, cookieExpiry: s.cookieExpiry, routes: s.routes,
-                            dnsDomains: s.dnsDomains,
-                            hip: s.hipRequested ? HIPStatus(requested: true, lastSent: s.hipLastSent) : nil,
-                            lastIncident: s.lastIncident)
-    }
+    static func tunnelStatus(_ s: HelperStatus) -> TunnelStatus { TunnelStatus(s) }
 }
 
 /// Receives the helper's status pushes on an XPC thread and hands them to

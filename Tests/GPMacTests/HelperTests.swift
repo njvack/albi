@@ -6,6 +6,33 @@ import Testing
 @testable import GPMac
 
 @Suite struct HelperProtocolTests {
+    /// albi-helper and the extension both follow TunnelController's events
+    /// through `HelperStatus.apply`.
+    @Test func statusFollowsControllerEvents() {
+        var s = HelperStatus()
+        #expect(s.apply(.authenticating))
+        #expect(s.state == .authenticating)
+        #expect(s.apply(.needsSecondFactor(prompt: "Code?")))
+        #expect(s.state == .needsSecondFactor(prompt: "Code?"))
+        #expect(s.apply(.state(.connecting(.hip))))
+        #expect(s.state == .connecting(phase: "hip"))
+        #expect(s.apply(.state(.reauthenticating)))
+        #expect(s.state == .authenticating)
+        #expect(!s.apply(.state(.stopped(reason: "x"))))
+        #expect(!s.apply(.log("hello")))
+        #expect(s.state == .authenticating)
+    }
+
+    @Test func providerStatusCarriesTheTunnelStatus() throws {
+        var status = ProviderMessage.Status(state: "connected")
+        status.tunnel = HelperStatus(state: .connected, routes: ["10.0.0.0/8"])
+        let back = try JSONDecoder().decode(ProviderMessage.Status.self, from: JSONEncoder().encode(status))
+        #expect(back.tunnel == status.tunnel)
+        let req = try JSONDecoder().decode(ProviderMessage.Request.self,
+                                           from: JSONEncoder().encode(ProviderMessage.Request(secondFactorCode: "123456")))
+        #expect(req.secondFactorCode == "123456")
+    }
+
     @Test func requestsRoundTrip() throws {
         let id = UUID()
         var p = Profile(server: "vpn.example.edu", username: "nate")

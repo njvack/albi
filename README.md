@@ -18,6 +18,7 @@ This repository is one Swift package plus the Xcode project for the app. The app
 | `Diagnostics`, `albi-diag` | diagnostics mode: redacted incident files from the flight recorder, replay, and gp-fake-gateway scenario drafts |
 | `AlbiApp` | the menu-bar app's SwiftUI scenes and view models, against the `VPNService` protocol, shared by both builds (macOS only) |
 | `HelperBackend` | the helper build's `VPNService` over XPC to albi-helper, and its launch-at-login agent (macOS only) |
+| `ExtensionBackend` | the extension build's `VPNService` over NETunnelProviderManager and provider messages (macOS only) |
 | `albi-helper` | the root LaunchDaemon that runs the tunnel for the helper build, over XPC |
 | `Apps/` | Xcode project (XcodeGen): `Apps/Extension/` (app and tunnel extension), `Apps/Helper/` (app and launchd plists), `Apps/Shared/` (icon and glyphs) |
 
@@ -157,20 +158,22 @@ scripts/smappservice-probe.sh "$(swift build --show-bin-path)/albi-netprobe" "Ap
 
 `scripts/smappservice-probe.sh` wraps the probe in a tiny app, signs it ad-hoc or with the given identity, and registers a LaunchDaemon with `SMAppService`. It checks that the daemon ran as root, then unregisters it.
 
-## The extension build (Step 1 test build)
+## The extension build
 
 Needs macOS 27, Xcode, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`) and a Developer ID team.
 
 1. In the Apple Developer portal, create App IDs for `com.github.njvack.albi` (System Extension and Network Extensions capabilities) and `com.github.njvack.albi.tunnel` (Network Extensions, plus an app group `<TEAMID>.com.github.njvack.albi`), and a Developer ID provisioning profile for each.
 2. `cp Apps/Config/Signing.example.xcconfig Apps/Config/Signing.xcconfig` and fill in your team ID and profile names.
 3. `cd Apps && xcodegen generate && open Albi.xcodeproj`, build the ExtensionApp scheme, and copy `Albi Extension.app` to `/Applications` (system extensions only load from there). Bump `CURRENT_PROJECT_VERSION` for each rebuild you install, or macOS keeps the old extension.
-4. Run it, click Activate and approve the extension in System Settings › General › Login Items & Extensions. Fill in the profile, Save (macOS asks to allow the VPN configuration), enter the password and Connect.
+4. Run it. The setup window has Install (approve the extension in System Settings › General › Login Items & Extensions) and Allow (macOS asks once to allow VPN configurations). Then add a profile in Settings and Connect from the menu.
+
+It is the same menu-bar app as the helper build (below), over `ExtensionVPNService` in `ExtensionBackend`. Each profile is its own VPN configuration in System Settings › VPN, named after the profile. While a tunnel runs, the app polls the extension with provider messages for status, and answers its HIP requests (with the `albi-hipreport` in the app's `Contents/MacOS`, run as you, so root-only checks report n/a) and second-factor prompts. The extension keeps passwords and cookies in the System keychain; the app can't read them, so it remembers which profiles it handed a saved password to, and forgets when the extension says a login is needed. Configurations saved by the Step 1 test build are picked up as profiles.
 
 The extension logs under subsystem `com.github.njvack.albi`: `log stream --predicate 'subsystem == "com.github.njvack.albi"' --level info`.
 
-What the test build is meant to settle: whether the extension (root, sandboxed) can keep the password and cookie in the System keychain; that traffic flows; that sleep, wake and Wi-Fi changes reconnect with the same cookie; that killing the extension (`sudo killall -9 com.github.njvack.albi.tunnel`) leaves no routes or DNS behind; and that the gateway accepts a HIP report. For HIP, set "HIP report command" to a csd-wrapper style reporter (this package's `hipreport`, the Go one, or `hipreport.zsh`); the app runs it when the extension asks.
+Still to settle on a real Mac: whether the extension (root, sandboxed) can keep the password and cookie in the System keychain; that traffic flows; that sleep, wake and Wi-Fi changes reconnect with the same cookie; that killing the extension (`sudo killall -9 com.github.njvack.albi.tunnel`) leaves no routes or DNS behind; and that the gateway accepts a HIP report.
 
-The extension also carries its own `hipreport` in `Contents/MacOS`, signed with it (sandboxed, inheriting the extension's sandbox), so the report can come from a binary the user can't swap. Step 1 checks whether the sandboxed root extension may exec it and whether the checks still see the system from inside that sandbox: while connected, click Test next to "Bundled hipreport". It shows the exit status, report size and uid, and stderr below; the extension logs the same line ("bundled hipreport probe"). If it works, turn on "Make HIP reports inside the extension" and reconnect to have the gateway get reports from it. If it can't start, or the report is missing facts the app-run one has, HIP needs a small privileged helper instead.
+The extension also carries its own sandboxed `hipreport` in `Contents/MacOS`, signed with it, so the report can come from a binary the user can't swap. A profile with `bundledHIP` set uses it instead of asking the app; the shared UI has no switch for that yet, and the Step 1 window's "Bundled hipreport" probe went away with that window (the `probeBundledHIP` provider message is still there).
 
 ## The menu-bar app and the helper build
 
