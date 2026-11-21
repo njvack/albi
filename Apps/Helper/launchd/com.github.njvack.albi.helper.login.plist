@@ -6,9 +6,9 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.github.njvack.albi.menu</string>
+	<string>com.github.njvack.albi.helper.login</string>
 	<key>BundleProgram</key>
-	<string>Contents/MacOS/Albi Menu</string>
+	<string>Contents/MacOS/Albi</string>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
@@ -22,7 +22,7 @@
 	<string>Interactive</string>
 	<key>AssociatedBundleIdentifiers</key>
 	<array>
-		<string>com.github.njvack.albi.menu</string>
+		<string>com.github.njvack.albi.helper</string>
 	</array>
 </dict>
 </plist>

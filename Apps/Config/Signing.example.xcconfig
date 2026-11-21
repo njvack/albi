@@ -1,5 +1,5 @@
 // Copy to Signing.xcconfig and fill in. Developer ID signing needs:
-//  - an App ID for the app with the System Extension and Network Extensions
+//  - an App ID for ExtensionApp with the System Extension and Network Extensions
 //    capabilities, and one for the extension with Network Extensions;
 //  - a Developer ID provisioning profile for each, with the "Packet Tunnel
 //    (Developer ID / system extension)" network extension type.
@@ -8,10 +8,10 @@ ALBI_BUNDLE_ID_PREFIX = com.github.njvack.albi
 ALBI_APP_PROFILE = Albi Developer ID
 ALBI_TUNNEL_PROFILE = Albi Tunnel Developer ID
 
-// The menu-bar app (AlbiMenu) and albi-helper need no paid team. Ad hoc
+// The helper build (HelperApp and albi-helper) needs no paid team. Ad hoc
 // ("-") works, but each rebuild changes the helper's signature and the app
 // has to reinstall the helper. A free Apple Development certificate (Xcode >
 // Settings > Accounts, add your Apple ID; the team ID is in Keychain Access
 // on the "Apple Development: ..." certificate, as the OU) keeps it stable:
-ALBI_MENU_SIGN_IDENTITY = Apple Development
-ALBI_MENU_TEAM = ABCDE12345
+ALBI_HELPER_SIGN_IDENTITY = Apple Development
+ALBI_HELPER_TEAM = ABCDE12345

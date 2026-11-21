@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "Diagnostics", targets: ["Diagnostics"]),
         .executable(name: "albi-diag", targets: ["albi-diag"]),
         .library(name: "AlbiApp", targets: ["AlbiApp"]),
+        .library(name: "HelperBackend", targets: ["HelperBackend"]),
         .executable(name: "albi-netprobe", targets: ["albi-netprobe"]),
         .executable(name: "albi-helper", targets: ["albi-helper"]),
     ],
@@ -74,10 +75,16 @@ let package = Package(
         .testTarget(name: "DiagnosticsTests", dependencies: ["Diagnostics", "GPCore", "GPCapture"]),
 
         // The menu-bar app's SwiftUI scenes and view models, against the
-        // VPNService protocol (a mock for now). macOS only: wrapped in
-        // #if canImport(SwiftUI), so it is empty on Linux.
+        // VPNService protocol, plus MockVPNService. Shared by both builds of
+        // the app; nothing here knows which backend runs the tunnel. macOS
+        // only: wrapped in #if canImport(SwiftUI), so it is empty on Linux.
         .target(name: "AlbiApp", dependencies: ["AlbiConstants", "GPMac", "Diagnostics"]),
         .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
+
+        // The helper backend: VPNService over XPC to albi-helper, and launch
+        // at login as a LaunchAgent. HelperApp in Apps/ uses it. macOS only.
+        .target(name: "HelperBackend", dependencies: ["AlbiApp", "AlbiConstants", "GPMac", "Diagnostics"]),
+        .testTarget(name: "HelperBackendTests", dependencies: ["HelperBackend", "AlbiApp", "GPMac"]),
 
         // Root-helper probe: makes a utun, routes and temporary DNS keys
         // and checks they vanish when the process dies; also registers a

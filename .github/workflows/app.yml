@@ -1,8 +1,9 @@
 name: app
 
-# Unsigned Xcode builds of the app with its system extension (which embeds
-# hipreport) and of the menu-bar app. Signing, installing and approving the
-# extension happen on a real Mac. AlbiAppTests run in client.yml.
+# Unsigned Xcode builds of both apps: ExtensionApp with its system extension
+# (which embeds hipreport), and HelperApp with albi-helper. Signing,
+# installing and approving happen on a real Mac. AlbiAppTests and
+# HelperBackendTests run in client.yml.
 on:
   push:
     branches: [main]
@@ -34,11 +35,11 @@ jobs:
         working-directory: Apps
       # The runner's SDK may be older than the app's macOS 27 floor. Both
       # schemes share DerivedData, so the package builds once.
-      - name: Build Albi (unsigned)
+      - name: Build ExtensionApp (unsigned)
         working-directory: Apps
         run: |
           status=0
-          xcodebuild -project Albi.xcodeproj -scheme Albi -configuration Debug \
+          xcodebuild -project Albi.xcodeproj -scheme ExtensionApp -configuration Debug \
             -destination 'generic/platform=macOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
             build > build.log 2>&1 || status=$?
@@ -47,12 +48,12 @@ jobs:
           echo "== errors and warnings"
           grep -E ': (error|warning): ' build.log | sort -u || true
           exit $status
-      - name: Build AlbiMenu (unsigned)
+      - name: Build HelperApp (unsigned)
         if: ${{ !cancelled() }}
         working-directory: Apps
         run: |
           status=0
-          xcodebuild -project Albi.xcodeproj -scheme AlbiMenu -configuration Debug \
+          xcodebuild -project Albi.xcodeproj -scheme HelperApp -configuration Debug \
             -destination 'generic/platform=macOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
             build > build.log 2>&1 || status=$?
@@ -67,7 +68,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           status=0
-          for app in Albi "Albi Menu"; do
+          for app in "Albi Extension" Albi; do
             dir=$(find ~/Library/Developer/Xcode/DerivedData -path "*/Build/Products/Debug/$app.app" -maxdepth 5 | head -1)
             echo "== $app: $dir"
             /usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$dir/Contents/Info.plist" || status=1

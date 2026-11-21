@@ -7,7 +7,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.github.njvack.albi.helper</string>
+	<string>com.github.njvack.albi.helper.daemon</string>
 	<key>BundleProgram</key>
 	<string>Contents/MacOS/albi-helper</string>
 	<key>ProgramArguments</key>
@@ -17,7 +17,7 @@
 	</array>
 	<key>MachServices</key>
 	<dict>
-		<key>com.github.njvack.albi.helper</key>
+		<key>com.github.njvack.albi.helper.daemon</key>
 		<true/>
 	</dict>
 	<key>RunAtLoad</key>
@@ -26,7 +26,7 @@
 	<true/>
 	<key>AssociatedBundleIdentifiers</key>
 	<array>
-		<string>com.github.njvack.albi.menu</string>
+		<string>com.github.njvack.albi.helper</string>
 	</array>
 </dict>
 </plist>

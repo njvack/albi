@@ -1,4 +1,11 @@
-# Xcode project for the app and its packet tunnel system extension.
+# Xcode project for Albi's two builds. Both are the same menu-bar app
+# (AlbiApp in the Swift package); they differ in where the tunnel runs:
+#
+#   Extension: ExtensionApp + ExtensionTunnel, a packet tunnel system
+#     extension. Needs a paid Developer ID team. Sources in Extension/.
+#   Helper: HelperApp + albi-helper, a root LaunchDaemon the app registers
+#     with SMAppService. No paid team needed. Sources in Helper/.
+#
 # Generate with: cd Apps && xcodegen generate
 name: Albi
 options:
@@ -26,11 +33,11 @@ settings:
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "Developer ID Application"
 targets:
-  Albi:
+  ExtensionApp:
     type: application
     platform: macOS
     # Shared: the app icon and menu-bar glyphs.
-    sources: [Albi, Shared]
+    sources: [Extension/App, Shared]
     dependencies:
       - package: Albi
         product: GPCore
@@ -38,21 +45,21 @@ targets:
         product: GPMac
       - package: Albi
         product: Diagnostics
-      - target: AlbiTunnel
+      - target: ExtensionTunnel
         embed: true
         codeSign: true
         copy:
           destination: wrapper
           subpath: Contents/Library/SystemExtensions
     info:
-      path: Albi/Info.plist
+      path: Extension/App/Info.plist
       properties:
         CFBundleDisplayName: Albi
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "27.0"
         AlbiTunnelBundleIdentifier: $(ALBI_BUNDLE_ID_PREFIX).tunnel
     entitlements:
-      path: Albi/Albi.entitlements
+      path: Extension/App/ExtensionApp.entitlements
       properties:
         com.apple.developer.system-extension.install: true
         com.apple.developer.networking.networkextension: [packet-tunnel-provider-systemextension]
@@ -60,14 +67,15 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX)
-        PRODUCT_NAME: Albi
+        # Not "Albi": both apps build into one DerivedData folder.
+        PRODUCT_NAME: Albi Extension
         PROVISIONING_PROFILE_SPECIFIER: $(ALBI_APP_PROFILE)
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-  AlbiTunnel:
+  ExtensionTunnel:
     type: system-extension
     platform: macOS
     sources:
-      - AlbiTunnel
+      - Extension/Tunnel
       # hipreport's built-in checks, in Contents/Resources/Library. The
       # extension's signature seals them; hipreport verifies it first.
       - path: ../Sources/HIPCore/Library
@@ -91,7 +99,7 @@ targets:
         copy:
           destination: executables
     info:
-      path: AlbiTunnel/Info.plist
+      path: Extension/Tunnel/Info.plist
       properties:
         CFBundleDisplayName: Albi Tunnel
         LSMinimumSystemVersion: "27.0"
@@ -100,7 +108,7 @@ targets:
           NEProviderClasses:
             com.apple.networkextension.packet-tunnel: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
     entitlements:
-      path: AlbiTunnel/AlbiTunnel.entitlements
+      path: Extension/Tunnel/ExtensionTunnel.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
@@ -111,7 +119,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).tunnel
         PRODUCT_NAME: $(ALBI_BUNDLE_ID_PREFIX).tunnel
-        PRODUCT_MODULE_NAME: AlbiTunnel
+        PRODUCT_MODULE_NAME: ExtensionTunnel
         PROVISIONING_PROFILE_SPECIFIER: $(ALBI_TUNNEL_PROFILE)
   hipreport:
     type: tool
@@ -123,7 +131,7 @@ targets:
         product: HIPCore
     entitlements:
       # A child of a sandboxed process must be sandboxed and inherit its sandbox.
-      path: hipreport/hipreport.entitlements
+      path: Extension/hipreport/hipreport.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.inherit: true
@@ -132,29 +140,29 @@ targets:
         PRODUCT_NAME: hipreport
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport
         SKIP_INSTALL: YES
-  AlbiMenu:
-    # The menu-bar app. Its tunnel runs in albi-helper, a root LaunchDaemon
-    # in Contents/MacOS that the app registers with SMAppService from
+  HelperApp:
+    # The app whose tunnel runs in albi-helper, a root LaunchDaemon in
+    # Contents/MacOS that the app registers with SMAppService from
     # Contents/Library/LaunchDaemons; no paid team needed. Signs ad hoc by
-    # default; set ALBI_MENU_SIGN_IDENTITY and ALBI_MENU_TEAM in
+    # default; set ALBI_HELPER_SIGN_IDENTITY and ALBI_HELPER_TEAM in
     # Signing.xcconfig to sign with a free Apple Development certificate,
     # which keeps the helper's launchd registration valid across rebuilds.
     type: application
     platform: macOS
     sources:
-      - AlbiMenu
+      - Helper/App
       # The app icon and menu-bar glyphs.
       - Shared
       # hipreport's built-in checks, in Contents/Resources/Library.
       - path: ../Sources/HIPCore/Library
         type: folder
         buildPhase: resources
-      - path: AlbiHelper/com.github.njvack.albi.helper.plist
+      - path: Helper/launchd/com.github.njvack.albi.helper.daemon.plist
         buildPhase:
           copyFiles:
             destination: wrapper
             subpath: Contents/Library/LaunchDaemons
-      - path: AlbiHelper/com.github.njvack.albi.menu.plist
+      - path: Helper/launchd/com.github.njvack.albi.helper.login.plist
         buildPhase:
           copyFiles:
             destination: wrapper
@@ -162,6 +170,8 @@ targets:
     dependencies:
       - package: Albi
         product: AlbiApp
+      - package: Albi
+        product: HelperBackend
       - target: albi-helper
         embed: true
         codeSign: true
@@ -173,7 +183,7 @@ targets:
         copy:
           destination: executables
     info:
-      path: AlbiMenu/Info.plist
+      path: Helper/App/Info.plist
       properties:
         CFBundleDisplayName: Albi
         LSApplicationCategoryType: public.app-category.utilities
@@ -181,12 +191,12 @@ targets:
         LSUIElement: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).menu
-        PRODUCT_NAME: Albi Menu
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).helper
+        PRODUCT_NAME: Albi
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
-        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
+        CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
         ENABLE_HARDENED_RUNTIME: NO
   albi-helper:
     # The root LaunchDaemon. Signed with the app's identity: launchd
@@ -207,11 +217,11 @@ targets:
     settings:
       base:
         PRODUCT_NAME: albi-helper
-        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).helper
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).helper.daemon
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
-        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
+        CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
         ENABLE_HARDENED_RUNTIME: NO
   albi-hipreport:
     # hipreport for the helper to run as root: the same program as the
@@ -227,9 +237,9 @@ targets:
     settings:
       base:
         PRODUCT_NAME: albi-hipreport
-        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport-root
+        PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).helper.hipreport
         SKIP_INSTALL: YES
         CODE_SIGN_STYLE: Automatic
-        CODE_SIGN_IDENTITY: $(ALBI_MENU_SIGN_IDENTITY)
-        DEVELOPMENT_TEAM: $(ALBI_MENU_TEAM)
+        CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
+        DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
         ENABLE_HARDENED_RUNTIME: NO

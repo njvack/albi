@@ -6,12 +6,14 @@ on:
     paths: &paths
       - 'Sources/AlbiConstants/**'
       - 'Tests/AlbiConstantsTests/**'
-      - 'Apps/AlbiHelper/*.plist'
+      - 'Apps/Helper/launchd/*.plist'
+      - 'Apps/project.yml'
       - 'Sources/GPCore/**'
       - 'Sources/GPMac/**'
       - 'Sources/GPCapture/**'
       - 'Sources/Diagnostics/**'
       - 'Sources/AlbiApp/**'
+      - 'Sources/HelperBackend/**'
       - 'Sources/albi-cli/**'
       - 'Sources/albi-diag/**'
       - 'Sources/gp-capture/**'
@@ -21,6 +23,7 @@ on:
       - 'Tests/GPCaptureTests/**'
       - 'Tests/DiagnosticsTests/**'
       - 'Tests/AlbiAppTests/**'
+      - 'Tests/HelperBackendTests/**'
       - 'e2e/client.sh'
       - 'e2e/capture.sh'
       - 'e2e/diagnostics.sh'
@@ -61,7 +64,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
-      - run: swift test --filter 'AlbiConstantsTests|GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests'
+      - run: swift test --filter 'AlbiConstantsTests|GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests|HelperBackendTests'
 
   e2e:
     # Against gp-fake-gateway: albi-cli (userspace ping through the tunnel,
