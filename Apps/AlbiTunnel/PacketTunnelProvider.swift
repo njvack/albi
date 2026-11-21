@@ -18,6 +18,10 @@ private let log = Logger(subsystem: AlbiIDs.logSubsystem, category: "tunnel")
 /// provider's mutable state lives in `state`, behind a mutex. That is what
 /// makes it safe to share; it is `@unchecked` only because
 /// NEPacketTunnelProvider itself isn't Sendable.
+///
+/// NetworkExtension lets its completion handlers be called from any thread,
+/// but the SDK doesn't mark them @Sendable, so each override that finishes in
+/// a Task first copies its handler into a `nonisolated(unsafe)` local.
 final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
     private struct State {
         var controller: TunnelController?
@@ -64,6 +68,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             })
         state.withLock { $0.controller = controller }
 
+        nonisolated(unsafe) let completionHandler = completionHandler
         Task {
             do {
                 try await controller.start()
@@ -97,6 +102,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
 
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         log.info("stopping (reason \(reason.rawValue))")
+        nonisolated(unsafe) let completionHandler = completionHandler
         Task {
             await controller?.stop()
             completionHandler()
@@ -104,6 +110,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
     }
 
     override func sleep(completionHandler: @escaping () -> Void) {
+        nonisolated(unsafe) let completionHandler = completionHandler
         Task {
             await controller?.sleep()
             completionHandler()
@@ -119,6 +126,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             completionHandler?(nil)
             return
         }
+        nonisolated(unsafe) let completionHandler = completionHandler
         Task {
             if let report = req.hipReport {
                 await hip.answer(report: report)
