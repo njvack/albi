@@ -37,20 +37,30 @@ jobs:
       - name: Build Albi (unsigned)
         working-directory: Apps
         run: |
+          status=0
           xcodebuild -project Albi.xcodeproj -scheme Albi -configuration Debug \
             -destination 'generic/platform=macOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
-            build | tail -100
-          exit "${PIPESTATUS[0]}"
+            build > build.log 2>&1 || status=$?
+          tail -100 build.log
+          # The tail can miss errors from targets that finished earlier.
+          echo "== errors and warnings"
+          grep -E ': (error|warning): ' build.log | sort -u || true
+          exit $status
       - name: Build AlbiMenu (unsigned)
         if: ${{ !cancelled() }}
         working-directory: Apps
         run: |
+          status=0
           xcodebuild -project Albi.xcodeproj -scheme AlbiMenu -configuration Debug \
             -destination 'generic/platform=macOS' \
             CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY= MACOSX_DEPLOYMENT_TARGET="$(xcrun --sdk macosx --show-sdk-version)" \
-            build | tail -100
-          exit "${PIPESTATUS[0]}"
+            build > build.log 2>&1 || status=$?
+          tail -100 build.log
+          # The tail can miss errors from targets that finished earlier.
+          echo "== errors and warnings"
+          grep -E ': (error|warning): ' build.log | sort -u || true
+          exit $status
       # A misfiled AppIcon.icon builds fine and ships no icon, so look for
       # it in each app's compiled asset catalog.
       - name: Check app icons

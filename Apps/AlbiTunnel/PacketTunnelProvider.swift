@@ -5,23 +5,33 @@ import GPCore
 import GPMac
 import NetworkExtension
 import os
+import Synchronization
 
 private let log = Logger(subsystem: AlbiIDs.logSubsystem, category: "tunnel")
 
 /// The packet tunnel. `TunnelController` logs in (or reuses a saved cookie)
 /// and runs the session; macOS owns routes and DNS, which go away when this
 /// process does.
-final class PacketTunnelProvider: NEPacketTunnelProvider {
-    private var controller: TunnelController?
+///
+/// NetworkExtension calls the overrides on its own queue, while
+/// TunnelController's events and the Tasks here run elsewhere, so the
+/// provider's mutable state lives in `state`, behind a mutex. That is what
+/// makes it safe to share; it is `@unchecked` only because
+/// NEPacketTunnelProvider itself isn't Sendable.
+final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
+    private struct State {
+        var controller: TunnelController?
+        var lastProbe: ProviderMessage.HIPProbe?
+        var connectedOnce = false
+        var lastState: SessionState = .idle
+    }
+    private let state = Mutex(State())
+    private var controller: TunnelController? { state.withLock { $0.controller } }
+
     private let hip = HIPBridge()
     /// hipreport inside this extension's bundle (Contents/MacOS), out of
     /// the user's reach. Used when the profile sets `bundledHIP`.
     private let bundledHIP = BundledHIP()
-    private let probeLock = NSLock()
-    private var lastProbe: ProviderMessage.HIPProbe?
-    private var connectedOnce = false
-    private var lastState: SessionState = .idle
-    private let stateLock = NSLock()
 
     /// Secrets live in the System keychain: this process runs as root.
     private let keychain = KeychainStore(service: AlbiIDs.tunnelKeychainService)
@@ -52,7 +62,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
                 default: break
                 }
             })
-        self.controller = controller
+        state.withLock { $0.controller = controller }
 
         Task {
             do {
@@ -68,10 +78,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     }
 
     private func stateChanged(_ s: SessionState) {
-        stateLock.withLock { lastState = s }
+        let connectedOnce = state.withLock { st in
+            st.lastState = s
+            if case .connected = s { st.connectedOnce = true }
+            return st.connectedOnce
+        }
         switch s {
         case .connected:
-            connectedOnce = true
             reasserting = false
         case .connecting, .reconnecting, .waitingForNetwork, .reauthenticating:
             if connectedOnce { reasserting = true }
@@ -120,15 +133,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
             if req.probeBundledHIP == true {
                 let p = await bundledHIP.probe()
                 log.notice("bundled hipreport probe: \(p.summary, privacy: .public) stderr: \(p.stderrHead ?? "", privacy: .public)")
-                probeLock.withLock { lastProbe = p }
+                state.withLock { $0.lastProbe = p }
             }
-            let state = stateLock.withLock { lastState }
+            let (sessionState, lastProbe) = state.withLock { ($0.lastState, $0.lastProbe) }
             let snap = await controller?.snapshot()
-            var status = ProviderMessage.Status(state: "\(state)", gateway: snap?.gateway, ipv4: snap?.settings?.ipv4Address,
+            var status = ProviderMessage.Status(state: "\(sessionState)", gateway: snap?.gateway, ipv4: snap?.settings?.ipv4Address,
                                                 hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
                                                 lastIncident: snap?.lastIncident,
                                                 diagnosticsEnabled: controller?.configuration.diagnostics.enabled)
-            status.hipProbe = probeLock.withLock { lastProbe }
+            status.hipProbe = lastProbe
             completionHandler?(try? JSONEncoder().encode(status))
         }
     }

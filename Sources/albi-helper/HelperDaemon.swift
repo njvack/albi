@@ -60,7 +60,9 @@ enum HelperDaemon {
     }
 }
 
-final class ListenerDelegate: NSObject, NSXPCListenerDelegate {
+// The listener delegate and the exported object hold only the HelperCore
+// actor, so they are Sendable and their Tasks can capture them.
+final class ListenerDelegate: NSObject, NSXPCListenerDelegate, Sendable {
     let core: HelperCore
 
     init(core: HelperCore) { self.core = core }
@@ -91,7 +93,7 @@ final class HelperClient: @unchecked Sendable, Hashable {
     func hash(into h: inout Hasher) { h.combine(ObjectIdentifier(self)) }
 }
 
-final class Exported: NSObject, AlbiHelperXPC {
+final class Exported: NSObject, AlbiHelperXPC, Sendable {
     let core: HelperCore
     init(core: HelperCore) { self.core = core }
 
