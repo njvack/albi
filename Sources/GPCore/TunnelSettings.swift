@@ -125,7 +125,8 @@ public struct TunnelSettings: Equatable, Sendable {
     static func parseIPv6Route(_ s: String) -> IPv6Route? {
         let parts = s.trimmingXMLWhitespace().split(separator: "/", omittingEmptySubsequences: false)
         guard parts.count <= 2, !parts[0].isEmpty,
-              parts[0].allSatisfy({ $0.isHexDigit || $0 == ":" || $0 == "." }) else { return nil }
+            parts[0].allSatisfy({ $0.isHexDigit || $0 == ":" || $0 == "." })
+        else { return nil }
         var len = 128
         if parts.count == 2 {
             guard let n = Int(parts[1]), (0...128).contains(n) else { return nil }

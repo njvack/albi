@@ -15,11 +15,13 @@ struct ExtensionApp: App {
     private let demo: MockVPNService?
 
     init() {
-        let wantsDemo = UserDefaults.standard.bool(forKey: "demo") || ProcessInfo.processInfo.environment["ALBI_DEMO"] == "1"
+        let wantsDemo =
+            UserDefaults.standard.bool(forKey: "demo") || ProcessInfo.processInfo.environment["ALBI_DEMO"] == "1"
         let demo = wantsDemo ? MockVPNService.demo() : nil
         self.demo = demo
         let service: any VPNService = demo ?? ExtensionVPNService()
-        _model = State(initialValue: AppModel(service: service, notifier: UserNotifier(), loginItem: MainAppLoginItem()))
+        _model = State(
+            initialValue: AppModel(service: service, notifier: UserNotifier(), loginItem: MainAppLoginItem()))
     }
 
     var body: some Scene {

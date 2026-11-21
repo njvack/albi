@@ -13,25 +13,25 @@
 //   albi-helper version
 
 #if os(macOS)
-import Foundation
-import GPMac
+    import Foundation
+    import GPMac
 
-let args = Array(CommandLine.arguments.dropFirst())
-switch args.first {
-case nil, "run":
-    guard getuid() == 0 else {
-        FileHandle.standardError.write(Data("albi-helper: the daemon runs as root, from launchd\n".utf8))
+    let args = Array(CommandLine.arguments.dropFirst())
+    switch args.first {
+    case nil, "run":
+        guard getuid() == 0 else {
+            FileHandle.standardError.write(Data("albi-helper: the daemon runs as root, from launchd\n".utf8))
+            exit(1)
+        }
+        HelperDaemon.main()
+    case "status":
+        HelperStatusCommand.run()
+    case "version":
+        print("albi-helper protocol \(AlbiHelper.protocolVersion) build \(HelperDaemon.build)")
+    default:
+        FileHandle.standardError.write(Data("usage: albi-helper [run | status | version]\n".utf8))
         exit(1)
     }
-    HelperDaemon.main()
-case "status":
-    HelperStatusCommand.run()
-case "version":
-    print("albi-helper protocol \(AlbiHelper.protocolVersion) build \(HelperDaemon.build)")
-default:
-    FileHandle.standardError.write(Data("usage: albi-helper [run | status | version]\n".utf8))
-    exit(1)
-}
 #else
-print("albi-helper needs macOS")
+    print("albi-helper needs macOS")
 #endif

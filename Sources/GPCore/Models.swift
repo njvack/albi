@@ -46,7 +46,8 @@ public struct PortalConfig: Equatable, Sendable {
         let list = x.child("gateways")?.child("external")?.child("list")
         gateways = (list?.children("entry") ?? []).compactMap { e in
             guard let name = e.attributes["name"], !name.isEmpty else { return nil }
-            let prio = e.child("priority-rule")?.child("entry")?.value("priority").flatMap { Int($0) }
+            let prio =
+                e.child("priority-rule")?.child("entry")?.value("priority").flatMap { Int($0) }
                 ?? e.value("priority").flatMap { Int($0) }
             return Gateway(address: name, description: e.value("description"), priority: prio)
         }
@@ -65,8 +66,10 @@ public struct AuthCookie: Codable, Equatable, Sendable {
     public var preferredIPv6: String?
     public var computer: String
 
-    public init(authcookie: String, portal: String?, user: String, domain: String?,
-                preferredIP: String? = nil, preferredIPv6: String? = nil, computer: String) {
+    public init(
+        authcookie: String, portal: String?, user: String, domain: String?,
+        preferredIP: String? = nil, preferredIPv6: String? = nil, computer: String
+    ) {
         self.authcookie = authcookie
         self.portal = portal
         self.user = user
@@ -92,9 +95,10 @@ public struct AuthCookie: Codable, Equatable, Sendable {
         if let ct = arg(12), ct != "tunnel" {
             throw .malformed("login response connection-type is \(ct), not tunnel")
         }
-        self.init(authcookie: Form.unescape(cookie), portal: arg(3).map(Form.unescape), user: user,
-                  domain: arg(7).map(Form.unescape), preferredIP: arg(15).map(Form.unescape),
-                  preferredIPv6: arg(18).map(Form.unescape), computer: computer)
+        self.init(
+            authcookie: Form.unescape(cookie), portal: arg(3).map(Form.unescape), user: user,
+            domain: arg(7).map(Form.unescape), preferredIP: arg(15).map(Form.unescape),
+            preferredIPv6: arg(18).map(Form.unescape), computer: computer)
     }
 
     /// The fields in openconnect's order, as sent with getconfig, HIP and logout.

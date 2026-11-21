@@ -23,33 +23,45 @@ public struct CategoryDef: Sendable {
 public let customPlist = "custom-plist"
 
 public let categories: [CategoryDef] = [
-    CategoryDef(name: "anti-malware", fields: [
-        FieldDef(name: "version", required: true),
-        FieldDef(name: "defver"),
-        FieldDef(name: "engver"),
-        FieldDef(name: "updated", epoch: true),
-        FieldDef(name: "real-time-protection", required: true),
-        FieldDef(name: "last-full-scan-time", defaultValue: "n/a"),
-    ]),
-    CategoryDef(name: "disk-backup", fields: [
-        FieldDef(name: "version", required: true),
-        FieldDef(name: "last-backup-time", defaultValue: "n/a"),
-    ]),
-    CategoryDef(name: "disk-encryption", fields: [
-        FieldDef(name: "version", required: true),
-        FieldDef(name: "drives", required: true, drives: true),
-    ]),
-    CategoryDef(name: "firewall", fields: [
-        FieldDef(name: "version", required: true),
-        FieldDef(name: "is-enabled", required: true),
-    ]),
-    CategoryDef(name: "patch-management", fields: [
-        FieldDef(name: "version", required: true),
-        FieldDef(name: "is-enabled", required: true),
-    ]),
-    CategoryDef(name: "data-loss-prevention", fields: [
-        FieldDef(name: "version", required: true),
-    ]),
+    CategoryDef(
+        name: "anti-malware",
+        fields: [
+            FieldDef(name: "version", required: true),
+            FieldDef(name: "defver"),
+            FieldDef(name: "engver"),
+            FieldDef(name: "updated", epoch: true),
+            FieldDef(name: "real-time-protection", required: true),
+            FieldDef(name: "last-full-scan-time", defaultValue: "n/a"),
+        ]),
+    CategoryDef(
+        name: "disk-backup",
+        fields: [
+            FieldDef(name: "version", required: true),
+            FieldDef(name: "last-backup-time", defaultValue: "n/a"),
+        ]),
+    CategoryDef(
+        name: "disk-encryption",
+        fields: [
+            FieldDef(name: "version", required: true),
+            FieldDef(name: "drives", required: true, drives: true),
+        ]),
+    CategoryDef(
+        name: "firewall",
+        fields: [
+            FieldDef(name: "version", required: true),
+            FieldDef(name: "is-enabled", required: true),
+        ]),
+    CategoryDef(
+        name: "patch-management",
+        fields: [
+            FieldDef(name: "version", required: true),
+            FieldDef(name: "is-enabled", required: true),
+        ]),
+    CategoryDef(
+        name: "data-loss-prevention",
+        fields: [
+            FieldDef(name: "version", required: true)
+        ]),
 ]
 
 public func category(named name: String) -> CategoryDef? { categories.first { $0.name == name } }

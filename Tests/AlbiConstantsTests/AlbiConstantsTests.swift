@@ -46,14 +46,19 @@ import Testing
     }
 
     @Test func idsShareThePrefix() {
-        for id in [AlbiIDs.helperLabel, AlbiIDs.helperLoginAgentLabel, AlbiIDs.helperKeychainService, AlbiIDs.tunnelKeychainService] {
+        for id in [
+            AlbiIDs.helperLabel, AlbiIDs.helperLoginAgentLabel, AlbiIDs.helperKeychainService,
+            AlbiIDs.tunnelKeychainService,
+        ] {
             #expect(id.hasPrefix(AlbiIDs.logSubsystem + "."), "\(id)")
         }
     }
 
     @Test func pathsLiveInTheSupportDirectory() {
-        let files = [AlbiPaths.checksDirectory, AlbiPaths.diagnosticsDirectory, AlbiPaths.helperJournal,
-                     AlbiPaths.profiles, AlbiPaths.helperState]
+        let files = [
+            AlbiPaths.checksDirectory, AlbiPaths.diagnosticsDirectory, AlbiPaths.helperJournal,
+            AlbiPaths.profiles, AlbiPaths.helperState,
+        ]
         for f in files {
             #expect(f.hasPrefix(AlbiPaths.supportDirectory + "/"), "\(f)")
             #expect(!f.dropFirst(AlbiPaths.supportDirectory.count + 1).contains("/"), "\(f)")

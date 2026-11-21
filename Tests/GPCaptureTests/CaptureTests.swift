@@ -19,11 +19,15 @@ struct LogBuilder {
     mutating func event(_ s: String) { lines.append(ts() + s) }
     mutating func bare(_ s: String) { lines.append(s) }
 
-    mutating func exchange(_ target: String, method: String = "POST", host: String, body: String = "",
-                           status: String = "HTTP/1.1 200 OK", headers: [String] = [], response: String?) {
+    mutating func exchange(
+        _ target: String, method: String = "POST", host: String, body: String = "",
+        status: String = "HTTP/1.1 200 OK", headers: [String] = [], response: String?
+    ) {
         event("\(method) https://\(host)\(target.split(separator: "?").first!)")
-        for l in ["\(method) \(target) HTTP/1.1", "Host: \(host)", "User-Agent: PAN GlobalProtect",
-                  "Content-Type: application/x-www-form-urlencoded", "Content-Length: \(body.utf8.count)", ""] {
+        for l in [
+            "\(method) \(target) HTTP/1.1", "Host: \(host)", "User-Agent: PAN GlobalProtect",
+            "Content-Type: application/x-www-form-urlencoded", "Content-Length: \(body.utf8.count)", "",
+        ] {
             lines.append(ts() + "> " + l)
         }
         if !body.isEmpty { lines.append(ts() + "> " + body) }
@@ -49,73 +53,88 @@ let authKey = "ffeeddccbbaa99887766554433221100aabbccdd"
 let password = "Hunter2-correct-horse"
 
 let portalConfig = """
-<?xml version="1.0" encoding="UTF-8" ?>
-<policy><portal-name>ACME-Portal</portal-name><version>6.2.8-1045</version>
-<portal-userauthcookie>\(portalCookie)</portal-userauthcookie>
-<user-email>jdoe@acme-u.edu</user-email>
-<root-ca><entry name="ACME Root"><cert>-----BEGIN CERTIFICATE-----
-MIIBszCCAVmgAwIBAgIUQ2k
------END CERTIFICATE-----</cert></entry></root-ca>
-<gateways><external><list>
-<entry name="\(gatewayHost)"><priority-rule><entry name="Any"><priority>1</priority></entry></priority-rule><description>ACME East</description></entry>
-<entry name="gw-west.vpn.acme-u.edu"><description>ACME West</description></entry>
-</list></external></gateways>
-<hip-collection><hip-report-interval>3600</hip-report-interval></hip-collection>
-<welcome-page><page>Questions? Call the ACME-U help desk at 608-555-1234 or see https://it.acme-u.edu/vpn</page></welcome-page>
-</policy>
-"""
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <policy><portal-name>ACME-Portal</portal-name><version>6.2.8-1045</version>
+    <portal-userauthcookie>\(portalCookie)</portal-userauthcookie>
+    <user-email>jdoe@acme-u.edu</user-email>
+    <root-ca><entry name="ACME Root"><cert>-----BEGIN CERTIFICATE-----
+    MIIBszCCAVmgAwIBAgIUQ2k
+    -----END CERTIFICATE-----</cert></entry></root-ca>
+    <gateways><external><list>
+    <entry name="\(gatewayHost)"><priority-rule><entry name="Any"><priority>1</priority></entry></priority-rule><description>ACME East</description></entry>
+    <entry name="gw-west.vpn.acme-u.edu"><description>ACME West</description></entry>
+    </list></external></gateways>
+    <hip-collection><hip-report-interval>3600</hip-report-interval></hip-collection>
+    <welcome-page><page>Questions? Call the ACME-U help desk at 608-555-1234 or see https://it.acme-u.edu/vpn</page></welcome-page>
+    </policy>
+    """
 
 let jnlp = """
-<?xml version="1.0" encoding="utf-8"?><jnlp><application-desc><argument>(null)</argument><argument>\(cookie)</argument><argument>\(persistent)</argument><argument>ACME-Portal</argument><argument>jdoe</argument><argument>ACME-LDAP</argument><argument>vsys1</argument><argument>ACMEDOM</argument><argument>(null)</argument><argument></argument><argument></argument><argument></argument><argument>tunnel</argument><argument>-1</argument><argument>4100</argument><argument>10.140.7.23</argument><argument></argument><argument></argument><argument>2607:f388:1000:7::23</argument><argument>4</argument><argument>unknown</argument></application-desc></jnlp>
-"""
+    <?xml version="1.0" encoding="utf-8"?><jnlp><application-desc><argument>(null)</argument><argument>\(cookie)</argument><argument>\(persistent)</argument><argument>ACME-Portal</argument><argument>jdoe</argument><argument>ACME-LDAP</argument><argument>vsys1</argument><argument>ACMEDOM</argument><argument>(null)</argument><argument></argument><argument></argument><argument></argument><argument>tunnel</argument><argument>-1</argument><argument>4100</argument><argument>10.140.7.23</argument><argument></argument><argument></argument><argument>2607:f388:1000:7::23</argument><argument>4</argument><argument>unknown</argument></application-desc></jnlp>
+    """
 
 let gatewayConfig = """
-<response><need-tunnel>yes</need-tunnel><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><portal>ACME-Portal</portal><user>jdoe</user><lifetime>43200</lifetime><timeout>7200</timeout><disconnect-on-idle>3600</disconnect-on-idle><ip-address>10.140.7.23</ip-address><netmask>255.255.255.255</netmask><ip-address-v6>2607:f388:1000:7::23</ip-address-v6><dns><member>10.140.0.53</member><member>128.104.254.254</member></dns><dns-suffix><member>ad.acme-u.edu</member><member>acme-u.edu</member></dns-suffix><mtu>0</mtu><access-routes><member>10.140.0.0/16</member><member>128.104.0.0/16</member><member>144.92.0.0/16</member></access-routes><access-routes-v6><member>2607:f388::/32</member></access-routes-v6><exclude-access-routes><member>128.104.30.0/24</member></exclude-access-routes><gw-address>128.104.30.40</gw-address><ipsec><udp-port>4501</udp-port><ipsec-mode>esp-tunnel</ipsec-mode><enc-algo>aes-128-cbc</enc-algo><hmac-algo>sha1</hmac-algo><c2s-spi>0x8E3A12F4</c2s-spi><s2c-spi>0x1B2C3D4E</s2c-spi><akey-s2c><bits>160</bits><val>\(authKey)</val></akey-s2c><ekey-s2c><bits>128</bits><val>\(encKey)</val></ekey-s2c><akey-c2s><bits>160</bits><val>\(authKey)</val></akey-c2s><ekey-c2s><bits>128</bits><val>\(encKey)</val></ekey-c2s></ipsec></response>
-"""
+    <response><need-tunnel>yes</need-tunnel><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><portal>ACME-Portal</portal><user>jdoe</user><lifetime>43200</lifetime><timeout>7200</timeout><disconnect-on-idle>3600</disconnect-on-idle><ip-address>10.140.7.23</ip-address><netmask>255.255.255.255</netmask><ip-address-v6>2607:f388:1000:7::23</ip-address-v6><dns><member>10.140.0.53</member><member>128.104.254.254</member></dns><dns-suffix><member>ad.acme-u.edu</member><member>acme-u.edu</member></dns-suffix><mtu>0</mtu><access-routes><member>10.140.0.0/16</member><member>128.104.0.0/16</member><member>144.92.0.0/16</member></access-routes><access-routes-v6><member>2607:f388::/32</member></access-routes-v6><exclude-access-routes><member>128.104.30.0/24</member></exclude-access-routes><gw-address>128.104.30.40</gw-address><ipsec><udp-port>4501</udp-port><ipsec-mode>esp-tunnel</ipsec-mode><enc-algo>aes-128-cbc</enc-algo><hmac-algo>sha1</hmac-algo><c2s-spi>0x8E3A12F4</c2s-spi><s2c-spi>0x1B2C3D4E</s2c-spi><akey-s2c><bits>160</bits><val>\(authKey)</val></akey-s2c><ekey-s2c><bits>128</bits><val>\(encKey)</val></ekey-s2c><akey-c2s><bits>160</bits><val>\(authKey)</val></akey-c2s><ekey-c2s><bits>128</bits><val>\(encKey)</val></ekey-c2s></ipsec></response>
+    """
 
 let hipReport = """
-<?xml version="1.0" encoding="UTF-8"?>
-<hip-report>
-  <md5-sum>d41d8cd98f00b204e9800998ecf8427e</md5-sum>
-  <user-name>jdoe</user-name>
-  <domain>ACMEDOM</domain>
-  <host-name>jdoes-mbp</host-name>
-  <host-id>a4:83:e7:12:34:56</host-id>
-  <ip-address>10.140.7.23</ip-address>
-  <categories><entry name="host-info">
-    <serial-number>C02XK1ZZJG5H</serial-number>
-    <network-interface><entry name="en0"><description>en0</description><mac-address>a4:83:e7:12:34:56</mac-address>
-    <ip-address><entry name="192.168.86.31"/></ip-address></entry></network-interface>
-  </entry></categories>
-</hip-report>
-"""
+    <?xml version="1.0" encoding="UTF-8"?>
+    <hip-report>
+      <md5-sum>d41d8cd98f00b204e9800998ecf8427e</md5-sum>
+      <user-name>jdoe</user-name>
+      <domain>ACMEDOM</domain>
+      <host-name>jdoes-mbp</host-name>
+      <host-id>a4:83:e7:12:34:56</host-id>
+      <ip-address>10.140.7.23</ip-address>
+      <categories><entry name="host-info">
+        <serial-number>C02XK1ZZJG5H</serial-number>
+        <network-interface><entry name="en0"><description>en0</description><mac-address>a4:83:e7:12:34:56</mac-address>
+        <ip-address><entry name="192.168.86.31"/></ip-address></entry></network-interface>
+      </entry></categories>
+    </hip-report>
+    """
 
 func sampleLog() -> String {
     var b = LogBuilder()
     b.event("OpenConnect version v9.12")
-    let form = "jnlpReady=jnlpReady&ok=Login&direct=yes&clientVer=4100&prot=https:&internal=no&ipv6-support=yes&clientos=Mac&os-version=mac-intel&server=\(portalHost)&computer=jdoes-mbp"
-    b.exchange("/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac", host: portalHost, body: "cas-support=yes",
-               response: "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<prelogin-response>\n<status>Success</status>\n<username-label>ACME NetID</username-label>\n<password-label>Password</password-label>\n<panos-version>1</panos-version>\n</prelogin-response>")
-    b.exchange("/global-protect/getconfig.esp", host: portalHost,
-               body: form + "&user=jdoe&passwd=" + Form.escape(password),
-               headers: ["Set-Cookie: PHPSESSID=7d1f00aa77bb; path=/"], response: portalConfig)
+    let form =
+        "jnlpReady=jnlpReady&ok=Login&direct=yes&clientVer=4100&prot=https:&internal=no&ipv6-support=yes&clientos=Mac&os-version=mac-intel&server=\(portalHost)&computer=jdoes-mbp"
+    b.exchange(
+        "/global-protect/prelogin.esp?tmp=tmp&clientVer=4100&clientos=Mac", host: portalHost, body: "cas-support=yes",
+        response:
+            "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<prelogin-response>\n<status>Success</status>\n<username-label>ACME NetID</username-label>\n<password-label>Password</password-label>\n<panos-version>1</panos-version>\n</prelogin-response>"
+    )
+    b.exchange(
+        "/global-protect/getconfig.esp", host: portalHost,
+        body: form + "&user=jdoe&passwd=" + Form.escape(password),
+        headers: ["Set-Cookie: PHPSESSID=7d1f00aa77bb; path=/"], response: portalConfig)
     b.event("  ACME East (\(gatewayHost)) [priority 1]")
-    b.exchange("/ssl-vpn/login.esp", host: gatewayHost,
-               body: form.replacingOccurrences(of: portalHost, with: gatewayHost) + "&portal-userauthcookie=" + Form.escape(portalCookie) + "&user=jdoe&passwd=" + Form.escape(password),
-               response: "<challenge><user>jdoe</user><inputstr>\(inputStr)</inputstr><respmsg>Duo Push to XXX-XXX-4321</respmsg></challenge>")
+    b.exchange(
+        "/ssl-vpn/login.esp", host: gatewayHost,
+        body: form.replacingOccurrences(of: portalHost, with: gatewayHost) + "&portal-userauthcookie="
+            + Form.escape(portalCookie) + "&user=jdoe&passwd=" + Form.escape(password),
+        response:
+            "<challenge><user>jdoe</user><inputstr>\(inputStr)</inputstr><respmsg>Duo Push to XXX-XXX-4321</respmsg></challenge>"
+    )
     b.bare("Challenge: ")
-    b.exchange("/ssl-vpn/login.esp", host: gatewayHost,
-               body: form + "&inputStr=\(inputStr)&user=jdoe&passwd=1", response: jnlp)
+    b.exchange(
+        "/ssl-vpn/login.esp", host: gatewayHost,
+        body: form + "&inputStr=\(inputStr)&user=jdoe&passwd=1", response: jnlp)
     b.event("GlobalProtect login returned authentication-source=ACME-LDAP")
-    let auth = "authcookie=\(cookie)&portal=ACME-Portal&user=jdoe&domain=ACMEDOM&preferred-ip=10.140.7.23&preferred-ipv6=2607%3af388%3a1000%3a7%3a%3a23&computer=jdoes-mbp"
-    b.exchange("/ssl-vpn/getconfig.esp", host: gatewayHost, body: "client-type=1&protocol-version=p1&" + auth, response: gatewayConfig)
+    let auth =
+        "authcookie=\(cookie)&portal=ACME-Portal&user=jdoe&domain=ACMEDOM&preferred-ip=10.140.7.23&preferred-ipv6=2607%3af388%3a1000%3a7%3a%3a23&computer=jdoes-mbp"
+    b.exchange(
+        "/ssl-vpn/getconfig.esp", host: gatewayHost, body: "client-type=1&protocol-version=p1&" + auth,
+        response: gatewayConfig)
     b.event("ESP encryption type AES-128-CBC (RFC3602) key 0x\(encKey)")
-    b.exchange("/ssl-vpn/hipreportcheck.esp", host: gatewayHost,
-               body: "client-role=global-protect-full&" + auth + "&client-ip=10.140.7.23&md5=d41d8cd98f00b204e9800998ecf8427e",
-               response: "<response status=\"success\"><hip-report-needed>yes</hip-report-needed></response>")
-    b.exchange("/ssl-vpn/hipreport.esp", host: gatewayHost,
-               body: "client-role=global-protect-full&" + auth + "&client-ip=10.140.7.23&report=" + Form.escape(hipReport),
-               response: "<response status=\"success\"/>")
+    b.exchange(
+        "/ssl-vpn/hipreportcheck.esp", host: gatewayHost,
+        body: "client-role=global-protect-full&" + auth + "&client-ip=10.140.7.23&md5=d41d8cd98f00b204e9800998ecf8427e",
+        response: "<response status=\"success\"><hip-report-needed>yes</hip-report-needed></response>")
+    b.exchange(
+        "/ssl-vpn/hipreport.esp", host: gatewayHost,
+        body: "client-role=global-protect-full&" + auth + "&client-ip=10.140.7.23&report=" + Form.escape(hipReport),
+        response: "<response status=\"success\"/>")
     b.lines.append(b.ts() + "> GET /ssl-tunnel-connect.sslvpn?authcookie=\(cookie)&user=jdoe HTTP/1.1")
     b.lines.append(b.ts() + "> ")
     b.event("ESP session to 128.104.30.40 port 4501 established")
@@ -129,10 +148,11 @@ func sampleLog() -> String {
 @Suite struct LogTests {
     @Test func splitsExchanges() {
         let log = CaptureLog(parsing: sampleLog())
-        #expect(log.exchanges.map(\.label) == [
-            "portal-prelogin", "portal-getconfig", "gateway-login", "gateway-login", "gateway-getconfig",
-            "gateway-hipreportcheck", "gateway-hipreport", "tunnel-connect", "gateway-logout",
-        ])
+        #expect(
+            log.exchanges.map(\.label) == [
+                "portal-prelogin", "portal-getconfig", "gateway-login", "gateway-login", "gateway-getconfig",
+                "gateway-hipreportcheck", "gateway-hipreport", "tunnel-connect", "gateway-logout",
+            ])
         let pre = log.exchanges[0]
         #expect(pre.host == portalHost)
         #expect(pre.requestBody == "cas-support=yes")
@@ -164,9 +184,11 @@ func sampleLog() -> String {
     @Test func nothingIdentifyingRemains() {
         let all = everything
         let decoded = Form.unescape(all)
-        for secret in [cookie, persistent, portalCookie, inputStr, encKey, authKey, password, "jdoe", "acme", "ACME",
-                       "10.140", "128.104", "144.92", "2607:f388", "192.168.86.31", "a4:83:e7", "C02XK1ZZJG5H",
-                       "d41d8cd98f00b204e9800998ecf8427e", "MIIBszCC", "608-555-1234", "4321", "8E3A12F4", "7d1f00aa77bb"] {
+        for secret in [
+            cookie, persistent, portalCookie, inputStr, encKey, authKey, password, "jdoe", "acme", "ACME",
+            "10.140", "128.104", "144.92", "2607:f388", "192.168.86.31", "a4:83:e7", "C02XK1ZZJG5H",
+            "d41d8cd98f00b204e9800998ecf8427e", "MIIBszCC", "608-555-1234", "4321", "8E3A12F4", "7d1f00aa77bb",
+        ] {
             #expect(!all.contains(secret), "\(secret) left in fixtures")
             #expect(!decoded.contains(secret), "\(secret) left in decoded fixtures")
         }
@@ -193,7 +215,8 @@ func sampleLog() -> String {
 
         let gc = try GatewayConfig(#require(XMLElement.parse(file("05-gateway-getconfig.response.xml"))))
         #expect(gc.lifetime == 43200 && gc.rekeyTimeout == 7200 && gc.idleTimeout == 3600)
-        #expect(gc.dnsSuffixes == ["example.test", "example2.test"] || gc.dnsSuffixes == ["example2.test", "example.test"])
+        #expect(
+            gc.dnsSuffixes == ["example.test", "example2.test"] || gc.dnsSuffixes == ["example2.test", "example.test"])
         let esp = try #require(gc.esp)
         #expect(esp.c2sEncKey.count == 16 && esp.c2sAuthKey.count == 20)
         #expect(esp.c2sSPI != nil && esp.c2sSPI != 0x8E3A12F4)
@@ -213,7 +236,8 @@ func sampleLog() -> String {
         // The excluded subnet and the gateway stay inside their /16.
         let gwNet = gc.accessRoutes[1].split(separator: ".").prefix(2)
         #expect(gc.excludeRoutes[0].split(separator: ".").prefix(2) == gwNet)
-        #expect(gc.gatewayAddress?.split(separator: ".").prefix(3) == gc.excludeRoutes[0].split(separator: ".").prefix(3))
+        #expect(
+            gc.gatewayAddress?.split(separator: ".").prefix(3) == gc.excludeRoutes[0].split(separator: ".").prefix(3))
         #expect(gc.netmask == "255.255.255.255")
         let v6 = try #require(gc.ipv6)
         #expect(v6.hasPrefix("2001:db8:"))

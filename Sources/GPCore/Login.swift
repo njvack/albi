@@ -76,9 +76,11 @@ public struct Login: Sendable {
     /// How many times to ask again after a rejected password.
     public var maxPasswordRetries = 2
 
-    public init(transport: any HTTPTransport, credentials: any CredentialProvider, client: ClientInfo,
-                username: String? = nil,
-                chooseGateway: @escaping @Sendable ([PortalConfig.Gateway]) -> PortalConfig.Gateway = Login.defaultGateway) {
+    public init(
+        transport: any HTTPTransport, credentials: any CredentialProvider, client: ClientInfo,
+        username: String? = nil,
+        chooseGateway: @escaping @Sendable ([PortalConfig.Gateway]) -> PortalConfig.Gateway = Login.defaultGateway
+    ) {
         self.transport = transport
         self.credentials = credentials
         self.client = client
@@ -128,12 +130,15 @@ public struct Login: Sendable {
 
     /// prelogin, then the login form, answering challenges, until the server
     /// returns a document.
-    func authenticate(_ iface: Requests.Interface, server: String, portal: PortalConfig?,
-                      state: inout FlowState) async throws -> XMLElement {
+    func authenticate(
+        _ iface: Requests.Interface, server: String, portal: PortalConfig?,
+        state: inout FlowState
+    ) async throws -> XMLElement {
         let pre = try await send(Requests.prelogin(iface, client: client), to: server)
         let form = try Prelogin(Reply.document(status: pre.status, body: pre.body))
         if let saml = form.samlMethod {
-            throw GPError.server("\(iface == .portal ? "portal" : "gateway") wants SAML (\(saml)), which is not supported")
+            throw GPError.server(
+                "\(iface == .portal ? "portal" : "gateway") wants SAML (\(saml)), which is not supported")
         }
         if state.username == nil {
             state.username = try await credentials.answer(.username(label: form.usernameLabel, message: form.message))
@@ -146,8 +151,9 @@ public struct Login: Sendable {
                 state.password = try await credentials.answer(
                     .password(label: form.passwordLabel, message: form.message, server: server, retry: retry))
             }
-            var req = Requests.login(iface, client: client, server: server, user: user, password: state.password!,
-                                     portalCookies: portal)
+            var req = Requests.login(
+                iface, client: client, server: server, user: user, password: state.password!,
+                portalCookies: portal)
             do {
                 while true {
                     let resp = try await send(req, to: server)
@@ -156,8 +162,9 @@ public struct Login: Sendable {
                         return d
                     case .challenge(let prompt, let inputStr):
                         let answer = try await credentials.answer(.challenge(message: prompt))
-                        req = Requests.login(iface, client: client, server: server, user: user, password: answer,
-                                             inputStr: inputStr, portalCookies: portal)
+                        req = Requests.login(
+                            iface, client: client, server: server, user: user, password: answer,
+                            inputStr: inputStr, portalCookies: portal)
                     }
                 }
             } catch GPError.badCredentials(let msg) {

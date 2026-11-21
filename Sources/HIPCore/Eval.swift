@@ -133,7 +133,8 @@ public final class Env {
             let r = run(p.argv, timeout: TimeInterval(p.timeout))
             for m in p.map {
                 if let re = try? NSRegularExpression(pattern: m.match),
-                   re.firstMatch(in: r.stdout, range: NSRange(r.stdout.startIndex..., in: r.stdout)) != nil {
+                    re.firstMatch(in: r.stdout, range: NSRange(r.stdout.startIndex..., in: r.stdout)) != nil
+                {
                     return result(m.value)
                 }
             }
@@ -179,8 +180,9 @@ public final class Env {
     /// not installed.
     public func evaluate(_ c: Check) -> Product? {
         for path in c.whenExists where !exists(path) { return nil }
-        var p = Product(id: c.id, source: c.source, trusted: c.trusted, category: c.category,
-                        vendor: c.vendor, name: c.name, fields: [:], plist: nil)
+        var p = Product(
+            id: c.id, source: c.source, trusted: c.trusted, category: c.category,
+            vendor: c.vendor, name: c.name, fields: [:], plist: nil)
         if c.category == customPlist {
             p.plist = customPlistResult(c)
             return p
@@ -304,5 +306,5 @@ let privilegedFacts: [String: @Sendable (Env) -> (String, String?)] = [
         if r.stdout.contains("Status: Enabled") { return ("yes", nil) }
         if r.stdout.contains("Status: Disabled") { return ("no", nil) }
         return (notAvailable, "pfctl gave no status")
-    },
+    }
 ]

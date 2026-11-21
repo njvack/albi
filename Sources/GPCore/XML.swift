@@ -202,7 +202,9 @@ private struct XMLParserState {
         let start = i
         while i < b.count {
             let c = b[i]
-            if isSpace(c) || c == UInt8(ascii: ">") || c == UInt8(ascii: "/") || c == UInt8(ascii: "=") || c == UInt8(ascii: "<") {
+            if isSpace(c) || c == UInt8(ascii: ">") || c == UInt8(ascii: "/") || c == UInt8(ascii: "=")
+                || c == UInt8(ascii: "<")
+            {
                 break
             }
             i += 1
@@ -229,7 +231,9 @@ func decodeEntities(_ bytes: ArraySlice<UInt8>) -> String {
             case "quot": decoded = "\""
             case "apos": decoded = "'"
             default:
-                if ent.hasPrefix("#x") || ent.hasPrefix("#X"), let v = UInt32(ent.dropFirst(2), radix: 16), let u = Unicode.Scalar(v) {
+                if ent.hasPrefix("#x") || ent.hasPrefix("#X"), let v = UInt32(ent.dropFirst(2), radix: 16),
+                    let u = Unicode.Scalar(v)
+                {
                     decoded = String(Character(u))
                 } else if ent.hasPrefix("#"), let v = UInt32(ent.dropFirst()), let u = Unicode.Scalar(v) {
                     decoded = String(Character(u))

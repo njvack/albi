@@ -62,7 +62,8 @@ public struct Redactor {
         for x in log.exchanges {
             if let h = x.host { learnHost(h) }
             if let q = x.query { learnForm(q) }
-            if x.requestHeaders.contains(where: { $0.name.lowercased() == "content-type" && $0.value.contains("form") }) {
+            if x.requestHeaders.contains(where: { $0.name.lowercased() == "content-type" && $0.value.contains("form") })
+            {
                 learnForm(x.requestBody)
             }
             if let b = x.responseBody, let doc = XMLElement.parse(b) { learnXML(doc) }
@@ -241,7 +242,8 @@ public struct Redactor {
         let labels = host.lowercased().split(separator: ".").map(String.init)
         guard labels.count > 2 else { return labels.joined(separator: ".") }
         let tld = labels[labels.count - 1], second = labels[labels.count - 2]
-        let take = tld.count == 2 && ["co", "ac", "edu", "gov", "org", "net", "com", "or", "ne", "go"].contains(second) ? 3 : 2
+        let take =
+            tld.count == 2 && ["co", "ac", "edu", "gov", "org", "net", "com", "or", "ne", "go"].contains(second) ? 3 : 2
         return labels.suffix(take).joined(separator: ".")
     }
 
@@ -299,7 +301,9 @@ public struct Redactor {
         encoded.split(separator: "&", omittingEmptySubsequences: false).map { piece -> String in
             guard let eq = piece.firstIndex(of: "=") else { return redact(String(piece)) }
             let key = String(piece[..<eq]), value = String(piece[piece.index(after: eq)...])
-            if ["passwd", "password"].contains(key.lowercased()) { return value.isEmpty ? String(piece) : key + "=REDACTED" }
+            if ["passwd", "password"].contains(key.lowercased()) {
+                return value.isEmpty ? String(piece) : key + "=REDACTED"
+            }
             let decoded = Form.unescape(value)
             let red = redact(decoded)
             return key + "=" + (red == decoded ? value : Form.escape(red))
@@ -345,7 +349,9 @@ public struct Redactor {
         let bytes = Array(text.utf8)
         var found: [String] = []
         for l in literals.values where l.original.count >= 3 {
-            let hit = l.kind == .secret ? text.contains(l.original)
+            let hit =
+                l.kind == .secret
+                ? text.contains(l.original)
                 : Self.find(Array(l.original.utf8), in: bytes, caseInsensitive: true)
             if hit {
                 found.append("\(l.kind.rawValue) shown as \(l.fake)")
@@ -401,7 +407,8 @@ public struct Redactor {
             let atStart = i == 0 || !Self.isWordByte(b[i - 1])
             for n in needles where i + n.needle.count <= b.count && (atStart || !n.ci) {
                 if Self.matches(n.needle, b, at: i, ci: n.ci),
-                   !n.ci || i + n.needle.count == b.count || !Self.isWordByte(b[i + n.needle.count]) {
+                    !n.ci || i + n.needle.count == b.count || !Self.isWordByte(b[i + n.needle.count])
+                {
                     out.append(contentsOf: n.fake.utf8)
                     i += n.needle.count
                     continue outer
@@ -463,7 +470,10 @@ public struct Redactor {
 
     mutating func replaceHosts(_ s: String) -> String {
         guard !domains.isEmpty else { return s }
-        return Self.regexReplace(s, #"(?<![A-Za-z0-9.-])([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.[A-Za-z]{2,}(?![A-Za-z0-9-])"#) { m in
+        return Self.regexReplace(
+            s,
+            #"(?<![A-Za-z0-9.-])([A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)*[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.[A-Za-z]{2,}(?![A-Za-z0-9-])"#
+        ) { m in
             let h = m.lowercased()
             guard let d = domains.first(where: { h == $0 || h.hasSuffix("." + $0) }) else { return m }
             if h == d { return domainFakes[d]! }
@@ -496,7 +506,9 @@ public struct Redactor {
     }
 
     mutating func replaceMACs(_ s: String) -> String {
-        Self.regexReplace(s, #"(?<![0-9A-Fa-f:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![0-9A-Fa-f:-])"#) { m in
+        Self.regexReplace(
+            s, #"(?<![0-9A-Fa-f:-])[0-9A-Fa-f]{2}([:-])[0-9A-Fa-f]{2}(?:\1[0-9A-Fa-f]{2}){4}(?![0-9A-Fa-f:-])"#
+        ) { m in
             let key = m.lowercased().replacingOccurrences(of: "-", with: ":")
             if key == "00:00:00:00:00:00" || key == "ff:ff:ff:ff:ff:ff" { return m }
             let sep = m.contains("-") ? "-" : ":"
@@ -517,7 +529,9 @@ public struct Redactor {
 
     static func replacePhones(_ s: String) -> String {
         var s = regexReplace(s, #"(?i)(?<=x{3}-x{3}-)[0-9]{4}"#) { _ in "0000" }
-        s = regexReplace(s, #"(?<![0-9A-Za-z.:-])\(?[0-9]{3}\)?[-. ][0-9]{3}[-.][0-9]{4}(?![0-9A-Za-z.:-])"#) { _ in "555-555-0100" }
+        s = regexReplace(s, #"(?<![0-9A-Za-z.:-])\(?[0-9]{3}\)?[-. ][0-9]{3}[-.][0-9]{4}(?![0-9A-Za-z.:-])"#) { _ in
+            "555-555-0100"
+        }
         return s
     }
 
@@ -604,7 +618,8 @@ struct IPv4Map {
         var table = children[key] ?? [:]
         if let m = table[v] { return m }
         let used = Set(table.values)
-        let next = pool.first { !used.contains($0) && $0 != 0 && $0 != 255 } ?? (1...254).first { !used.contains($0) } ?? v
+        let next =
+            pool.first { !used.contains($0) && $0 != 0 && $0 != 255 } ?? (1...254).first { !used.contains($0) } ?? v
         table[v] = next
         children[key] = table
         return next
@@ -656,7 +671,9 @@ struct IPv6Map {
                 while j < 8 && g[j] == 0 { j += 1 }
                 if j - i > best.len { best = (i, j - i) }
                 i = j
-            } else { i += 1 }
+            } else {
+                i += 1
+            }
         }
         let hex = g.map { String($0, radix: 16) }
         if best.len < 2 { return hex.joined(separator: ":") }
@@ -673,9 +690,13 @@ struct IPv6Map {
         var key = ""
         for (i, v) in g.enumerated() {
             if i == 0 {
-                if (0xfe80...0xfebf).contains(v) { out.append(0xfe80) }
-                else if (0xfc00...0xfdff).contains(v) { out.append(0xfd00) }
-                else { out.append(0x2001) }
+                if (0xfe80...0xfebf).contains(v) {
+                    out.append(0xfe80)
+                } else if (0xfc00...0xfdff).contains(v) {
+                    out.append(0xfd00)
+                } else {
+                    out.append(0x2001)
+                }
             } else if i == 1 && out[0] == 0x2001 {
                 out.append(0xdb8)
             } else if v == 0 || v == 0xffff {

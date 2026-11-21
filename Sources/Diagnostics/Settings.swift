@@ -32,7 +32,8 @@ public struct DiagnosticsSettings: Codable, Equatable, Sendable {
 
     public init?(providerConfiguration: [String: Any]?) {
         guard let d = providerConfiguration?[Self.key] as? Data,
-              let s = try? JSONDecoder().decode(Self.self, from: d) else { return nil }
+            let s = try? JSONDecoder().decode(Self.self, from: d)
+        else { return nil }
         self = s
     }
 

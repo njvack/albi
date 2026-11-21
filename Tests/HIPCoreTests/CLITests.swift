@@ -7,8 +7,11 @@ import Testing
 
     /// openconnect's exact wrapper invocation, plus an option it might add one day.
     @Test func wrapperMode() {
-        let r = runCLI(["--cookie", "user=nate&domain=D&computer=c", "--client-ip", "10.99.0.2",
-                        "--md5", "feedface", "--client-os", "Mac", "--future-option", "x"] + base)
+        let r = runCLI(
+            [
+                "--cookie", "user=nate&domain=D&computer=c", "--client-ip", "10.99.0.2",
+                "--md5", "feedface", "--client-os", "Mac", "--future-option", "x",
+            ] + base)
         #expect(r.code == 0, "\(r.err)")
         #expect(r.err.contains("ignoring unknown option --future-option"))
         #expect(r.out.hasPrefix("<?xml"))
@@ -49,7 +52,9 @@ import Testing
     @Test func devChecksAreMarkedUntrusted() {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        write(dir, "x.toml", """
+        write(
+            dir, "x.toml",
+            """
             category = "firewall"
             vendor = "Objective Development"
             name = "Little Snitch"
@@ -65,7 +70,9 @@ import Testing
     @Test func checkPolicy() throws {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        write(dir, "policy.toml", """
+        write(
+            dir, "policy.toml",
+            """
             [[require]]
             category = "disk-encryption"
             field = "drive:All"
@@ -93,14 +100,18 @@ import Testing
         #expect(r.code == 0, "\(r.out)\(r.err)")
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        write(dir, "bad.toml", """
+        write(
+            dir, "bad.toml",
+            """
             category = "anti-malware"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
             """)
-        r = runCLI(["lint", "--no-builtin", "--checks-dir", "/nonexistent", dir.appendingPathComponent("bad.toml").path])
+        r = runCLI([
+            "lint", "--no-builtin", "--checks-dir", "/nonexistent", dir.appendingPathComponent("bad.toml").path,
+        ])
         #expect(r.code == 1)
         #expect(r.err.contains("real-time-protection"))
     }

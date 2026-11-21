@@ -67,8 +67,10 @@ public struct Policy: Sendable {
         require.map { q in
             var pass = false
             var detail: [String] = []
-            for p in products where p.category == q.category
-                && (q.vendor.isEmpty || p.vendor == q.vendor) && (q.name.isEmpty || p.name == q.name) {
+            for p in products
+            where p.category == q.category
+                && (q.vendor.isEmpty || p.vendor == q.vendor) && (q.name.isEmpty || p.name == q.name)
+            {
                 let label = (p.vendor + " " + p.name).trimmingCharacters(in: .whitespaces)
                 if q.field.isEmpty {
                     pass = true
@@ -92,7 +94,9 @@ public struct Policy: Sendable {
     private func fieldValue(_ p: Product, _ field: String) -> Value? {
         if field.hasPrefix("drive:") {
             let name = String(field.dropFirst("drive:".count))
-            guard let d = p.fields["drives"], let drive = d.drives?.first(where: { $0.name == name }) else { return nil }
+            guard let d = p.fields["drives"], let drive = d.drives?.first(where: { $0.name == name }) else {
+                return nil
+            }
             return Value(drive.state, how: d.how)
         }
         return p.fields[field]
@@ -103,10 +107,15 @@ extension Policy.Requirement {
     var summary: String {
         if !description.isEmpty { return description }
         var s = [category, vendor, name, field].filter { !$0.isEmpty }.joined(separator: " ")
-        if !equals.isEmpty { s += " = " + equals }
-        else if !matches.isEmpty { s += " ~ " + matches }
-        else if !minVersion.isEmpty { s += " >= " + minVersion }
-        else { s += " present" }
+        if !equals.isEmpty {
+            s += " = " + equals
+        } else if !matches.isEmpty {
+            s += " ~ " + matches
+        } else if !minVersion.isEmpty {
+            s += " >= " + minVersion
+        } else {
+            s += " present"
+        }
         return s
     }
 

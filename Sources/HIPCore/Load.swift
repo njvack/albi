@@ -72,7 +72,8 @@ func loadSource(_ sys: System, _ src: Source) -> ([Check], [CheckError]) {
                 errs.append(e)
                 continue
             }
-            files.append((rel, full, FileManager.default.contents(atPath: full).map { String(decoding: $0, as: UTF8.self) }))
+            files.append(
+                (rel, full, FileManager.default.contents(atPath: full).map { String(decoding: $0, as: UTF8.self) }))
         }
     } else {
         switch builtinLibraryURL() {

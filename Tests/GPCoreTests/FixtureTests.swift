@@ -33,7 +33,9 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
         let names = (try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? []
         return names.sorted().compactMap { name in
             let dir = root.appendingPathComponent(name)
-            guard let index = try? String(contentsOf: dir.appendingPathComponent("index.tsv"), encoding: .utf8) else { return nil }
+            guard let index = try? String(contentsOf: dir.appendingPathComponent("index.tsv"), encoding: .utf8) else {
+                return nil
+            }
             let rows = index.split(separator: "\n").filter { !$0.hasPrefix("#") }.map { line in
                 let f = line.split(separator: "\t", omittingEmptySubsequences: false).map(String.init)
                 return Row(n: f[0], method: f[1], target: f[2], status: Int(f[3]), label: f[4])
@@ -89,8 +91,9 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
     /// gateway accepted.
     @Test(arguments: CapturedConversation.all)
     func requestFieldsMatchOpenConnect(_ c: CapturedConversation) throws {
-        let cookie = AuthCookie(authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: "10.0.0.2",
-                                preferredIPv6: "fd00::2", computer: "computer1")
+        let cookie = AuthCookie(
+            authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: "10.0.0.2",
+            preferredIPv6: "fd00::2", computer: "computer1")
         func names(_ f: Form) -> Set<String> { Set(f.fields.map(\.name)) }
         // Optional fields that depend on the session, not on the client.
         let optional: Set<String> = ["preferred-ip", "preferred-ipv6", "client-ip", "client-ipv6", "portal", "domain"]
@@ -109,8 +112,10 @@ struct CapturedConversation: CustomTestStringConvertible, Sendable {
             default:
                 continue
             }
-            #expect(names(ours).subtracting(optional) == names(sent).subtracting(optional),
-                    "\(c.name) \(r.n)-\(r.label): albi sends \(names(ours).sorted()), openconnect sent \(names(sent).sorted())")
+            #expect(
+                names(ours).subtracting(optional) == names(sent).subtracting(optional),
+                "\(c.name) \(r.n)-\(r.label): albi sends \(names(ours).sorted()), openconnect sent \(names(sent).sorted())"
+            )
         }
     }
 }

@@ -13,9 +13,9 @@
 import Foundation
 import GPCapture
 #if canImport(Darwin)
-import Darwin
+    import Darwin
 #else
-import Glibc
+    import Glibc
 #endif
 
 let usage = """
@@ -105,7 +105,9 @@ func secret(_ label: String) -> String {
 }
 
 func findExecutable(_ name: String) -> String? {
-    let path = (ProcessInfo.processInfo.environment["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin"
+    let path =
+        (ProcessInfo.processInfo.environment["PATH"] ?? "")
+        + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin"
     for dir in path.split(separator: ":") {
         let p = "\(dir)/\(name)"
         if FileManager.default.isExecutableFile(atPath: p) { return p }
@@ -140,7 +142,8 @@ final class OutputCollector: @unchecked Sendable {
             let line = String(decoding: partial[partial.startIndex..<nl], as: UTF8.self)
             partial.removeSubrange(partial.startIndex...nl)
             if line.contains("Configured as ") || line.contains("ESP session established")
-                || line.contains("ESP tunnel connected") {
+                || line.contains("ESP tunnel connected")
+            {
                 tunnelUp = true
             }
             if Self.isQuiet(line) { continue }
@@ -164,8 +167,10 @@ final class OutputCollector: @unchecked Sendable {
         if l.hasPrefix("["), let close = l.firstIndex(of: "]") { l = l[l.index(after: close)...].drop { $0 == " " } }
         if l.hasPrefix("> ") || l.hasPrefix("< ") || l == ">" || l == "<" { return true }
         if l.contains(" key 0x") { return true }
-        let chatter = ["Content-", "Date: ", "Set-Cookie", "HTTP body", "Server: ", "X-", "Cache-", "Connection: ",
-                       "Pragma", "Expires", "Strict-Transport", "Keep-Alive", "Transfer-Encoding", "ETag", "Vary"]
+        let chatter = [
+            "Content-", "Date: ", "Set-Cookie", "HTTP body", "Server: ", "X-", "Cache-", "Connection: ",
+            "Pragma", "Expires", "Strict-Transport", "Keep-Alive", "Transfer-Encoding", "ETag", "Vary",
+        ]
         return chatter.contains { l.hasPrefix($0) }
     }
 
@@ -195,7 +200,9 @@ enum PromptAnswer: Equatable { case user, password, secondFactor, unknown }
 /// Which of our answers an openconnect prompt wants.
 func classifyPrompt(_ prompt: String) -> PromptAnswer {
     let p = prompt.lowercased()
-    if ["challenge", "passcode", "otp", "token", "response"].contains(where: { p.contains($0) }) { return .secondFactor }
+    if ["challenge", "passcode", "otp", "token", "response"].contains(where: { p.contains($0) }) {
+        return .secondFactor
+    }
     if p.contains("password") || p.contains("passwd") { return .password }
     if p.contains("username") || p.contains("user name") || p.contains("login:") { return .user }
     return .unknown
@@ -244,7 +251,8 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
         process.executableURL = URL(fileURLWithPath: oc)
         process.arguments = args
     } else {
-        FileHandle.standardError.write(Data("openconnect needs root for its tun device; sudo may ask for your Mac password.\n".utf8))
+        FileHandle.standardError.write(
+            Data("openconnect needs root for its tun device; sudo may ask for your Mac password.\n".utf8))
         // Not Process: it starts the child in a new process group, so sudo
         // is not the terminal's foreground job and the password typed at its
         // prompt goes to the shell instead.
@@ -265,7 +273,8 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
 
     signal(SIGINT, onSignal)
     signal(SIGTERM, onSignal)
-    FileHandle.standardError.write(Data("Running openconnect (Ctrl-C ends the capture early; it still logs out).\n".utf8))
+    FileHandle.standardError.write(
+        Data("Running openconnect (Ctrl-C ends the capture early; it still logs out).\n".utf8))
     do { try process.run() } catch { fail("could not start openconnect: \(error)") }
     // Answer each prompt when openconnect shows it, and keep stdin open until
     // it exits. Writing everything up front and closing stdin was not enough:
@@ -291,7 +300,8 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
             if let answer, answered <= 8 {
                 try? stdin.fileHandleForWriting.write(contentsOf: Data((answer + "\n").utf8))
             } else {
-                let why = answer == nil
+                let why =
+                    answer == nil
                     ? "gp-capture cannot answer openconnect's prompt \"\(prompt.trimmingCharacters(in: .whitespaces))\"; if it is a gateway choice, pass --gateway."
                     : "openconnect keeps asking; the password or second-factor answer may be wrong."
                 FileHandle.standardError.write(Data("\(why)\n".utf8))
@@ -323,7 +333,8 @@ func runOpenConnect(_ o: Options, out: URL, rawDir: URL) -> (log: String, passwo
     signal(SIGTERM, SIG_DFL)
     let log = String(decoding: collector.contents, as: UTF8.self)
     let rawLog = rawDir.appendingPathComponent("openconnect.log")
-    _ = FileManager.default.createFile(atPath: rawLog.path, contents: Data(log.utf8), attributes: [.posixPermissions: 0o600])
+    _ = FileManager.default.createFile(
+        atPath: rawLog.path, contents: Data(log.utf8), attributes: [.posixPermissions: 0o600])
     FileHandle.standardError.write(Data("openconnect exited with status \(process.terminationStatus).\n".utf8))
     return (log, password)
 }
@@ -339,7 +350,8 @@ let out = URL(fileURLWithPath: opts.out ?? "gp-capture-\(stamp)")
 let rawDir = out.appendingPathComponent("raw")
 let fixturesDir = out.appendingPathComponent("fixtures")
 do {
-    try FileManager.default.createDirectory(at: rawDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+    try FileManager.default.createDirectory(
+        at: rawDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
 } catch { fail("cannot create \(rawDir.path): \(error)") }
 
 let logText: String
@@ -348,8 +360,9 @@ if let f = opts.fromLog {
     guard let d = FileManager.default.contents(atPath: f) else { fail("cannot read \(f)") }
     logText = String(decoding: d, as: UTF8.self)
     if FileManager.default.fileExists(atPath: rawDir.appendingPathComponent("openconnect.log").path) == false {
-        _ = FileManager.default.createFile(atPath: rawDir.appendingPathComponent("openconnect.log").path, contents: d,
-                                       attributes: [.posixPermissions: 0o600])
+        _ = FileManager.default.createFile(
+            atPath: rawDir.appendingPathComponent("openconnect.log").path, contents: d,
+            attributes: [.posixPermissions: 0o600])
     }
 } else {
     let r = runOpenConnect(opts, out: out, rawDir: rawDir)
@@ -365,8 +378,9 @@ redactor.learnLocal(account: sudoUser ?? NSUserName(), hostNames: [ProcessInfo.p
 let set = FixtureSet(log: log, redactor: redactor)
 do {
     try set.write(to: fixturesDir)
-    _ = FileManager.default.createFile(atPath: rawDir.appendingPathComponent("redactions.tsv").path,
-                                   contents: Data(set.redactor.report.utf8), attributes: [.posixPermissions: 0o600])
+    _ = FileManager.default.createFile(
+        atPath: rawDir.appendingPathComponent("redactions.tsv").path,
+        contents: Data(set.redactor.report.utf8), attributes: [.posixPermissions: 0o600])
 } catch { fail("cannot write fixtures: \(error)") }
 
 print(set.files.first { $0.name == "summary.txt" }!.contents)

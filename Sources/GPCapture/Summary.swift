@@ -26,8 +26,9 @@ public struct Summary {
 
         if let v = log.events.first(where: { $0.text.hasPrefix("OpenConnect version") }) { add(v.text) }
         if let first = log.exchanges.first?.time ?? log.events.first?.time,
-           let last = log.events.last?.time ?? log.exchanges.last?.time,
-           let d = Self.seconds(from: first, to: last) {
+            let last = log.events.last?.time ?? log.exchanges.last?.time,
+            let d = Self.seconds(from: first, to: last)
+        {
             add("Captured \(d) s of traffic")
         }
 
@@ -50,7 +51,9 @@ public struct Summary {
         add("")
         add("Gateway login")
         let logins = xs.filter { $0.label == "gateway-login" }
-        let challenges = logins.filter { $0.responseBody?.contains("<challenge") == true || $0.responseBody?.contains("Challenge") == true }
+        let challenges = logins.filter {
+            $0.responseBody?.contains("<challenge") == true || $0.responseBody?.contains("Challenge") == true
+        }
         add("  login requests: \(logins.count), second-factor challenges: \(challenges.count)")
         if let (_, jnlp) = docs("gateway-login").first(where: { $0.1.name == "jnlp" }) {
             let args = jnlp.child("application-desc")?.children("argument").map(\.trimmedText) ?? []
@@ -70,12 +73,16 @@ public struct Summary {
                 add("  mtu: \(doc.value("mtu") ?? "not sent")")
                 add("  IPv4 address: \(gc.ipv4 == nil ? "no" : "yes"), netmask \(gc.netmask ?? "none")")
                 add("  IPv6 address: \(gc.ipv6 == nil ? "no" : "yes")")
-                add("  access routes: \(gc.accessRoutes.count) (\(gc.accessRoutes.filter { $0.contains(":") }.count) IPv6)\(gc.accessRoutes.contains { $0.hasPrefix("0.0.0.0/0") } ? ", includes a default route" : "")")
+                add(
+                    "  access routes: \(gc.accessRoutes.count) (\(gc.accessRoutes.filter { $0.contains(":") }.count) IPv6)\(gc.accessRoutes.contains { $0.hasPrefix("0.0.0.0/0") } ? ", includes a default route" : "")"
+                )
                 add("  exclude routes: \(gc.excludeRoutes.count)")
                 add("  DNS servers: \(gc.dns.count), DNS suffixes: \(gc.dnsSuffixes.count)")
                 add("  quarantine: \(gc.quarantine ? "yes" : "no")")
                 if let esp = gc.esp {
-                    add("  ESP offered: yes, \(esp.encAlgo ?? "?") / \(esp.hmacAlgo ?? "?"), UDP port \(esp.udpPort.map(String.init) ?? "?")")
+                    add(
+                        "  ESP offered: yes, \(esp.encAlgo ?? "?") / \(esp.hmacAlgo ?? "?"), UDP port \(esp.udpPort.map(String.init) ?? "?")"
+                    )
                 } else {
                     add("  ESP offered: no")
                 }
@@ -99,7 +106,10 @@ public struct Summary {
             add("  ESP: no result in the log")
         }
         if let c = ev.first(where: { $0.hasPrefix("Configured as ") }) {
-            add("  " + c.replacingOccurrences(of: #"Configured as [^,]+,"#, with: "Configured,", options: .regularExpression))
+            add(
+                "  "
+                    + c.replacingOccurrences(
+                        of: #"Configured as [^,]+,"#, with: "Configured,", options: .regularExpression))
         }
         add("  tunnel connects: \(xs.filter { $0.label == "tunnel-connect" }.count)")
         let keepalives = ev.filter { $0.contains("DPD/keepalive request") }.count
@@ -115,8 +125,12 @@ public struct Summary {
         add("  hipreportcheck calls: \(xs.filter { $0.label == "gateway-hipreportcheck" }.count)")
         for (_, d) in checks { add("  hip-report-needed: \(d.value("hip-report-needed") ?? "?")") }
         let reports = xs.filter { $0.label == "gateway-hipreport" }
-        add("  hipreport submissions: \(reports.count), accepted: \(reports.filter { $0.responseBody?.contains("success") == true }.count)")
-        if let t = ev.first(where: { $0.contains("HIP report interval") || $0.contains("HIP report") && $0.contains("minutes") }) {
+        add(
+            "  hipreport submissions: \(reports.count), accepted: \(reports.filter { $0.responseBody?.contains("success") == true }.count)"
+        )
+        if let t = ev.first(where: {
+            $0.contains("HIP report interval") || $0.contains("HIP report") && $0.contains("minutes")
+        }) {
             add("  openconnect: \(t)")
         }
 

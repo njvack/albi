@@ -6,50 +6,62 @@ import Testing
     @Test func libraryIsValidAndOrdered() {
         let (set, errs) = loadChecks(FakeSystem(), [.builtin])
         #expect(errs.isEmpty, "\(messages(errs))")
-        #expect(set.checks.map { "\($0.category)/\($0.name)" } == [
-            "anti-malware/Xprotect", "anti-malware/Gatekeeper",
-            "disk-backup/Time Machine",
-            "disk-encryption/FileVault",
-            "firewall/Mac OS X Builtin Firewall", "firewall/Packet Filter",
-            "patch-management/Software Update",
-        ])
+        #expect(
+            set.checks.map { "\($0.category)/\($0.name)" } == [
+                "anti-malware/Xprotect", "anti-malware/Gatekeeper",
+                "disk-backup/Time Machine",
+                "disk-encryption/FileVault",
+                "firewall/Mac OS X Builtin Firewall", "firewall/Packet Filter",
+                "patch-management/Software Update",
+            ])
     }
 
     @Test func contribIsValidAndOrdered() {
         let (set, errs) = loadChecks(FakeSystem(), [.builtin, Source(dir: contribDir.path, dev: true)])
         #expect(errs.isEmpty, "\(messages(errs))")
-        #expect(set.checks.map { "\($0.category)/\($0.name)" } == [
-            "anti-malware/Xprotect", "anti-malware/Gatekeeper", "anti-malware/Cisco Secure Endpoint",
-            "disk-backup/Time Machine", "disk-backup/Google Drive",
-            "disk-encryption/FileVault",
-            "firewall/Mac OS X Builtin Firewall", "firewall/Packet Filter",
-            "patch-management/Software Update", "patch-management/Workspace ONE Intelligent Hub",
-            "patch-management/Qualys Cloud Security Agent", "patch-management/Microsoft AutoUpdate",
-            "custom-plist/",
-        ])
+        #expect(
+            set.checks.map { "\($0.category)/\($0.name)" } == [
+                "anti-malware/Xprotect", "anti-malware/Gatekeeper", "anti-malware/Cisco Secure Endpoint",
+                "disk-backup/Time Machine", "disk-backup/Google Drive",
+                "disk-encryption/FileVault",
+                "firewall/Mac OS X Builtin Firewall", "firewall/Packet Filter",
+                "patch-management/Software Update", "patch-management/Workspace ONE Intelligent Hub",
+                "patch-management/Qualys Cloud Security Agent", "patch-management/Microsoft AutoUpdate",
+                "custom-plist/",
+            ])
     }
 
     @Test func builtinLibraryIsFound() throws {
         let lib = try builtinLibraryURL().get()
-        #expect(FileManager.default.fileExists(atPath: lib.appendingPathComponent("disk-encryption/10-apple-filevault.toml").path))
+        #expect(
+            FileManager.default.fileExists(
+                atPath: lib.appendingPathComponent("disk-encryption/10-apple-filevault.toml").path))
     }
 }
 
 @Suite struct ValidateTests {
     static let cases: [(String, String, String)] = [
-        ("unknown category", """
+        (
+            "unknown category",
+            """
             category = "antivirus"
             vendor = "v"
             name = "n"
-            """, #"unknown category "antivirus""#),
-        ("missing required field", """
+            """, #"unknown category "antivirus""#
+        ),
+        (
+            "missing required field",
+            """
             category = "anti-malware"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
-            """, #"needs field "real-time-protection""#),
-        ("unknown field", """
+            """, #"needs field "real-time-protection""#
+        ),
+        (
+            "unknown field",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
@@ -57,64 +69,88 @@ import Testing
             version = { value = "1" }
             is-enabled = { value = "yes" }
             colour = { value = "red" }
-            """, #"no field "colour""#),
-        ("relative command", """
+            """, #"no field "colour""#
+        ),
+        (
+            "relative command",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
             is-enabled = { probe = "command", argv = ["pfctl"], map = [{ match = "x", value = "yes" }] }
-            """, "not an absolute path"),
-        ("bad regexp", """
+            """, "not an absolute path"
+        ),
+        (
+            "bad regexp",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
             is-enabled = { probe = "command", argv = ["/bin/x"], map = [{ match = "(", value = "yes" }] }
-            """, "invalid regular expression"),
-        ("missing param", """
+            """, "invalid regular expression"
+        ),
+        (
+            "missing param",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { probe = "bundle_version" }
             is-enabled = { value = "yes" }
-            """, "needs path"),
-        ("extra param", """
+            """, "needs path"
+        ),
+        (
+            "extra param",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { probe = "os_version", path = "/x" }
             is-enabled = { value = "yes" }
-            """, "does not take path"),
-        ("volumes on a string field", """
+            """, "does not take path"
+        ),
+        (
+            "volumes on a string field",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { probe = "volumes" }
             is-enabled = { value = "yes" }
-            """, "only fits a drives field"),
-        ("launchd without domain", """
+            """, "only fits a drives field"
+        ),
+        (
+            "launchd without domain",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
             is-enabled = { probe = "launchd", label = "com.example" }
-            """, "needs a domain"),
-        ("unknown fact", """
+            """, "needs a domain"
+        ),
+        (
+            "unknown fact",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
             [fields]
             version = { value = "1" }
             is-enabled = { probe = "privileged", fact = "sip.enabled" }
-            """, "unknown privileged fact"),
-        ("relative when", """
+            """, "unknown privileged fact"
+        ),
+        (
+            "relative when",
+            """
             category = "firewall"
             vendor = "v"
             name = "n"
@@ -122,11 +158,15 @@ import Testing
             [fields]
             version = { value = "1" }
             is-enabled = { value = "yes" }
-            """, "not an absolute path"),
-        ("custom plist without path", """
+            """, "not an absolute path"
+        ),
+        (
+            "custom plist without path",
+            """
             category = "custom-plist"
             keys = ["Label"]
-            """, "absolute path"),
+            """, "absolute path"
+        ),
     ]
 
     @Test(arguments: cases)
@@ -137,7 +177,8 @@ import Testing
 
     @Test func rejectsUnknownKeys() {
         #expect(throws: CheckError.self) {
-            try check("""
+            try check(
+                """
                 category = "firewall"
                 vendor = "v"
                 name = "n"
@@ -168,7 +209,9 @@ import Testing
     @Test func overridesDisablesAndSkipsBroken() {
         let dir = tempDir()
         defer { try? FileManager.default.removeItem(at: dir) }
-        write(dir, "anti-malware/20-apple-gatekeeper.toml", """
+        write(
+            dir, "anti-malware/20-apple-gatekeeper.toml",
+            """
             category = "anti-malware"
             vendor = "Apple Inc."
             name = "Gatekeeper (local)"
@@ -177,7 +220,9 @@ import Testing
             real-time-protection = { value = "yes" }
             """)
         write(dir, "disk-backup/10-apple-time-machine.toml", "disabled = true\n")
-        write(dir, "firewall/90-little-snitch.toml", """
+        write(
+            dir, "firewall/90-little-snitch.toml",
+            """
             category = "firewall"
             vendor = "Objective Development"
             name = "Little Snitch"
@@ -230,18 +275,24 @@ import Testing
         ("world writable file", [.init(path: dir + "/a.toml", mode: 0o666)], "writable by anyone"),
         ("group writable, admin", [.init(path: dir + "/a.toml", mode: 0o664, gid: 80)], "writable by group 80"),
         ("group writable, wheel", [.init(path: dir + "/a.toml", mode: 0o664, gid: 0)], ""),
-        ("symlink to user file", [
-            .init(path: dir + "/a.toml", mode: 0o777, symlink: "/Users/nate/a.toml"),
-            .init(path: "/Users", isDirectory: true, mode: 0o755),
-            .init(path: "/Users/nate", isDirectory: true, mode: 0o755, uid: 501),
-            .init(path: "/Users/nate/a.toml", uid: 501),
-        ], "/Users/nate"),
-        ("symlink to root file", [
-            .init(path: dir + "/a.toml", mode: 0o777, symlink: "/etc/albi/a.toml"),
-            .init(path: "/etc", isDirectory: true, mode: 0o755),
-            .init(path: "/etc/albi", isDirectory: true, mode: 0o755),
-            .init(path: "/etc/albi/a.toml"),
-        ], ""),
+        (
+            "symlink to user file",
+            [
+                .init(path: dir + "/a.toml", mode: 0o777, symlink: "/Users/nate/a.toml"),
+                .init(path: "/Users", isDirectory: true, mode: 0o755),
+                .init(path: "/Users/nate", isDirectory: true, mode: 0o755, uid: 501),
+                .init(path: "/Users/nate/a.toml", uid: 501),
+            ], "/Users/nate"
+        ),
+        (
+            "symlink to root file",
+            [
+                .init(path: dir + "/a.toml", mode: 0o777, symlink: "/etc/albi/a.toml"),
+                .init(path: "/etc", isDirectory: true, mode: 0o755),
+                .init(path: "/etc/albi", isDirectory: true, mode: 0o755),
+                .init(path: "/etc/albi/a.toml"),
+            ], ""
+        ),
     ]
 
     @Test(arguments: cases)

@@ -1,6 +1,6 @@
 import Foundation
 #if os(macOS)
-import Security
+    import Security
 #endif
 
 /// SwiftPM's name for HIPCore's resource bundle: PACKAGE_TARGET.
@@ -44,10 +44,13 @@ func builtinLibraryURL() -> Result<URL, CheckError> {
         }
     }
     #if DEBUG
-    let src = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Library")
-    if isDirectory(src) { return .success(src) }
+        let src = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Library")
+        if isDirectory(src) { return .success(src) }
     #endif
-    return .failure(CheckError("built-in check library not found (looked for \(resourceBundleName) next to \(dirs.first?.path ?? "the executable"))"))
+    return .failure(
+        CheckError(
+            "built-in check library not found (looked for \(resourceBundleName) next to \(dirs.first?.path ?? "the executable"))"
+        ))
 }
 
 private func isBundle(_ url: URL) -> Bool {
@@ -62,17 +65,18 @@ private func isDirectory(_ url: URL) -> Bool {
 /// Why the bundle's signature doesn't hold, or nil if it does.
 private func signatureError(_ bundle: URL) -> CheckError? {
     #if os(macOS)
-    var code: SecStaticCode?
-    guard SecStaticCodeCreateWithPath(bundle as CFURL, [], &code) == errSecSuccess, let code else {
-        return CheckError("\(bundle.path): cannot read its code signature; not loading the built-in checks")
-    }
-    let status = SecStaticCodeCheckValidity(code, [], nil)
-    guard status == errSecSuccess else {
-        let why = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
-        return CheckError("\(bundle.lastPathComponent) fails its code signature check (\(why)); not loading the built-in checks")
-    }
-    return nil
+        var code: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(bundle as CFURL, [], &code) == errSecSuccess, let code else {
+            return CheckError("\(bundle.path): cannot read its code signature; not loading the built-in checks")
+        }
+        let status = SecStaticCodeCheckValidity(code, [], nil)
+        guard status == errSecSuccess else {
+            let why = SecCopyErrorMessageString(status, nil) as String? ?? "OSStatus \(status)"
+            return CheckError(
+                "\(bundle.lastPathComponent) fails its code signature check (\(why)); not loading the built-in checks")
+        }
+        return nil
     #else
-    return nil
+        return nil
     #endif
 }

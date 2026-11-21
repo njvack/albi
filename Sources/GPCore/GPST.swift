@@ -23,8 +23,10 @@ public enum GPST {
     public static func encode(packet: [UInt8]) -> [UInt8] {
         let et = (packet.first ?? 0) >> 4 == 6 ? etherIPv6 : etherIPv4
         let n = UInt16(truncatingIfNeeded: packet.count)
-        var out: [UInt8] = [0x1a, 0x2b, 0x3c, 0x4d, UInt8(et >> 8), UInt8(et & 0xff), UInt8(n >> 8), UInt8(n & 0xff),
-                            1, 0, 0, 0, 0, 0, 0, 0]
+        var out: [UInt8] = [
+            0x1a, 0x2b, 0x3c, 0x4d, UInt8(et >> 8), UInt8(et & 0xff), UInt8(n >> 8), UInt8(n & 0xff),
+            1, 0, 0, 0, 0, 0, 0, 0,
+        ]
         out.reserveCapacity(headerLength + packet.count)
         out += packet
         return out
@@ -50,7 +52,9 @@ public enum GPST {
             let avail = buffer.count - start
             guard avail >= headerLength else { compact(); return nil }
             let h = start
-            let m = UInt32(buffer[h]) << 24 | UInt32(buffer[h + 1]) << 16 | UInt32(buffer[h + 2]) << 8 | UInt32(buffer[h + 3])
+            let m =
+                UInt32(buffer[h]) << 24 | UInt32(buffer[h + 1]) << 16 | UInt32(buffer[h + 2]) << 8
+                | UInt32(buffer[h + 3])
             guard m == magic else { throw .badMagic }
             let et = UInt16(buffer[h + 4]) << 8 | UInt16(buffer[h + 5])
             let n = Int(buffer[h + 6]) << 8 | Int(buffer[h + 7])
@@ -117,8 +121,9 @@ public enum GPST {
 
         /// Call when the connection ends before `feed` returned a result.
         public func closed() -> GPError {
-            buffer.isEmpty ? .server("gateway closed the connection after the tunnel request") :
-                .malformed("short tunnel response")
+            buffer.isEmpty
+                ? .server("gateway closed the connection after the tunnel request")
+                : .malformed("short tunnel response")
         }
     }
 }

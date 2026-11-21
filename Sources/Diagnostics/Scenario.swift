@@ -37,8 +37,10 @@ public enum ScenarioDraft {
                     if let m = c.mtu { config["mtu"] = m }
                 }
                 if kind == "hipreportcheck", body.contains("<hip-report-needed>yes") { hipNeeded = true }
-                var rule: [String: Any] = ["when": ["request": kind, "nth": n],
-                                           "_seen": "t=\(t) in the dump"]
+                var rule: [String: Any] = [
+                    "when": ["request": kind, "nth": n],
+                    "_seen": "t=\(t) in the dump",
+                ]
                 if let err = e["error"] as? String {
                     let lower = err.lowercased()
                     if lower.contains("timed out") || lower.contains("timeout") {
@@ -78,8 +80,10 @@ public enum ScenarioDraft {
                     // Closed by the gateway (EOF) or by the network (a read error).
                     if let open = tunnelOpenedAt {
                         let after = max(0, Int((t - open).rounded()))
-                        rules.append(["when": ["request": "tunnel", "nth": tunnelAttempt], "after": after,
-                                      "do": "drop_tunnel", "_seen": "tunnel \(tunnelAttempt) closed after \(after) s"])
+                        rules.append([
+                            "when": ["request": "tunnel", "nth": tunnelAttempt], "after": after,
+                            "do": "drop_tunnel", "_seen": "tunnel \(tunnelAttempt) closed after \(after) s",
+                        ])
                     }
                     tunnelOpenedAt = nil
                 default:
@@ -92,8 +96,10 @@ public enum ScenarioDraft {
                 if s.contains("dead peer"), let open = tunnelOpenedAt {
                     let silent = lastKeepaliveIn ?? open
                     let after = max(0, Int((silent - open).rounded()))
-                    rules.append(["when": ["request": "tunnel", "nth": tunnelAttempt], "after": after,
-                                  "do": "ignore_keepalive", "_seen": "no keepalive answers after \(after) s"])
+                    rules.append([
+                        "when": ["request": "tunnel", "nth": tunnelAttempt], "after": after,
+                        "do": "ignore_keepalive", "_seen": "no keepalive answers after \(after) s",
+                    ])
                     tunnelOpenedAt = nil
                 }
             default:
@@ -174,7 +180,9 @@ public enum ScenarioDraft {
     }
 
     public static func json(_ o: [String: Any]) -> String {
-        guard let d = try? JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        guard
+            let d = try? JSONSerialization.data(
+                withJSONObject: o, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
         else { return "{}" }
         return String(decoding: d, as: UTF8.self) + "\n"
     }

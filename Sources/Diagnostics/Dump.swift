@@ -13,8 +13,10 @@ public struct KnownSecrets: Sendable {
     /// Words to scrub everywhere, such as the organization's name.
     public var words: [String] = []
 
-    public init(password: String? = nil, cookies: [AuthCookie] = [], servers: [String] = [],
-                computer: String? = nil, localAccount: String? = nil, words: [String] = []) {
+    public init(
+        password: String? = nil, cookies: [AuthCookie] = [], servers: [String] = [],
+        computer: String? = nil, localAccount: String? = nil, words: [String] = []
+    ) {
         self.password = password
         self.cookies = cookies
         self.servers = servers
@@ -40,9 +42,11 @@ public struct DumpWriter {
         public var aftermath: [FlightRecorder.Entry] = []
         public var recorderPolicy: FlightRecorder.Policy
 
-        public init(id: Int, reason: String, outcome: String? = nil, written: Date = Date(),
-                    snapshot: FlightRecorder.Snapshot, aftermath: [FlightRecorder.Entry] = [],
-                    recorderPolicy: FlightRecorder.Policy) {
+        public init(
+            id: Int, reason: String, outcome: String? = nil, written: Date = Date(),
+            snapshot: FlightRecorder.Snapshot, aftermath: [FlightRecorder.Entry] = [],
+            recorderPolicy: FlightRecorder.Policy
+        ) {
             self.id = id
             self.reason = reason
             self.outcome = outcome
@@ -118,7 +122,8 @@ public struct DumpWriter {
             "redaction": [
                 "learned": r.learnedCount,
                 "withheld": withheld,
-                "note": "Read this file before sharing it: free text the redactor doesn't recognise is only covered by its pattern sweeps.",
+                "note":
+                    "Read this file before sharing it: free text the redactor doesn't recognise is only covered by its pattern sweeps.",
             ] as [String: Any],
             "system": [
                 "os": ProcessInfo.processInfo.operatingSystemVersionString,
@@ -139,7 +144,8 @@ public struct DumpWriter {
         var target: (String) -> String
     }
 
-    static func makeRedactor(entries: [FlightRecorder.Entry], info: [String: String], secrets: KnownSecrets) -> Redactor {
+    static func makeRedactor(entries: [FlightRecorder.Entry], info: [String: String], secrets: KnownSecrets) -> Redactor
+    {
         var r = Redactor(password: secrets.password, words: secrets.words)
         r.learnLocal(account: secrets.localAccount, hostNames: secrets.computer.map { [$0] } ?? [])
         for c in secrets.cookies {
@@ -149,12 +155,15 @@ public struct DumpWriter {
         for e in entries {
             switch e.trace {
             case .http(let h):
-                exchanges.append(Exchange(
-                    method: h.method, target: h.path,
-                    requestHeaders: [HTTPHeader(name: "Host", value: h.server),
-                                     HTTPHeader(name: "Content-Type", value: HTTPRequest.contentType)],
-                    requestBody: h.request.encoded, statusLine: h.status.map { "HTTP/1.1 \($0)" },
-                    responseBody: h.body))
+                exchanges.append(
+                    Exchange(
+                        method: h.method, target: h.path,
+                        requestHeaders: [
+                            HTTPHeader(name: "Host", value: h.server),
+                            HTTPHeader(name: "Content-Type", value: HTTPRequest.contentType),
+                        ],
+                        requestBody: h.request.encoded, statusLine: h.status.map { "HTTP/1.1 \($0)" },
+                        responseBody: h.body))
             case .event(.reauthenticated(let c)):
                 for (name, value) in c.form.fields { r.learn(field: name, value: value) }
             default:

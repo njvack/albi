@@ -2,10 +2,13 @@
 /// command-line harness pings through the tunnel without a utun device).
 public enum Ping {
     /// An ICMP echo request from `source` to `destination`.
-    public static func request(from source: String, to destination: String, id: UInt16, sequence: UInt16,
-                               payload: [UInt8] = Array("albi".utf8)) -> [UInt8]? {
+    public static func request(
+        from source: String, to destination: String, id: UInt16, sequence: UInt16,
+        payload: [UInt8] = Array("albi".utf8)
+    ) -> [UInt8]? {
         guard let src = IPv4.parse(source), let dst = IPv4.parse(destination) else { return nil }
-        var icmp: [UInt8] = [8, 0, 0, 0, UInt8(id >> 8), UInt8(id & 0xff), UInt8(sequence >> 8), UInt8(sequence & 0xff)] + payload
+        var icmp: [UInt8] =
+            [8, 0, 0, 0, UInt8(id >> 8), UInt8(id & 0xff), UInt8(sequence >> 8), UInt8(sequence & 0xff)] + payload
         let c = checksum(icmp)
         icmp[2] = UInt8(c >> 8)
         icmp[3] = UInt8(c & 0xff)

@@ -23,9 +23,11 @@ public final class Diagnostics: @unchecked Sendable {
     /// `onWrite` gets each file written and a one-line description, for a
     /// log line or a notification.
     /// `policy` overrides the one `settings` gives, for tests.
-    public init(settings: DiagnosticsSettings, directory: URL, clock: any SessionClock,
-                secrets: KnownSecrets = KnownSecrets(), policy: FlightRecorder.Policy? = nil,
-                onWrite: @escaping @Sendable (URL, String) -> Void = { _, _ in }) {
+    public init(
+        settings: DiagnosticsSettings, directory: URL, clock: any SessionClock,
+        secrets: KnownSecrets = KnownSecrets(), policy: FlightRecorder.Policy? = nil,
+        onWrite: @escaping @Sendable (URL, String) -> Void = { _, _ in }
+    ) {
         self.settings = settings
         self.directory = directory
         self.clock = clock
@@ -80,8 +82,9 @@ public final class Diagnostics: @unchecked Sendable {
             let limited = lock.withLock { lastWrite.map { now.timeIntervalSince($0) < minimumInterval } ?? false }
             if limited { return }
             let snap = recorder.snapshot(now: clock.now())
-            let incident = DumpWriter.Incident(id: id, reason: reason, written: now, snapshot: snap,
-                                               recorderPolicy: recorder.policy)
+            let incident = DumpWriter.Incident(
+                id: id, reason: reason, written: now, snapshot: snap,
+                recorderPolicy: recorder.policy)
             let url = directory.appendingPathComponent(Self.fileName(now, id: id))
             lock.withLock {
                 lastWrite = now
@@ -107,8 +110,9 @@ public final class Diagnostics: @unchecked Sendable {
         let s = lock.withLock { secrets }
         let r = DumpWriter.write(incident, secrets: s)
         do {
-            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true,
-                                                    attributes: [.posixPermissions: 0o755])
+            try FileManager.default.createDirectory(
+                at: directory, withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o755])
             try Data(r.text.utf8).write(to: url, options: .atomic)
             try? FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
             var line = "\(note) → \(url.path)"

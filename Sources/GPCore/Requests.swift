@@ -69,13 +69,16 @@ public enum Requests {
     }
 
     public static func prelogin(_ iface: Interface, client: ClientInfo) -> HTTPRequest {
-        HTTPRequest(path: "/\(iface.rawValue)/prelogin.esp?tmp=tmp&clientVer=4100&clientos=\(Form.escape(client.clientOS))",
-                    body: Form())
+        HTTPRequest(
+            path: "/\(iface.rawValue)/prelogin.esp?tmp=tmp&clientVer=4100&clientos=\(Form.escape(client.clientOS))",
+            body: Form())
     }
 
     /// Portal getconfig.esp or gateway login.esp, which take the same fields.
-    public static func login(_ iface: Interface, client: ClientInfo, server: String, user: String, password: String,
-                             inputStr: String? = nil, portalCookies: PortalConfig? = nil) -> HTTPRequest {
+    public static func login(
+        _ iface: Interface, client: ClientInfo, server: String, user: String, password: String,
+        inputStr: String? = nil, portalCookies: PortalConfig? = nil
+    ) -> HTTPRequest {
         var f: Form = [
             "jnlpReady": "jnlpReady", "ok": "Login", "direct": "yes", "clientVer": "4100",
             "prot": "https:", "internal": "no",
@@ -96,8 +99,10 @@ public enum Requests {
 
     /// getconfig.esp on the gateway. Pass the addresses we had before to ask
     /// for them again on a reconnect.
-    public static func getConfig(_ cookie: AuthCookie, client: ClientInfo, previousIPv4: String? = nil,
-                                 previousIPv6: String? = nil) -> HTTPRequest {
+    public static func getConfig(
+        _ cookie: AuthCookie, client: ClientInfo, previousIPv4: String? = nil,
+        previousIPv6: String? = nil
+    ) -> HTTPRequest {
         var f: Form = ["client-type": "1", "protocol-version": "p1", "internal": "no"]
         f.append("app-version", client.appVersion)
         f.append("ipv6-support", client.ipv6Support ? "yes" : "no")
@@ -124,7 +129,9 @@ public enum Requests {
         return HTTPRequest(path: "/ssl-vpn/hipreportcheck.esp", body: f)
     }
 
-    public static func hipReport(_ cookie: AuthCookie, clientIPv4: String?, clientIPv6: String?, report: String) -> HTTPRequest {
+    public static func hipReport(_ cookie: AuthCookie, clientIPv4: String?, clientIPv6: String?, report: String)
+        -> HTTPRequest
+    {
         var f: Form = ["client-role": "global-protect-full"]
         f.append(contentsOf: cookie.form)
         f.append("client-ip", clientIPv4)
