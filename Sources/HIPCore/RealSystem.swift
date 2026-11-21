@@ -1,9 +1,9 @@
 import AlbiConstants
 import Foundation
 #if canImport(Darwin)
-import Darwin
+    import Darwin
 #elseif canImport(Glibc)
-import Glibc
+    import Glibc
 #endif
 
 /// The System for the machine we are running on.
@@ -43,8 +43,9 @@ public final class RealSystem: System {
             }
         }
         let out = reader.finish()
-        return RunResult(stdout: String(decoding: out, as: UTF8.self),
-                         exitCode: timedOut ? nil : p.terminationStatus)
+        return RunResult(
+            stdout: String(decoding: out, as: UTF8.self),
+            exitCode: timedOut ? nil : p.terminationStatus)
     }
 
     public func readFile(_ path: String) -> Data? {
@@ -54,7 +55,8 @@ public final class RealSystem: System {
     public func writeFile(_ path: String, _ data: Data) -> Bool {
         let u = URL(fileURLWithPath: path)
         do {
-            try FileManager.default.createDirectory(at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(
+                at: u.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: u, options: .atomic)
             return true
         } catch {
@@ -74,22 +76,22 @@ public final class RealSystem: System {
     /// fixtures, and this keeps FoundationNetworking out of the static build.
     public func fetch(_ url: String, timeout: TimeInterval) -> Data? {
         #if os(macOS)
-        guard let u = URL(string: url) else { return nil }
-        var req = URLRequest(url: u, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
-        req.setValue(AlbiVersion.userAgent, forHTTPHeaderField: "User-Agent")
-        let cfg = URLSessionConfiguration.ephemeral
-        cfg.timeoutIntervalForResource = timeout
-        let session = URLSession(configuration: cfg)
-        defer { session.invalidateAndCancel() }
-        let box = FetchBox()
-        session.dataTask(with: req) { d, resp, _ in
-            if (resp as? HTTPURLResponse)?.statusCode == 200 { box.data = d }
-            box.done.signal()
-        }.resume()
-        _ = box.done.wait(timeout: .now() + timeout + 1)
-        return box.data
+            guard let u = URL(string: url) else { return nil }
+            var req = URLRequest(url: u, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: timeout)
+            req.setValue(AlbiVersion.userAgent, forHTTPHeaderField: "User-Agent")
+            let cfg = URLSessionConfiguration.ephemeral
+            cfg.timeoutIntervalForResource = timeout
+            let session = URLSession(configuration: cfg)
+            defer { session.invalidateAndCancel() }
+            let box = FetchBox()
+            session.dataTask(with: req) { d, resp, _ in
+                if (resp as? HTTPURLResponse)?.statusCode == 200 { box.data = d }
+                box.done.signal()
+            }.resume()
+            _ = box.done.wait(timeout: .now() + timeout + 1)
+            return box.data
         #else
-        return nil
+            return nil
         #endif
     }
 
@@ -100,9 +102,9 @@ public final class RealSystem: System {
         var st = posixStat()
         let rc = follow ? cStat(path, &st) : cLstat(path, &st)
         #if canImport(Darwin)
-        let mtime = Double(st.st_mtimespec.tv_sec) + Double(st.st_mtimespec.tv_nsec) / 1e9
+            let mtime = Double(st.st_mtimespec.tv_sec) + Double(st.st_mtimespec.tv_nsec) / 1e9
         #else
-        let mtime = Double(st.st_mtim.tv_sec) + Double(st.st_mtim.tv_nsec) / 1e9
+            let mtime = Double(st.st_mtim.tv_sec) + Double(st.st_mtim.tv_nsec) / 1e9
         #endif
         guard rc == 0 else { return nil }
         let type = UInt32(st.st_mode) & UInt32(S_IFMT)

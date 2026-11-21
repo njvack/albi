@@ -87,9 +87,11 @@ public actor SessionRunner {
     private var pending: [Task<Void, Never>] = []
     private var waiters: [CheckedContinuation<SessionState, Never>] = []
 
-    public init(server: String, client: ClientInfo, session: Session, io: any GatewayConnector,
-                host: any TunnelHost, clock: any SessionClock = ContinuousSessionClock(),
-                recorder: FlightRecorder? = nil) {
+    public init(
+        server: String, client: ClientInfo, session: Session, io: any GatewayConnector,
+        host: any TunnelHost, clock: any SessionClock = ContinuousSessionClock(),
+        recorder: FlightRecorder? = nil
+    ) {
         self.server = server
         self.client = client
         self.session = session
@@ -183,7 +185,8 @@ public actor SessionRunner {
             spawn { [io, server, client, host] in
                 let ev: Session.Event
                 do {
-                    let resp = try await io.send(Requests.getConfig(cookie, client: client, previousIPv4: v4, previousIPv6: v6), to: server)
+                    let resp = try await io.send(
+                        Requests.getConfig(cookie, client: client, previousIPv4: v4, previousIPv6: v6), to: server)
                     if resp.body.trimmingXMLWhitespace() == "errors getting SSL/VPN config" {
                         throw GPError.cookieRejected("errors getting SSL/VPN config")
                     }
@@ -204,16 +207,19 @@ public actor SessionRunner {
         case .checkHIP(let cookie, let v4, let v6):
             hipGen += 1
             let gen = hipGen
-            let ctx = HIPContext(cookie: cookie, clientIPv4: v4, clientIPv6: v6, md5: cookie.hipToken,
-                                 clientOS: client.clientOS, appVersion: client.appVersion)
+            let ctx = HIPContext(
+                cookie: cookie, clientIPv4: v4, clientIPv6: v6, md5: cookie.hipToken,
+                clientOS: client.clientOS, appVersion: client.appVersion)
             spawn { [io, server, host] in
                 let ev: Session.Event
                 do {
-                    let resp = try await io.send(Requests.hipReportCheck(cookie, clientIPv4: v4, clientIPv6: v6), to: server)
+                    let resp = try await io.send(
+                        Requests.hipReportCheck(cookie, clientIPv4: v4, clientIPv6: v6), to: server)
                     let needed = try Requests.hipReportNeeded(Reply.document(status: resp.status, body: resp.body))
                     if needed {
                         if let report = try await host.hipReport(ctx) {
-                            let r = try await io.send(Requests.hipReport(cookie, clientIPv4: v4, clientIPv6: v6, report: report), to: server)
+                            let r = try await io.send(
+                                Requests.hipReport(cookie, clientIPv4: v4, clientIPv6: v6, report: report), to: server)
                             _ = try Reply.document(status: r.status, body: r.body)
                             host.log("HIP report submitted (\(report.utf8.count) bytes)")
                         } else {
@@ -307,12 +313,13 @@ public actor SessionRunner {
 
     /// Posts a result unless a newer request of the same kind replaced it.
     private func result(_ event: Session.Event, gen: Int, of op: Op) {
-        let current = switch op {
-        case .config: configGen
-        case .hip: hipGen
-        case .tunnel: tunnelGen
-        case .reauth: reauthGen
-        }
+        let current =
+            switch op {
+            case .config: configGen
+            case .hip: hipGen
+            case .tunnel: tunnelGen
+            case .reauth: reauthGen
+            }
         guard current == gen else { return }
         post(event)
     }
@@ -355,7 +362,8 @@ public actor SessionRunner {
                         }
                     }
                     if any, let recorder, let clock {
-                        recorder.count(at: clock.now(), packetsIn: packets.count, bytesIn: bytes, keepalivesIn: keepalives)
+                        recorder.count(
+                            at: clock.now(), packetsIn: packets.count, bytesIn: bytes, keepalivesIn: keepalives)
                     }
                     if any { await self?.received(packets, gen: gen) }
                     guard let bytes = try await conn.read() else {
@@ -414,7 +422,9 @@ public actor SessionRunner {
         guard let idle = session.config?.idleTimeout, idle > 0, session.lastReceived > 0 else { return }
         let quiet = now - session.lastReceived
         guard quiet >= Double(idle) else { return }
-        host.log("no tunnel traffic for \(hoursAndMinutes(quiet)); the gateway ends sessions idle for \(hoursAndMinutes(Double(idle))), so expect to log in again")
+        host.log(
+            "no tunnel traffic for \(hoursAndMinutes(quiet)); the gateway ends sessions idle for \(hoursAndMinutes(Double(idle))), so expect to log in again"
+        )
     }
 
     private func isFinal(_ s: SessionState) -> Bool {

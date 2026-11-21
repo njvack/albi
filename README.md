@@ -31,6 +31,15 @@ swift test
 
 `HIPCore` and `GPCore` build and test on Linux as well as macOS; CI runs both.
 
+Needs Swift 6.2 or later. Compiler warnings are errors, in SwiftPM and in Xcode. Formatting follows `.swift-format`, and CI runs the linter:
+
+```sh
+swift format lint --strict --recursive --parallel Package.swift Sources Tests Apps
+swift format format --in-place --recursive --parallel Package.swift Sources Tests Apps   # fix
+```
+
+CI pins Swift 6.3 for the linter, since formatter output can change between versions.
+
 ## hipreport
 
 `hipreport` writes the GlobalProtect HIP report from a library of check files: what is actually installed and running on the Mac. It runs as its own process so the root helper can run it for facts only root can read; run as the user, those report `n/a`. It also works as an openconnect `--csd-wrapper`, which is how it is tested end to end. It is a port of the Go reporter in [njvack/openconnect-hipreports](https://github.com/njvack/openconnect-hipreports), which stays as the parity reference; both produce identical reports from the same fixture.

@@ -46,13 +46,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
 
     override func startTunnel(options: [String: NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         guard let proto = protocolConfiguration as? NETunnelProviderProtocol,
-              let profile = Profile(providerConfiguration: proto.providerConfiguration) else {
+            let profile = Profile(providerConfiguration: proto.providerConfiguration)
+        else {
             completionHandler(TunnelError("the VPN configuration has no Albi profile"))
             return
         }
-        let diagSettings = DiagnosticsSettings(providerConfiguration: proto.providerConfiguration) ?? DiagnosticsSettings()
-        let config = TunnelController.Configuration(profile: profile, password: options?["password"] as? String,
-                                                    diagnostics: diagSettings, keychain: keychain)
+        let diagSettings =
+            DiagnosticsSettings(providerConfiguration: proto.providerConfiguration) ?? DiagnosticsSettings()
+        let config = TunnelController.Configuration(
+            profile: profile, password: options?["password"] as? String,
+            diagnostics: diagSettings, keychain: keychain)
         let controller = TunnelController(
             config,
             hipReport: { [hip, bundledHIP] ctx in
@@ -151,15 +154,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             }
             if req.probeBundledHIP == true {
                 let p = await bundledHIP.probe()
-                log.notice("bundled hipreport probe: \(p.summary, privacy: .public) stderr: \(p.stderrHead ?? "", privacy: .public)")
+                log.notice(
+                    "bundled hipreport probe: \(p.summary, privacy: .public) stderr: \(p.stderrHead ?? "", privacy: .public)"
+                )
                 state.withLock { $0.lastProbe = p }
             }
             let (sessionState, lastProbe) = state.withLock { ($0.lastState, $0.lastProbe) }
             let snap = await controller?.snapshot()
-            var status = ProviderMessage.Status(state: "\(sessionState)", gateway: snap?.gateway, ipv4: snap?.settings?.ipv4Address,
-                                                hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
-                                                lastIncident: snap?.lastIncident,
-                                                diagnosticsEnabled: controller?.configuration.diagnostics.enabled)
+            var status = ProviderMessage.Status(
+                state: "\(sessionState)", gateway: snap?.gateway, ipv4: snap?.settings?.ipv4Address,
+                hipRequest: await hip.request, lastHIPReport: await hip.lastReport,
+                lastIncident: snap?.lastIncident,
+                diagnosticsEnabled: controller?.configuration.diagnostics.enabled)
             status.hipProbe = lastProbe
             var report = state.withLock { $0.report }
             if let snap { report.apply(snap) }

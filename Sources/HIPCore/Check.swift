@@ -17,9 +17,11 @@ public struct Probe: Sendable, Equatable {
     public var timeout = 0
     public var all: [Probe] = []
 
-    public init(probe: String = "", value: String? = nil, path: String = "", key: String = "", label: String = "",
-                fact: String = "", argv: [String] = [], map: [MapEntry] = [], defaultValue: String? = nil,
-                timeout: Int = 0, all: [Probe] = []) {
+    public init(
+        probe: String = "", value: String? = nil, path: String = "", key: String = "", label: String = "",
+        fact: String = "", argv: [String] = [], map: [MapEntry] = [], defaultValue: String? = nil,
+        timeout: Int = 0, all: [Probe] = []
+    ) {
         self.probe = probe
         self.value = value
         self.path = path
@@ -121,7 +123,8 @@ extension Check {
         if let f = try r.table("fields") {
             for (name, raw) in f {
                 guard let t = raw as? [String: Any] else {
-                    throw CheckError("fields.\(name): expected a table such as { value = \"yes\" } or { probe = \"...\" }")
+                    throw CheckError(
+                        "fields.\(name): expected a table such as { value = \"yes\" } or { probe = \"...\" }")
                 }
                 c.fields[name] = try parseProbe(t, at: "fields.\(name).")
             }
@@ -269,8 +272,10 @@ extension Check {
             }
             for e in p.validate() { bad("field \(name): \(e)") }
             if f.drives != (p.probe == "volumes") {
-                bad(f.drives ? "field \(name): needs the volumes probe"
-                    : "field \(name): the volumes probe only fits a drives field")
+                bad(
+                    f.drives
+                        ? "field \(name): needs the volumes probe"
+                        : "field \(name): the volumes probe only fits a drives field")
             }
         }
         return errs

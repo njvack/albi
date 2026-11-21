@@ -51,9 +51,10 @@ public final class Node {
 
 /// Drops characters XML 1.0 cannot carry at all.
 private func valid(_ s: String) -> String.UnicodeScalarView {
-    String.UnicodeScalarView(s.unicodeScalars.filter { u in
-        u == "\t" || u == "\n" || u == "\r" || (u.value >= 0x20 && u.value != 0xFFFE && u.value != 0xFFFF)
-    })
+    String.UnicodeScalarView(
+        s.unicodeScalars.filter { u in
+            u == "\t" || u == "\n" || u == "\r" || (u.value >= 0x20 && u.value != 0xFFFE && u.value != 0xFFFF)
+        })
 }
 
 func escapeText(_ s: String) -> String {

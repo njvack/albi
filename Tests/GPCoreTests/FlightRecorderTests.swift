@@ -106,8 +106,10 @@ import Testing
     }
 
     func logout(status: Int?, body: String? = nil, error: String? = nil) -> FlightRecorder.Trace {
-        .http(.init(server: "gw", method: "POST", path: "/ssl-vpn/logout.esp", request: Form(), status: status,
-                    body: body, error: error, duration: 0.1))
+        .http(
+            .init(
+                server: "gw", method: "POST", path: "/ssl-vpn/logout.esp", request: Form(), status: status,
+                body: body, error: error, duration: 0.1))
     }
 
     /// A dumped incident, then a stop that logs out.
@@ -128,7 +130,11 @@ import Testing
 
     @Test func failedLogoutIsInTheOutcome() {
         var r = stoppedWithDump()
-        r.at(501, logout(status: 200, body: "<response status=\"error\"><error>Invalid authentication cookie</error></response>"))
+        r.at(
+            501,
+            logout(
+                status: 200, body: "<response status=\"error\"><error>Invalid authentication cookie</error></response>")
+        )
         #expect(r.closes == ["stopped, logout failed"])
         var r2 = stoppedWithDump()
         r2.at(530, logout(status: nil, error: "timed out"))
@@ -169,7 +175,9 @@ import Testing
     }
 
     func config(lifetime: Int) throws -> GatewayConfig {
-        try GatewayConfig(XMLElement.parse("<response><ip-address>10.99.0.2</ip-address><lifetime>\(lifetime)</lifetime></response>")!)
+        try GatewayConfig(
+            XMLElement.parse("<response><ip-address>10.99.0.2</ip-address><lifetime>\(lifetime)</lifetime></response>")!
+        )
     }
 }
 
@@ -179,7 +187,9 @@ import Testing
         p.window = 60
         let r = FlightRecorder(policy: p)
         let login = HTTPRequest(path: "/ssl-vpn/login.esp", body: ["user": "u", "passwd": "hunter2"])
-        r.recordHTTP(server: "gw", request: login, response: HTTPResponse(status: 200, body: "<jnlp/>"), error: nil, start: 0, end: 1)
+        r.recordHTTP(
+            server: "gw", request: login, response: HTTPResponse(status: 200, body: "<jnlp/>"), error: nil, start: 0,
+            end: 1)
         r.record(.event(.start), at: 1)
         r.record(.state(.connected), at: 1)
         r.record(.log("early"), at: 2)
@@ -197,7 +207,8 @@ import Testing
     @Test func hipReportBodyIsNotKept() {
         let r = FlightRecorder()
         let req = HTTPRequest(path: "/ssl-vpn/hipreport.esp", body: ["report": "<hip-report>secret</hip-report>"])
-        r.recordHTTP(server: "gw", request: req, response: HTTPResponse(status: 200, body: ""), error: nil, start: 0, end: 0)
+        r.recordHTTP(
+            server: "gw", request: req, response: HTTPResponse(status: 200, body: ""), error: nil, start: 0, end: 0)
         guard case .http(let h) = r.snapshot(now: 0).entries[0].trace else { Issue.record("no entry"); return }
         #expect(h.request["report"] == "(31 bytes)")
     }
@@ -236,8 +247,11 @@ import Testing
         r.record(.state(.reconnecting(attempt: 1, reason: "x")), at: 2)
         r.poll(now: 8)
         r.record(.state(.connected), at: 9)
-        #expect(got.with { signals } == [.dump(id: 1, reason: "not connected for 6 s with a usable network (last: x)"),
-                                         .closed(id: 1, outcome: "connected again")])
+        #expect(
+            got.with { signals } == [
+                .dump(id: 1, reason: "not connected for 6 s with a usable network (last: x)"),
+                .closed(id: 1, outcome: "connected again"),
+            ])
         let marks = r.snapshot(now: 9).entries.filter { if case .incident = $0.trace { true } else { false } }
         #expect(marks.count == 2)
     }

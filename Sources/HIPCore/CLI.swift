@@ -1,9 +1,9 @@
 import AlbiConstants
 import Foundation
 #if canImport(Darwin)
-import Darwin
+    import Darwin
 #elseif canImport(Glibc)
-import Glibc
+    import Glibc
 #endif
 
 /// The name of the user running us, when USER is unset.
@@ -16,23 +16,23 @@ func loginName() -> String {
 public let defaultChecksDir = AlbiPaths.checksDirectory
 
 public let usage = """
-usage:
-  hipreport [--md5 X --cookie X ...]   write a HIP report (openconnect --csd-wrapper compatible)
-  hipreport facts [--json]             what each check found, and how
-  hipreport check --policy FILE [--json]  compare facts with an expected policy
-  hipreport lint [PATH...]             validate check files
-  hipreport record [-o FILE]           record this machine as a test fixture
-  hipreport version
+    usage:
+      hipreport [--md5 X --cookie X ...]   write a HIP report (openconnect --csd-wrapper compatible)
+      hipreport facts [--json]             what each check found, and how
+      hipreport check --policy FILE [--json]  compare facts with an expected policy
+      hipreport lint [PATH...]             validate check files
+      hipreport record [-o FILE]           record this machine as a test fixture
+      hipreport version
 
-options:
-  --checks-dir DIR         trusted check directory (repeatable; default \(defaultChecksDir))
-  --dev-checks DIR         load checks without trust checks; output is marked untrusted
-  --no-builtin             skip the built-in check library
-  --host-id-interface DEV  interface whose MAC is the host-id (default en0)
-  --fixture FILE           answer from a recorded fixture instead of this machine
-  --debug                  log commands and their output to stderr (or HIPREPORT_DEBUG=1)
+    options:
+      --checks-dir DIR         trusted check directory (repeatable; default \(defaultChecksDir))
+      --dev-checks DIR         load checks without trust checks; output is marked untrusted
+      --no-builtin             skip the built-in check library
+      --host-id-interface DEV  interface whose MAC is the host-id (default en0)
+      --fixture FILE           answer from a recorded fixture instead of this machine
+      --debug                  log commands and their output to stderr (or HIPREPORT_DEBUG=1)
 
-"""
+    """
 
 public let hipreportVersion = AlbiVersion.albi
 
@@ -44,8 +44,10 @@ public struct CLI {
     public var out: (String) -> Void
     public var err: (String) -> Void
 
-    public init(system: System, environment: [String: String],
-                out: @escaping (String) -> Void, err: @escaping (String) -> Void) {
+    public init(
+        system: System, environment: [String: String],
+        out: @escaping (String) -> Void, err: @escaping (String) -> Void
+    ) {
         self.system = system
         self.environment = environment
         self.out = out
@@ -161,7 +163,8 @@ public struct CLI {
     }
 
     func sources(_ o: Options) -> [Source] {
-        (o.noBuiltin ? [] : [.builtin]) + o.checksDirs.map { Source(dir: $0) } + o.devDirs.map { Source(dir: $0, dev: true) }
+        (o.noBuiltin ? [] : [.builtin]) + o.checksDirs.map { Source(dir: $0) }
+            + o.devDirs.map { Source(dir: $0, dev: true) }
     }
 
     func gather(_ o: Options, _ sys: System, quiet: Bool = false) -> Facts {
@@ -200,12 +203,17 @@ public struct CLI {
         for p in f.products {
             if let r = p.plist {
                 out("\ncustom plist \(r.path) exists=\(r.exists)  [\(p.source)]\n")
-                for k in r.keys { out("  \(k.key.padding(toLength: 24, withPad: " ", startingAt: 0)) exists=\(k.exists) \"\(k.value)\"\n") }
+                for k in r.keys {
+                    out(
+                        "  \(k.key.padding(toLength: 24, withPad: " ", startingAt: 0)) exists=\(k.exists) \"\(k.value)\"\n"
+                    )
+                }
                 continue
             }
             out("\n\(p.category): \(p.vendor) \(p.name)  [\(p.source)]\n")
             for (n, v) in p.fields.sorted(by: { $0.key < $1.key }) {
-                let val = v.drives.map { $0.map { "\($0.name)=\($0.state)" }.joined(separator: " ") } ?? "\"\(v.value)\""
+                let val =
+                    v.drives.map { $0.map { "\($0.name)=\($0.state)" }.joined(separator: " ") } ?? "\"\(v.value)\""
                 var line = "  \(n.padding(toLength: 22, withPad: " ", startingAt: 0)) \(val)  via \(v.how)"
                 if let e = v.error { line += "  (\(e))" }
                 out(line + "\n")

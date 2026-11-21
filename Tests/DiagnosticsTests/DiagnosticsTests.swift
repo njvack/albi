@@ -27,15 +27,23 @@ final class SecretGateway: GatewayConnector, @unchecked Sendable {
         func ok(_ s: String) -> HTTPResponse { HTTPResponse(status: 200, body: s) }
         switch path {
         case "/ssl-vpn/prelogin.esp":
-            return ok("<prelogin-response><status>Success</status><authentication-message>Welcome to Acmewidgets VPN</authentication-message></prelogin-response>")
+            return ok(
+                "<prelogin-response><status>Success</status><authentication-message>Welcome to Acmewidgets VPN</authentication-message></prelogin-response>"
+            )
         case "/ssl-vpn/login.esp":
             guard req.body["passwd"] == Self.password else { return HTTPResponse(status: 512, body: "") }
-            let args = ["(null)", Self.cookie, "PC", "acme-portal", Self.user, "Acme LDAP", "vsys1", "acme",
-                        "(null)", "", "", "", "tunnel", "-1", "4100", "10.31.4.2", "", "", ""]
-            return ok("<jnlp><application-desc>" + args.map { "<argument>\($0)</argument>" }.joined() + "</application-desc></jnlp>")
+            let args = [
+                "(null)", Self.cookie, "PC", "acme-portal", Self.user, "Acme LDAP", "vsys1", "acme",
+                "(null)", "", "", "", "tunnel", "-1", "4100", "10.31.4.2", "", "", "",
+            ]
+            return ok(
+                "<jnlp><application-desc>" + args.map { "<argument>\($0)</argument>" }.joined()
+                    + "</application-desc></jnlp>")
         case "/ssl-vpn/getconfig.esp":
             m.withLock { $0.getconfigs += 1 }
-            return ok("<response><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><lifetime>86400</lifetime><disconnect-on-idle>10800</disconnect-on-idle><timeout>7200</timeout><gw-address>\(Self.publicIP)</gw-address><ip-address>10.31.4.2</ip-address><netmask>255.255.255.255</netmask><mtu>1400</mtu><access-routes><member>10.31.0.0/16</member></access-routes><dns><member>10.31.0.53</member></dns><dns-suffix><member>corp.acmewidgets.edu</member></dns-suffix></response>")
+            return ok(
+                "<response><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><lifetime>86400</lifetime><disconnect-on-idle>10800</disconnect-on-idle><timeout>7200</timeout><gw-address>\(Self.publicIP)</gw-address><ip-address>10.31.4.2</ip-address><netmask>255.255.255.255</netmask><mtu>1400</mtu><access-routes><member>10.31.0.0/16</member></access-routes><dns><member>10.31.0.53</member></dns><dns-suffix><member>corp.acmewidgets.edu</member></dns-suffix></response>"
+            )
         case "/ssl-vpn/hipreportcheck.esp":
             return ok("<response status=\"success\"><hip-report-needed>no</hip-report-needed></response>")
         case "/ssl-vpn/logout.esp":
@@ -66,9 +74,13 @@ final class SecretGateway: GatewayConnector, @unchecked Sendable {
         }
 
         func write(_ bytes: [UInt8]) async throws {
-            let first = started.withLock { s in defer { s = true }; return !s }
+            let first = started.withLock { s in
+                defer { s = true }; return !s
+            }
             if first {
-                cont.yield(refuse.map { Array("HTTP/1.1 \($0) Service Unavailable\r\n\r\n".utf8) } ?? Array("START_TUNNEL".utf8))
+                cont.yield(
+                    refuse.map { Array("HTTP/1.1 \($0) Service Unavailable\r\n\r\n".utf8) }
+                        ?? Array("START_TUNNEL".utf8))
                 if refuse != nil { cont.finish() }
                 return
             }
@@ -80,7 +92,9 @@ final class SecretGateway: GatewayConnector, @unchecked Sendable {
         }
 
         func read() async throws -> [UInt8]? {
-            var i = lock.withLock { () -> AsyncStream<[UInt8]>.Iterator? in defer { it = nil }; return it }
+            var i = lock.withLock { () -> AsyncStream<[UInt8]>.Iterator? in
+                defer { it = nil }; return it
+            }
             let v = await i?.next()
             lock.withLock { it = i }
             return v
@@ -110,8 +124,10 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
 }
 
 @Suite(.serialized) struct DiagnosticsTests {
-    let secrets = [SecretGateway.host, SecretGateway.user, SecretGateway.password, SecretGateway.cookie,
-                   SecretGateway.computer, SecretGateway.publicIP, "acmewidgets", "Acme LDAP", "acme-portal"]
+    let secrets = [
+        SecretGateway.host, SecretGateway.user, SecretGateway.password, SecretGateway.cookie,
+        SecretGateway.computer, SecretGateway.publicIP, "acmewidgets", "Acme LDAP", "acme-portal",
+    ]
 
     func tempDir() -> URL {
         let d = FileManager.default.temporaryDirectory.appendingPathComponent("albi-diag-\(UUID().uuidString)")
@@ -130,9 +146,11 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         rp.grace = 5
         rp.aftermath = 60
         let written = Mutex<[String]>([])
-        let diag = Diagnostics(settings: DiagnosticsSettings(enabled: true), directory: dir, clock: clock,
-                               secrets: KnownSecrets(password: SecretGateway.password, computer: SecretGateway.computer),
-                               policy: rp) { _, line in written.withLock { $0.append(line) } }
+        let diag = Diagnostics(
+            settings: DiagnosticsSettings(enabled: true), directory: dir, clock: clock,
+            secrets: KnownSecrets(password: SecretGateway.password, computer: SecretGateway.computer),
+            policy: rp
+        ) { _, line in written.withLock { $0.append(line) } }
         diag.start(every: .milliseconds(50))
         defer { diag.stop() }
 
@@ -148,8 +166,9 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         policy.dpdInterval = 0.2
         policy.reconnectInitialDelay = 0.05
         policy.reconnectMaxDelay = 0.1
-        let runner = SessionRunner(server: login.gateway, client: client, session: Session(cookie: login.cookie, policy: policy),
-                                   io: io, host: QuietHost(), clock: clock, recorder: diag.recorder)
+        let runner = SessionRunner(
+            server: login.gateway, client: client, session: Session(cookie: login.cookie, policy: policy),
+            io: io, host: QuietHost(), clock: clock, recorder: diag.recorder)
         await runner.start()
         await eventually("connected") { await runner.state == .connected }
 
@@ -164,8 +183,12 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         let file = try IncidentFile(data: Data(first.utf8))
         #expect(file.header["outcome"] == nil)
         #expect((file.header["reason"] as? String)?.contains("not connected") == true)
-        #expect(file.events.contains { $0["kind"] as? String == "http" && ($0["path"] as? String)?.contains("login.esp") == true })
-        let login1 = try #require(file.events.first { ($0["path"] as? String)?.hasPrefix("/ssl-vpn/login.esp") == true })
+        #expect(
+            file.events.contains {
+                $0["kind"] as? String == "http" && ($0["path"] as? String)?.contains("login.esp") == true
+            })
+        let login1 = try #require(
+            file.events.first { ($0["path"] as? String)?.hasPrefix("/ssl-vpn/login.esp") == true })
         #expect((login1["request"] as? String)?.contains("passwd=REDACTED") == true)
 
         // The scenario draft has the refused tunnel and the drop.
@@ -180,7 +203,9 @@ func eventually(_ what: String, timeout: Double = 10, _ cond: () async -> Bool) 
         // Replaying the events into Session does what the client did.
         let replay = file.replay()
         if let d = replay.divergence {
-            Issue.record("replay differs at \(d): recorded \(replay.recorded[max(0, d - 3)...].prefix(8)) replayed \(replay.replayed[max(0, d - 3)...].prefix(8))")
+            Issue.record(
+                "replay differs at \(d): recorded \(replay.recorded[max(0, d - 3)...].prefix(8)) replayed \(replay.replayed[max(0, d - 3)...].prefix(8))"
+            )
         }
 
         // Recovery rewrites the same file with the outcome.

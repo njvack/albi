@@ -29,9 +29,11 @@ public final class FakeSystem: System {
         public var modified = Date(timeIntervalSince1970: 0)
         public var symlink: String?
 
-        public init(path: String, isDirectory: Bool = false, missing: Bool = false, content: String = "",
-                    mode: UInt32 = 0, uid: UInt32 = 0, gid: UInt32 = 0,
-                    modified: Date = Date(timeIntervalSince1970: 0), symlink: String? = nil) {
+        public init(
+            path: String, isDirectory: Bool = false, missing: Bool = false, content: String = "",
+            mode: UInt32 = 0, uid: UInt32 = 0, gid: UInt32 = 0,
+            modified: Date = Date(timeIntervalSince1970: 0), symlink: String? = nil
+        ) {
             self.path = path
             self.isDirectory = isDirectory
             self.missing = missing
@@ -63,8 +65,10 @@ public final class FakeSystem: System {
     public var volumes: [Volume]?
     public var interfaces: [Interface]?
 
-    public init(host: String = "", uid: UInt32 = 0, now: Date = Date(timeIntervalSince1970: 0),
-                zone: TimeZone = TimeZone(secondsFromGMT: 0)!, commands: [Command] = [], files: [File] = []) {
+    public init(
+        host: String = "", uid: UInt32 = 0, now: Date = Date(timeIntervalSince1970: 0),
+        zone: TimeZone = TimeZone(secondsFromGMT: 0)!, commands: [Command] = [], files: [File] = []
+    ) {
         self.host = host
         self.userID = uid
         self.time = now
@@ -106,8 +110,9 @@ public final class FakeSystem: System {
     private func info(_ f: File) -> FileStat {
         var perm = f.mode & 0o777
         if f.mode == 0 { perm = f.isDirectory ? 0o755 : 0o644 }
-        return FileStat(isDirectory: f.isDirectory && f.symlink == nil, isSymlink: f.symlink != nil,
-                        permissions: perm, uid: f.uid, gid: f.gid, modified: f.modified)
+        return FileStat(
+            isDirectory: f.isDirectory && f.symlink == nil, isSymlink: f.symlink != nil,
+            permissions: perm, uid: f.uid, gid: f.gid, modified: f.modified)
     }
 
     public func readFile(_ path: String) -> Data? {
@@ -205,9 +210,10 @@ extension FakeSystem {
         if let vs = doc["volume"] as? [Any] {
             f.volumes = vs.compactMap { v in
                 guard let v = v as? [String: Any], let mp = v["mount"] as? String else { return nil }
-                return Volume(mountPoint: mp, name: v["name"] as? String ?? "", local: v["local"] as? Bool ?? true,
-                              browsable: v["browsable"] as? Bool ?? true, isInternal: v["internal"] as? Bool,
-                              encrypted: v["encrypted"] as? Bool)
+                return Volume(
+                    mountPoint: mp, name: v["name"] as? String ?? "", local: v["local"] as? Bool ?? true,
+                    browsable: v["browsable"] as? Bool ?? true, isInternal: v["internal"] as? Bool,
+                    encrypted: v["encrypted"] as? Bool)
             }
         }
         if let ifs = doc["interface"] as? [Any] {
@@ -219,10 +225,11 @@ extension FakeSystem {
         }
         for c in doc["command"] as? [Any] ?? [] {
             guard let c = c as? [String: Any] else { continue }
-            f.commands.append(Command(
-                argv: (c["argv"] as? [Any] ?? []).compactMap { $0 as? String },
-                stdout: c["stdout"] as? String ?? "",
-                exit: Int32(c["exit"] as? Int64 ?? 0)))
+            f.commands.append(
+                Command(
+                    argv: (c["argv"] as? [Any] ?? []).compactMap { $0 as? String },
+                    stdout: c["stdout"] as? String ?? "",
+                    exit: Int32(c["exit"] as? Int64 ?? 0)))
         }
         for x in doc["file"] as? [Any] ?? [] {
             guard let x = x as? [String: Any], let p = x["path"] as? String else { continue }
@@ -321,9 +328,10 @@ public final class Recorder: System {
 
     public init(_ inner: System) {
         self.inner = inner
-        recording = FakeSystem(host: inner.hostname(), uid: inner.uid(),
-                               now: Date(timeIntervalSince1970: inner.now().timeIntervalSince1970.rounded(.down)),
-                               zone: inner.timeZone())
+        recording = FakeSystem(
+            host: inner.hostname(), uid: inner.uid(),
+            now: Date(timeIntervalSince1970: inner.now().timeIntervalSince1970.rounded(.down)),
+            zone: inner.timeZone())
         recording.cacheDir = inner.cacheDirectory()
     }
 
@@ -410,8 +418,9 @@ public final class Recorder: System {
 /// Fixtures are text, so a binary plist is stored as the equivalent XML plist.
 func textForFixture(_ data: Data) -> String {
     if data.starts(with: Array("bplist".utf8)),
-       let obj = try? PropertyListSerialization.propertyList(from: data, format: nil),
-       let xml = try? PropertyListSerialization.data(fromPropertyList: obj, format: .xml, options: 0) {
+        let obj = try? PropertyListSerialization.propertyList(from: data, format: nil),
+        let xml = try? PropertyListSerialization.data(fromPropertyList: obj, format: .xml, options: 0)
+    {
         return String(decoding: xml, as: UTF8.self)
     }
     return String(decoding: data, as: UTF8.self)

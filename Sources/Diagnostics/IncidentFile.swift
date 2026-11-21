@@ -8,8 +8,9 @@ public struct IncidentFile {
 
     public init(data: Data) throws {
         guard let o = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              o["format"] as? String == DumpWriter.format,
-              let h = o["header"] as? [String: Any], let ev = o["events"] as? [[String: Any]] else {
+            o["format"] as? String == DumpWriter.format,
+            let h = o["header"] as? [String: Any], let ev = o["events"] as? [[String: Any]]
+        else {
             throw GPError.malformed("not an \(DumpWriter.format) file")
         }
         header = h
@@ -56,7 +57,8 @@ public struct IncidentFile {
         for (k, v) in self.info where k.hasPrefix("policy.") { info[String(k.dropFirst(7))] = v }
         let policy = SessionPolicy(fields: info)
         let cookie = AuthCookie(authcookie: "replay", portal: nil, user: "user", domain: nil, computer: "computer")
-        var session = Session(cookie: cookie, policy: policy, hipInterval: self.info["hip-interval"].flatMap { Double($0) })
+        var session = Session(
+            cookie: cookie, policy: policy, hipInterval: self.info["hip-interval"].flatMap { Double($0) })
         var out: [(Double, String)] = []
         var notes: [String] = []
 
@@ -71,7 +73,8 @@ public struct IncidentFile {
 
         var lastConfig: GatewayConfig?
         var anyConfig: GatewayConfig?
-        for e in events where e["kind"] as? String == "http" && Self.requestKind(e["path"] as? String ?? "") == "getconfig" {
+        for e in events
+        where e["kind"] as? String == "http" && Self.requestKind(e["path"] as? String ?? "") == "getconfig" {
             if let c = Self.config(e) { anyConfig = c }
         }
         var end = 0.0
@@ -79,7 +82,8 @@ public struct IncidentFile {
             let t = e["t"] as? Double ?? 0
             end = max(end, t)
             if e["kind"] as? String == "http", Self.requestKind(e["path"] as? String ?? "") == "getconfig",
-               let c = Self.config(e) {
+                let c = Self.config(e)
+            {
                 lastConfig = c
             }
             guard e["kind"] as? String == "event" else { continue }
@@ -115,7 +119,8 @@ public struct IncidentFile {
 
     static func config(_ e: [String: Any]) -> GatewayConfig? {
         guard let s = e["status"] as? Int, let b = e["body"] as? String,
-              let doc = try? Reply.document(status: s, body: b) else { return nil }
+            let doc = try? Reply.document(status: s, body: b)
+        else { return nil }
         return try? GatewayConfig(doc)
     }
 
@@ -145,8 +150,10 @@ public struct IncidentFile {
         case "sleep": return .sleep
         case "wake": return .wake
         case "reauthenticated":
-            return .reauthenticated(AuthCookie(authcookie: e["cookie"] as? String ?? "replay2", portal: nil, user: "user",
-                                               domain: nil, computer: "computer"))
+            return .reauthenticated(
+                AuthCookie(
+                    authcookie: e["cookie"] as? String ?? "replay2", portal: nil, user: "user",
+                    domain: nil, computer: "computer"))
         case "reauthFailed":
             return .reauthFailed(Self.failure(e["failure"]), needsUser: e["needs_user"] as? Bool ?? false)
         case "stop": return .stop(logout: e["logout"] as? Bool ?? false)

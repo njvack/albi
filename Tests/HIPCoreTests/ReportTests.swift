@@ -25,13 +25,14 @@ import Testing
 
     @Test func xmlEscaping() {
         let n = Node("r", [Node("e", attrs: [("name", "a\"b<c>&'d\n")], text: "x<y>&\"z'\u{01}")])
-        #expect(n.document == """
-            <?xml version="1.0" encoding="UTF-8"?>
-            <r>
-              <e name="a&quot;b&lt;c&gt;&amp;'d&#10;">x&lt;y&gt;&amp;"z'</e>
-            </r>
+        #expect(
+            n.document == """
+                <?xml version="1.0" encoding="UTF-8"?>
+                <r>
+                  <e name="a&quot;b&lt;c&gt;&amp;'d&#10;">x&lt;y&gt;&amp;"z'</e>
+                </r>
 
-            """)
+                """)
     }
 
     @Test func cookie() {
@@ -56,18 +57,33 @@ import Testing
 
 @Suite struct PolicyTests {
     static let products: [Product] = [
-        Product(id: "", source: "", trusted: true, category: "anti-malware", vendor: "Apple Inc.", name: "Xprotect",
-                fields: ["version": Value("5329", how: "bundle_version /x"), "real-time-protection": Value("yes", how: "value")]),
-        Product(id: "", source: "", trusted: true, category: "firewall", vendor: "Apple Inc.", name: "Mac OS X Builtin Firewall",
-                fields: ["is-enabled": Value("no", how: "command /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate")]),
-        Product(id: "", source: "", trusted: true, category: "firewall", vendor: "OpenBSD", name: "Packet Filter",
-                fields: ["is-enabled": Value("n/a", how: "privileged pf.enabled", error: "needs root")]),
-        Product(id: "", source: "", trusted: true, category: "disk-encryption", vendor: "Apple Inc.", name: "FileVault",
-                fields: ["drives": Value("", how: "volumes", drives: [Drive(name: "Data", state: "encrypted"), Drive(name: "All", state: "unencrypted")])]),
+        Product(
+            id: "", source: "", trusted: true, category: "anti-malware", vendor: "Apple Inc.", name: "Xprotect",
+            fields: [
+                "version": Value("5329", how: "bundle_version /x"), "real-time-protection": Value("yes", how: "value"),
+            ]),
+        Product(
+            id: "", source: "", trusted: true, category: "firewall", vendor: "Apple Inc.",
+            name: "Mac OS X Builtin Firewall",
+            fields: [
+                "is-enabled": Value(
+                    "no", how: "command /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate")
+            ]),
+        Product(
+            id: "", source: "", trusted: true, category: "firewall", vendor: "OpenBSD", name: "Packet Filter",
+            fields: ["is-enabled": Value("n/a", how: "privileged pf.enabled", error: "needs root")]),
+        Product(
+            id: "", source: "", trusted: true, category: "disk-encryption", vendor: "Apple Inc.", name: "FileVault",
+            fields: [
+                "drives": Value(
+                    "", how: "volumes",
+                    drives: [Drive(name: "Data", state: "encrypted"), Drive(name: "All", state: "unencrypted")])
+            ]),
     ]
 
     @Test func evaluates() throws {
-        let p = try Policy.parse("""
+        let p = try Policy.parse(
+            """
             [[require]]
             category = "anti-malware"
             field = "real-time-protection"
@@ -115,8 +131,10 @@ import Testing
     }
 
     @Test func versions() {
-        for (a, b, want) in [("5329", "5300", 1), ("27.1", "27.1.0", 0), ("27.0.1", "27.1", -1),
-                             ("6.2.8-1045", "6.2.8-999", 1), ("", "1", -1), ("1.0b", "1.0a", 1)] {
+        for (a, b, want) in [
+            ("5329", "5300", 1), ("27.1", "27.1.0", 0), ("27.0.1", "27.1", -1),
+            ("6.2.8-1045", "6.2.8-999", 1), ("", "1", -1), ("1.0b", "1.0a", 1),
+        ] {
             #expect(compareVersions(a, b) == want, "\(a) vs \(b)")
         }
     }

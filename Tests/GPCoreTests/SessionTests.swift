@@ -90,9 +90,14 @@ func isHIP(_ a: Session.Action) -> Bool { if case .checkHIP = a { true } else { 
     @Test func connectSequence() {
         var h = Harness()
         let a1 = h.send(.start)
-        #expect(a1 == [.stateChanged(.connecting(.config)), .fetchConfig(cookieA, previousIPv4: nil, previousIPv6: nil)])
+        #expect(
+            a1 == [.stateChanged(.connecting(.config)), .fetchConfig(cookieA, previousIPv4: nil, previousIPv6: nil)])
         let a2 = h.send(.configFetched(cfg()))
-        #expect(a2 == [.applySettings(cfg()), .stateChanged(.connecting(.hip)), .checkHIP(cookieA, clientIPv4: "10.0.0.2", clientIPv6: nil)])
+        #expect(
+            a2 == [
+                .applySettings(cfg()), .stateChanged(.connecting(.hip)),
+                .checkHIP(cookieA, clientIPv4: "10.0.0.2", clientIPv6: nil),
+            ])
         let a3 = h.send(.hipDone)
         #expect(a3 == [.stateChanged(.connecting(.tunnel)), .openTunnel(cookieA, path: "/ssl-tunnel-connect.sslvpn")])
         #expect(h.send(.tunnelOpened) == [.stateChanged(.connected)])
@@ -160,7 +165,10 @@ func isHIP(_ a: Session.Action) -> Bool { if case .checkHIP = a { true } else { 
         h.send(.tunnelOpened)
         h.send(.tunnelClosed(nil))
         h.advance(by: 0)
-        #expect(!h.send(.configFetched(cfg(ip: "10.0.0.3"))).contains { if case .applySettings = $0 { true } else { false } })
+        #expect(
+            !h.send(.configFetched(cfg(ip: "10.0.0.3"))).contains {
+                if case .applySettings = $0 { true } else { false }
+            })
     }
 
     @Test func cookieRejectedWithoutReauthNeedsLogin() {
@@ -205,7 +213,7 @@ func isHIP(_ a: Session.Action) -> Bool { if case .checkHIP = a { true } else { 
         p.canReauthenticate = true
         var h = Harness(policy: p)
         h.connect()
-        h.send(.tunnelFailed(.cookieRejected("x")))   // ignored: no tunnel pending
+        h.send(.tunnelFailed(.cookieRejected("x")))  // ignored: no tunnel pending
         h.send(.tunnelClosed(.cookieRejected("gone")))
         h.send(.reauthFailed(.transient("password rejected"), needsUser: true))
         #expect(h.s.state == .needsLogin(reason: "login needed: password rejected"))
@@ -415,7 +423,8 @@ func isHIP(_ a: Session.Action) -> Bool { if case .checkHIP = a { true } else { 
         var h = Harness()
         h.connect()
         let a = h.send(.stop(logout: true))
-        #expect(a == [.closeTunnel, .logout(cookieA), .saveCookie(nil), .stateChanged(.stopped(reason: "disconnected"))])
+        #expect(
+            a == [.closeTunnel, .logout(cookieA), .saveCookie(nil), .stateChanged(.stopped(reason: "disconnected"))])
         #expect(h.s.nextDeadline == nil)
         #expect(h.send(.tunnelClosed(nil)).isEmpty)
     }

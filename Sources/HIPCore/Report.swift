@@ -110,7 +110,8 @@ func urlDecode(_ s: String) -> String {
         if b == UInt8(ascii: "+") {
             out.append(UInt8(ascii: " "))
         } else if b == UInt8(ascii: "%"), i + 2 < bytes.count,
-                  let n = UInt8(String(decoding: bytes[i + 1...i + 2], as: UTF8.self), radix: 16) {
+            let n = UInt8(String(decoding: bytes[i + 1...i + 2], as: UTF8.self), radix: 16)
+        {
             out.append(n)
             i += 2
         } else {
@@ -128,17 +129,19 @@ func urlDecode(_ s: String) -> String {
 extension Facts {
     /// The HIP report.
     public var xml: Node {
-        let root = Node("hip-report", [
-            .text("md5-sum", md5),
-            .text("user-name", userName),
-            .text("domain", domain),
-            .text("host-name", computer),
-            .text("host-id", hostID),
-            .text("ip-address", clientIP),
-            .text("ipv6-address", clientIPv6),
-            .text("generate-time", format(generated, "MM/dd/yyyy HH:mm:ss")),
-            .text("hip-report-version", "4"),
-        ])
+        let root = Node(
+            "hip-report",
+            [
+                .text("md5-sum", md5),
+                .text("user-name", userName),
+                .text("domain", domain),
+                .text("host-name", computer),
+                .text("host-id", hostID),
+                .text("ip-address", clientIP),
+                .text("ipv6-address", clientIPv6),
+                .text("generate-time", format(generated, "MM/dd/yyyy HH:mm:ss")),
+                .text("hip-report-version", "4"),
+            ])
         let cats = Node("categories", [hostInfo])
         for def in categories { cats.add(category(def)) }
         root.add(cats, customChecks)
@@ -161,15 +164,17 @@ extension Facts {
             if !i.ipv6.isEmpty { e.add(addressList("ipv6-address", i.ipv6)) }
             nics.add(e)
         }
-        return .entry("host-info", [
-            .text("client-version", clientVersion),
-            .text("os", "Apple Mac OS X " + osVersion),
-            .text("os-vendor", "Apple"),
-            .text("domain", domain),
-            .text("host-name", hostName),
-            .text("host-id", hostID),
-            nics,
-        ])
+        return .entry(
+            "host-info",
+            [
+                .text("client-version", clientVersion),
+                .text("os", "Apple Mac OS X " + osVersion),
+                .text("os-vendor", "Apple"),
+                .text("domain", domain),
+                .text("host-name", hostName),
+                .text("host-id", hostID),
+                nics,
+            ])
     }
 
     private func addressList(_ tag: String, _ addrs: [String]) -> Node {
@@ -200,15 +205,23 @@ extension Facts {
         switch def.name {
         case "anti-malware":
             let (mon, day, year) = dateParts(val("updated"))
-            attrs += [("defver", val("defver")), ("engver", val("engver")),
-                      ("datemon", mon), ("dateday", day), ("dateyear", year),
-                      ("prodType", "3"), ("osType", "4")]
-            rest = [.text("real-time-protection", val("real-time-protection")),
-                    .text("last-full-scan-time", val("last-full-scan-time"))]
+            attrs += [
+                ("defver", val("defver")), ("engver", val("engver")),
+                ("datemon", mon), ("dateday", day), ("dateyear", year),
+                ("prodType", "3"), ("osType", "4"),
+            ]
+            rest = [
+                .text("real-time-protection", val("real-time-protection")),
+                .text("last-full-scan-time", val("last-full-scan-time")),
+            ]
         case "disk-encryption":
-            rest = [Node("drives", (p.fields["drives"]?.drives ?? []).map {
-                Node("entry", [.text("drive-name", $0.name), .text("enc-state", $0.state)])
-            })]
+            rest = [
+                Node(
+                    "drives",
+                    (p.fields["drives"]?.drives ?? []).map {
+                        Node("entry", [.text("drive-name", $0.name), .text("enc-state", $0.state)])
+                    })
+            ]
         default:
             rest = def.fields.filter { $0.name != "version" }.map { .text($0.name, val($0.name)) }
         }
@@ -228,9 +241,11 @@ extension Facts {
         let pl = Node("plist")
         for p in products {
             guard let r = p.plist else { continue }
-            let prefs = Node("preference-value", r.keys.map {
-                .entry($0.key, [.text("exist", yesNo($0.exists)), .text("value", $0.value)])
-            })
+            let prefs = Node(
+                "preference-value",
+                r.keys.map {
+                    .entry($0.key, [.text("exist", yesNo($0.exists)), .text("value", $0.value)])
+                })
             pl.add(.entry(r.path, [.text("exist", yesNo(r.exists)), .text("value", ""), prefs]))
         }
         return Node("custom-checks", [pl])

@@ -28,11 +28,13 @@ public struct SessionPolicy: Equatable, Sendable {
     /// The policy as name and value pairs, for diagnostics; `init(fields:)`
     /// reads them back.
     public var fields: [(String, String)] {
-        [("dpd-interval", "\(dpdInterval)"), ("reconnect-initial-delay", "\(reconnectInitialDelay)"),
-         ("reconnect-max-delay", "\(reconnectMaxDelay)"), ("hip-retry-initial-delay", "\(hipRetryInitialDelay)"),
-         ("hip-retry-max-delay", "\(hipRetryMaxDelay)"), ("default-hip-interval", "\(defaultHIPInterval)"),
-         ("reauth-lead-time", "\(reauthLeadTime)"), ("reauth-retry-delay", "\(reauthRetryDelay)"),
-         ("can-reauthenticate", "\(canReauthenticate)")]
+        [
+            ("dpd-interval", "\(dpdInterval)"), ("reconnect-initial-delay", "\(reconnectInitialDelay)"),
+            ("reconnect-max-delay", "\(reconnectMaxDelay)"), ("hip-retry-initial-delay", "\(hipRetryInitialDelay)"),
+            ("hip-retry-max-delay", "\(hipRetryMaxDelay)"), ("default-hip-interval", "\(defaultHIPInterval)"),
+            ("reauth-lead-time", "\(reauthLeadTime)"), ("reauth-retry-delay", "\(reauthRetryDelay)"),
+            ("can-reauthenticate", "\(canReauthenticate)"),
+        ]
     }
 
     public init(fields: [String: String]) {
@@ -219,7 +221,8 @@ public struct Session: Sendable {
             }
             // Retry on its own timer. A failed HIP check never ends the
             // session, and during connect it doesn't hold up the tunnel.
-            deadlines[.hipRecheck] = now + backoff(hipRetryAttempt, policy.hipRetryInitialDelay, policy.hipRetryMaxDelay)
+            deadlines[.hipRecheck] =
+                now + backoff(hipRetryAttempt, policy.hipRetryInitialDelay, policy.hipRetryMaxDelay)
             hipRetryAttempt += 1
             if state == .connecting(.hip) { openTunnel(&out) }
 
@@ -308,7 +311,8 @@ public struct Session: Sendable {
             }
             if state == .reauthenticating {
                 // Login itself failed transiently; retry with backoff.
-                deadlines[.reauth] = now + backoff(reconnectAttempt, policy.reconnectInitialDelay, policy.reconnectMaxDelay)
+                deadlines[.reauth] =
+                    now + backoff(reconnectAttempt, policy.reconnectInitialDelay, policy.reconnectMaxDelay)
                 reconnectAttempt += 1
             } else if let e = expiresAt, now + policy.reauthRetryDelay < e {
                 deadlines[.reauth] = now + policy.reauthRetryDelay
@@ -452,7 +456,9 @@ public struct Session: Sendable {
     }
 
     private mutating func scheduleReconnect(now: Double, reason: String, out: inout [Action]) {
-        let delay = reconnectAttempt == 0 ? 0 : backoff(reconnectAttempt - 1, policy.reconnectInitialDelay, policy.reconnectMaxDelay)
+        let delay =
+            reconnectAttempt == 0
+            ? 0 : backoff(reconnectAttempt - 1, policy.reconnectInitialDelay, policy.reconnectMaxDelay)
         reconnectAttempt += 1
         if !networkUsable {
             set(.waitingForNetwork, &out)

@@ -6,7 +6,9 @@ import Testing
 
 @Suite struct XMLTests {
     @Test func parsesNestedElementsAndEntities() throws {
-        let x = try #require(XMLElement.parse(#"<?xml version="1.0"?><a k='v &amp; w'><b>1 &lt; 2</b><b><![CDATA[<raw>]]></b><!-- c --><c/></a>"#))
+        let x = try #require(
+            XMLElement.parse(
+                #"<?xml version="1.0"?><a k='v &amp; w'><b>1 &lt; 2</b><b><![CDATA[<raw>]]></b><!-- c --><c/></a>"#))
         #expect(x.name == "a")
         #expect(x.attributes["k"] == "v & w")
         #expect(x.children("b").map(\.text) == ["1 < 2", "<raw>"])
@@ -52,21 +54,28 @@ import Testing
 
 @Suite struct ReplyTests {
     @Test func challengeXML() throws {
-        let r = try Reply.classify(status: 200, body: "<challenge><user>test</user><inputstr>abc123</inputstr><respmsg>Approve the push</respmsg></challenge>")
+        let r = try Reply.classify(
+            status: 200,
+            body:
+                "<challenge><user>test</user><inputstr>abc123</inputstr><respmsg>Approve the push</respmsg></challenge>"
+        )
         #expect(r == .challenge(prompt: "Approve the push", inputStr: "abc123"))
     }
 
     @Test func challengeJavaScript() throws {
         let body = """
-        var respStatus = "Challenge";
-        var respMsg = "Enter \\"1\\" for a push";
-        thisForm.inputStr.value = "5e7a";
-        """
-        #expect(try Reply.classify(status: 200, body: body) == .challenge(prompt: "Enter \"1\" for a push", inputStr: "5e7a"))
+            var respStatus = "Challenge";
+            var respMsg = "Enter \\"1\\" for a push";
+            thisForm.inputStr.value = "5e7a";
+            """
+        #expect(
+            try Reply.classify(status: 200, body: body)
+                == .challenge(prompt: "Enter \"1\" for a push", inputStr: "5e7a"))
     }
 
     @Test func challengeInHTML() throws {
-        let body = #"<html><head></head><body>var respStatus = "Challenge"; var respMsg = "Code"; thisForm.inputStr.value = "xyz";</body></html>"#
+        let body =
+            #"<html><head></head><body>var respStatus = "Challenge"; var respMsg = "Code"; thisForm.inputStr.value = "xyz";</body></html>"#
         #expect(try Reply.classify(status: 200, body: body) == .challenge(prompt: "Code", inputStr: "xyz"))
     }
 
@@ -75,10 +84,15 @@ import Testing
             try Reply.classify(status: 512, body: "")
         }
         #expect(throws: GPError.cookieRejected("Invalid authentication cookie")) {
-            try Reply.classify(status: 200, body: #"<response status="error"><error>Invalid authentication cookie</error></response>"#)
+            try Reply.classify(
+                status: 200, body: #"<response status="error"><error>Invalid authentication cookie</error></response>"#)
         }
         #expect(throws: GPError.notFound("GlobalProtect portal does not exist")) {
-            try Reply.classify(status: 200, body: "<prelogin-response><status>Error</status><msg>GlobalProtect portal does not exist</msg></prelogin-response>")
+            try Reply.classify(
+                status: 200,
+                body:
+                    "<prelogin-response><status>Error</status><msg>GlobalProtect portal does not exist</msg></prelogin-response>"
+            )
         }
         #expect(throws: GPError.http(500)) { try Reply.classify(status: 500, body: "") }
         #expect(throws: GPError.badCredentials("Authentication failed")) {
@@ -88,20 +102,26 @@ import Testing
 }
 
 let fakeLoginJNLP = """
-<?xml version="1.0" encoding="utf-8"?><jnlp><application-desc><argument>(null)</argument><argument>c00k1e</argument><argument>PersistentCookie</argument><argument>fake-portal</argument><argument>test</argument><argument>Fake-Auth</argument><argument>vsys1</argument><argument>%28empty_domain%29</argument><argument>(null)</argument><argument></argument><argument></argument><argument></argument><argument>tunnel</argument><argument>-1</argument><argument>4100</argument><argument>10.99.0.2</argument><argument></argument><argument></argument><argument></argument></application-desc></jnlp>
-"""
+    <?xml version="1.0" encoding="utf-8"?><jnlp><application-desc><argument>(null)</argument><argument>c00k1e</argument><argument>PersistentCookie</argument><argument>fake-portal</argument><argument>test</argument><argument>Fake-Auth</argument><argument>vsys1</argument><argument>%28empty_domain%29</argument><argument>(null)</argument><argument></argument><argument></argument><argument></argument><argument>tunnel</argument><argument>-1</argument><argument>4100</argument><argument>10.99.0.2</argument><argument></argument><argument></argument><argument></argument></application-desc></jnlp>
+    """
 
 let fakeGetConfig = """
-<response><need-tunnel>yes</need-tunnel><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><portal>fake-portal</portal><user>test</user><lifetime>86400</lifetime><timeout>3600</timeout><disconnect-on-idle>10800</disconnect-on-idle><bw-c2s>1000</bw-c2s><bw-s2c>1000</bw-s2c><ip-address>10.99.0.2</ip-address><netmask>255.255.255.255</netmask><ip-address-v6>fd99::2</ip-address-v6><dns><member>10.99.0.53</member></dns><dns-v6><member>10.99.0.53</member><member>fd99::53</member></dns-v6><dns-suffix><member>fake.test</member></dns-suffix><mtu>0</mtu><access-routes><member>10.99.0.0/24</member><member>10.98.0.5</member></access-routes><access-routes-v6><member>fd99::/64</member></access-routes-v6><exclude-access-routes><member>10.99.0.128/25</member><member>bogus</member></exclude-access-routes><gw-address>127.0.0.1</gw-address></response>
-"""
+    <response><need-tunnel>yes</need-tunnel><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><portal>fake-portal</portal><user>test</user><lifetime>86400</lifetime><timeout>3600</timeout><disconnect-on-idle>10800</disconnect-on-idle><bw-c2s>1000</bw-c2s><bw-s2c>1000</bw-s2c><ip-address>10.99.0.2</ip-address><netmask>255.255.255.255</netmask><ip-address-v6>fd99::2</ip-address-v6><dns><member>10.99.0.53</member></dns><dns-v6><member>10.99.0.53</member><member>fd99::53</member></dns-v6><dns-suffix><member>fake.test</member></dns-suffix><mtu>0</mtu><access-routes><member>10.99.0.0/24</member><member>10.98.0.5</member></access-routes><access-routes-v6><member>fd99::/64</member></access-routes-v6><exclude-access-routes><member>10.99.0.128/25</member><member>bogus</member></exclude-access-routes><gw-address>127.0.0.1</gw-address></response>
+    """
 
 @Suite struct ModelTests {
     @Test func loginCookie() throws {
         let doc = try Reply.document(status: 200, body: fakeLoginJNLP)
         let c = try AuthCookie(jnlp: doc, computer: "albi-test")
-        #expect(c == AuthCookie(authcookie: "c00k1e", portal: "fake-portal", user: "test", domain: "(empty_domain)",
-                                preferredIP: "10.99.0.2", computer: "albi-test"))
-        #expect(c.form.encoded == "authcookie=c00k1e&portal=fake-portal&user=test&domain=%28empty_domain%29&preferred-ip=10.99.0.2&computer=albi-test")
+        #expect(
+            c
+                == AuthCookie(
+                    authcookie: "c00k1e", portal: "fake-portal", user: "test", domain: "(empty_domain)",
+                    preferredIP: "10.99.0.2", computer: "albi-test"))
+        #expect(
+            c.form.encoded
+                == "authcookie=c00k1e&portal=fake-portal&user=test&domain=%28empty_domain%29&preferred-ip=10.99.0.2&computer=albi-test"
+        )
     }
 
     @Test func hipTokenMatchesOpenconnect() {
@@ -127,8 +147,8 @@ let fakeGetConfig = """
 
     @Test func espConfig() throws {
         let body = """
-        <response><ip-address>10.0.0.2</ip-address><ipsec><udp-port>4501</udp-port><ipsec-mode>esp-tunnel</ipsec-mode><enc-algo>aes-128-cbc</enc-algo><hmac-algo>sha1</hmac-algo><c2s-spi>0x1234abcd</c2s-spi><s2c-spi>0xdeadbeef</s2c-spi><akey-s2c><bits>160</bits><val>0102030405060708090a0b0c0d0e0f1011121314</val></akey-s2c><ekey-c2s><bits>128</bits><val>deadbeefdeadbeefdeadbeefdeadbee1</val></ekey-c2s></ipsec></response>
-        """
+            <response><ip-address>10.0.0.2</ip-address><ipsec><udp-port>4501</udp-port><ipsec-mode>esp-tunnel</ipsec-mode><enc-algo>aes-128-cbc</enc-algo><hmac-algo>sha1</hmac-algo><c2s-spi>0x1234abcd</c2s-spi><s2c-spi>0xdeadbeef</s2c-spi><akey-s2c><bits>160</bits><val>0102030405060708090a0b0c0d0e0f1011121314</val></akey-s2c><ekey-c2s><bits>128</bits><val>deadbeefdeadbeefdeadbeefdeadbee1</val></ekey-c2s></ipsec></response>
+            """
         let esp = try #require(try GatewayConfig(Reply.document(status: 200, body: body)).esp)
         #expect(esp.udpPort == 4501)
         #expect(esp.c2sSPI == 0x1234abcd)
@@ -139,15 +159,15 @@ let fakeGetConfig = """
 
     @Test func portalConfig() throws {
         let body = """
-        <?xml version="1.0" encoding="UTF-8" ?>
-        <policy><version>6.2.8-1045</version><portal-userauthcookie>empty</portal-userauthcookie>
-        <gateways><external><list>
-        <entry name="gw2.example.com"><priority-rule><entry name="Any"><priority>2</priority></entry></priority-rule><description>Two</description></entry>
-        <entry name="gw1.example.com"><priority-rule><entry name="Any"><priority>1</priority></entry></priority-rule><description>One</description></entry>
-        </list></external></gateways>
-        <hip-collection><hip-report-interval>3600</hip-report-interval></hip-collection>
-        </policy>
-        """
+            <?xml version="1.0" encoding="UTF-8" ?>
+            <policy><version>6.2.8-1045</version><portal-userauthcookie>empty</portal-userauthcookie>
+            <gateways><external><list>
+            <entry name="gw2.example.com"><priority-rule><entry name="Any"><priority>2</priority></entry></priority-rule><description>Two</description></entry>
+            <entry name="gw1.example.com"><priority-rule><entry name="Any"><priority>1</priority></entry></priority-rule><description>One</description></entry>
+            </list></external></gateways>
+            <hip-collection><hip-report-interval>3600</hip-report-interval></hip-collection>
+            </policy>
+            """
         let p = try PortalConfig(Reply.document(status: 200, body: body))
         #expect(p.version == "6.2.8-1045")
         #expect(p.userAuthCookie == nil)
@@ -159,12 +179,17 @@ let fakeGetConfig = """
 
 @Suite struct RequestTests {
     let client = ClientInfo(computer: "albi-test")
-    let cookie = AuthCookie(authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: "10.0.0.2", computer: "albi-test")
+    let cookie = AuthCookie(
+        authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: "10.0.0.2", computer: "albi-test")
 
     @Test func gatewayLogin() {
-        let r = Requests.login(.gateway, client: client, server: "gw:8443", user: "test", password: "1", inputStr: "abc")
+        let r = Requests.login(
+            .gateway, client: client, server: "gw:8443", user: "test", password: "1", inputStr: "abc")
         #expect(r.path == "/ssl-vpn/login.esp")
-        #expect(r.body.encoded == "jnlpReady=jnlpReady&ok=Login&direct=yes&clientVer=4100&prot=https%3a&internal=no&ipv6-support=yes&clientos=Mac&os-version=mac-intel&server=gw%3a8443&computer=albi-test&inputStr=abc&user=test&passwd=1")
+        #expect(
+            r.body.encoded
+                == "jnlpReady=jnlpReady&ok=Login&direct=yes&clientVer=4100&prot=https%3a&internal=no&ipv6-support=yes&clientos=Mac&os-version=mac-intel&server=gw%3a8443&computer=albi-test&inputStr=abc&user=test&passwd=1"
+        )
     }
 
     @Test func getConfigReplacesPreferredIP() {
@@ -179,12 +204,15 @@ let fakeGetConfig = """
         let r = Requests.hipReportCheck(cookie, clientIPv4: "10.0.0.2", clientIPv6: nil)
         #expect(r.body.encoded.hasPrefix("client-role=global-protect-full&authcookie=c&"))
         #expect(r.body["md5"] == cookie.hipToken)
-        #expect(try Requests.hipReportNeeded(XMLElement.parse("<response><hip-report-needed>yes</hip-report-needed></response>")!))
+        #expect(
+            try Requests.hipReportNeeded(
+                XMLElement.parse("<response><hip-report-needed>yes</hip-report-needed></response>")!))
     }
 
     @Test func tunnelRequest() {
-        #expect(String(decoding: GPST.tunnelRequest(path: "/ssl-tunnel-connect.sslvpn", cookie: cookie), as: UTF8.self)
-            == "GET /ssl-tunnel-connect.sslvpn?authcookie=c&user=u HTTP/1.1\r\n\r\n")
+        #expect(
+            String(decoding: GPST.tunnelRequest(path: "/ssl-tunnel-connect.sslvpn", cookie: cookie), as: UTF8.self)
+                == "GET /ssl-tunnel-connect.sslvpn?authcookie=c&user=u HTTP/1.1\r\n\r\n")
     }
 }
 
@@ -193,7 +221,10 @@ let fakeGetConfig = """
         let v4: [UInt8] = [0x45, 0, 0, 20] + [UInt8](repeating: 7, count: 16)
         let v6: [UInt8] = [0x60] + [UInt8](repeating: 1, count: 39)
         let wire = GPST.encode(packet: v4) + GPST.keepaliveFrame + GPST.encode(packet: v6)
-        #expect(Array(GPST.encode(packet: v4)[0..<16]) == [0x1a, 0x2b, 0x3c, 0x4d, 0x08, 0x00, 0, 20, 1, 0, 0, 0, 0, 0, 0, 0])
+        #expect(
+            Array(GPST.encode(packet: v4)[0..<16]) == [
+                0x1a, 0x2b, 0x3c, 0x4d, 0x08, 0x00, 0, 20, 1, 0, 0, 0, 0, 0, 0, 0,
+            ])
         #expect(Array(GPST.encode(packet: v6)[4..<6]) == [0x86, 0xDD])
 
         // Feed one byte at a time to check partial frames.
@@ -218,7 +249,9 @@ let fakeGetConfig = """
         #expect(h.feed(Array("TUNNEL".utf8) + [0x1a]) == .started(leftover: [0x1a]))
 
         var r = GPST.Handshake()
-        #expect(r.feed(Array("HTTP/1.1 502 Bad Gateway\r\n\r\n".utf8)) == .rejected(.cookieRejected("tunnel request got HTTP 502")))
+        #expect(
+            r.feed(Array("HTTP/1.1 502 Bad Gateway\r\n\r\n".utf8))
+                == .rejected(.cookieRejected("tunnel request got HTTP 502")))
         var e = GPST.Handshake()
         #expect(e.feed(Array("HTTP/1.1 404 Not Found\r\n".utf8)) == .rejected(.http(404)))
     }
@@ -233,10 +266,11 @@ let fakeGetConfig = """
         #expect(s.ipv6Address == "fd99::2")
         #expect(s.ipv6PrefixLength == 128)
         #expect(!s.isFullTunnel)
-        #expect(s.includedIPv4 == [
-            .init(address: "10.99.0.0", mask: "255.255.255.0", prefixLength: 24),
-            .init(address: "10.98.0.5", mask: "255.255.255.255", prefixLength: 32),
-        ])
+        #expect(
+            s.includedIPv4 == [
+                .init(address: "10.99.0.0", mask: "255.255.255.0", prefixLength: 24),
+                .init(address: "10.98.0.5", mask: "255.255.255.255", prefixLength: 32),
+            ])
         #expect(s.excludedIPv4 == [.init(address: "10.99.0.128", mask: "255.255.255.128", prefixLength: 25)])
         #expect(s.includedIPv6 == [.init(address: "fd99::", prefixLength: 64)])
         #expect(s.ignoredRoutes == ["bogus"])
@@ -246,7 +280,8 @@ let fakeGetConfig = """
     }
 
     @Test func fullTunnel() throws {
-        let body = "<response><ip-address>10.0.0.2</ip-address><mtu>1350</mtu><dns><member>10.0.0.53</member></dns><dns-suffix><member>corp.example</member></dns-suffix></response>"
+        let body =
+            "<response><ip-address>10.0.0.2</ip-address><mtu>1350</mtu><dns><member>10.0.0.53</member></dns><dns-suffix><member>corp.example</member></dns-suffix></response>"
         let s = TunnelSettings(config: try GatewayConfig(Reply.document(status: 200, body: body)), remoteAddress: "gw")
         #expect(s.isFullTunnel)
         #expect(s.includedIPv4 == [.default])
@@ -256,13 +291,16 @@ let fakeGetConfig = """
     }
 
     @Test func explicitDefaultRouteIsFull() throws {
-        let body = "<response><ip-address>10.0.0.2</ip-address><access-routes><member>0.0.0.0/0</member><member>10.1.0.0/16</member></access-routes></response>"
+        let body =
+            "<response><ip-address>10.0.0.2</ip-address><access-routes><member>0.0.0.0/0</member><member>10.1.0.0/16</member></access-routes></response>"
         let s = TunnelSettings(config: try GatewayConfig(Reply.document(status: 200, body: body)), remoteAddress: "gw")
         #expect(s.includedIPv4 == [.default])
     }
 
     @Test func routeParsing() {
-        #expect(TunnelSettings.parseIPv4Route("10.1.2.3/8") == .init(address: "10.0.0.0", mask: "255.0.0.0", prefixLength: 8))
+        #expect(
+            TunnelSettings.parseIPv4Route("10.1.2.3/8")
+                == .init(address: "10.0.0.0", mask: "255.0.0.0", prefixLength: 8))
         #expect(TunnelSettings.parseIPv4Route("10.1.2.0/255.255.255.0")?.prefixLength == 24)
         #expect(TunnelSettings.parseIPv4Route("10.1.2.0/255.0.255.0") == nil)
         #expect(TunnelSettings.parseIPv4Route("10.1.2.300") == nil)
@@ -288,7 +326,7 @@ let fakeGetConfig = """
 
     @Test func parsesReply() throws {
         var p = try #require(Ping.request(from: "10.99.0.1", to: "10.99.0.2", id: 9, sequence: 3))
-        p[20] = 0 // echo reply
+        p[20] = 0  // echo reply
         #expect(Ping.reply(p, to: "10.99.0.2")! == (9, 3))
         #expect(Ping.reply(p, to: "10.99.0.3") == nil)
     }
@@ -310,8 +348,9 @@ let fakeGetConfig = """
         #expect(c.appVersion == "6.1.4-12")
         c.adopt(version: "6.2.8-948")
         #expect(c.appVersion == "6.1.4-12")
-        let cookie = AuthCookie(authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: nil,
-                                preferredIPv6: nil, computer: "mac")
+        let cookie = AuthCookie(
+            authcookie: "c", portal: "p", user: "u", domain: "d", preferredIP: nil,
+            preferredIPv6: nil, computer: "mac")
         #expect(Requests.getConfig(cookie, client: c).body["app-version"] == "6.1.4-12")
     }
 

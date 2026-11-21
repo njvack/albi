@@ -104,7 +104,8 @@ private func advisory(_ r: [String: Any]) -> Advisory? {
 /// 149527 from https://support.apple.com/en-us/149527.
 func articleNumber(_ url: String) -> String? {
     guard url.hasPrefix("https://support.apple.com/"),
-          let last = url.split(separator: "/").last, !last.isEmpty, last.allSatisfy(\.isNumber) else { return nil }
+        let last = url.split(separator: "/").last, !last.isEmpty, last.allSatisfy(\.isNumber)
+    else { return nil }
     return String(last)
 }
 

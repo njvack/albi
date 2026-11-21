@@ -108,8 +108,10 @@ public final class FlightRecorder: Sendable {
 
     /// Records one HTTPS exchange. Drops the password and HIP report fields
     /// and cuts long bodies.
-    public func recordHTTP(server: String, request: HTTPRequest, response: HTTPResponse?, error: (any Error)?,
-                           start: Double, end: Double) {
+    public func recordHTTP(
+        server: String, request: HTTPRequest, response: HTTPResponse?, error: (any Error)?,
+        start: Double, end: Double
+    ) {
         var form = Form()
         for (name, value) in request.body.fields {
             switch name.lowercased() {
@@ -124,15 +126,18 @@ public final class FlightRecorder: Sendable {
             cut = b.utf8.count
             body = String(decoding: b.utf8.prefix(policy.maxBody), as: UTF8.self)
         }
-        let h = HTTP(server: server, method: request.method, path: request.path, request: form,
-                     status: response?.status, body: body, truncatedFrom: cut,
-                     error: error.map { String(describing: $0) }, duration: end - start)
+        let h = HTTP(
+            server: server, method: request.method, path: request.path, request: form,
+            status: response?.status, body: body, truncatedFrom: cut,
+            error: error.map { String(describing: $0) }, duration: end - start)
         record(.http(h), at: end)
     }
 
     /// Counts tunnel traffic; folded into one entry per second.
-    public func count(at time: Double, packetsIn: Int = 0, bytesIn: Int = 0, packetsOut: Int = 0, bytesOut: Int = 0,
-                      keepalivesIn: Int = 0, keepalivesOut: Int = 0) {
+    public func count(
+        at time: Double, packetsIn: Int = 0, bytesIn: Int = 0, packetsOut: Int = 0, bytesOut: Int = 0,
+        keepalivesIn: Int = 0, keepalivesOut: Int = 0
+    ) {
         state.withLock {
             $0.count(at: time, packetsIn, bytesIn, packetsOut, bytesOut, keepalivesIn, keepalivesOut)
         }
@@ -288,7 +293,7 @@ public final class FlightRecorder: Sendable {
             let p = String(path.split(separator: "?", maxSplits: 1).first ?? "")
             switch p {
             case "/global-protect/prelogin.esp", "/global-protect/getconfig.esp",
-                 "/ssl-vpn/prelogin.esp", "/ssl-vpn/login.esp", "/ssl-vpn/getconfig.esp":
+                "/ssl-vpn/prelogin.esp", "/ssl-vpn/login.esp", "/ssl-vpn/getconfig.esp":
                 return p
             default:
                 return nil
@@ -402,7 +407,8 @@ struct IncidentRules: Sendable {
             }
         case .http(let h) where logoutDeadline != nil && h.path.hasPrefix("/ssl-vpn/logout.esp"):
             // Same test the runner applies before it logs "logged out".
-            let ok = h.error == nil && h.status.map { (try? Reply.document(status: $0, body: h.body ?? "")) != nil } == true
+            let ok =
+                h.error == nil && h.status.map { (try? Reply.document(status: $0, body: h.body ?? "")) != nil } == true
             out += close(now: now, outcome: ok ? "stopped, logged out" : "stopped, logout failed")
         default:
             break
@@ -423,7 +429,9 @@ struct IncidentRules: Sendable {
         guard openSince != nil, dumped == nil, !quiet else { return [] }
         let total = counted + (countingSince.map { now - $0 } ?? 0)
         guard total >= grace else { return [] }
-        return dump(now: now, reason: "not connected for \(Int(total.rounded(.up))) s with a usable network (last: \(lastReason))")
+        return dump(
+            now: now,
+            reason: "not connected for \(Int(total.rounded(.up))) s with a usable network (last: \(lastReason))")
     }
 
     mutating func manual(reason: String, now: Double) -> (Int, [FlightRecorder.Signal]) {
@@ -488,10 +496,12 @@ public struct RecordingConnector: GatewayConnector {
         let start = clock.now()
         do {
             let r = try await base.send(request, to: server)
-            recorder.recordHTTP(server: server, request: request, response: r, error: nil, start: start, end: clock.now())
+            recorder.recordHTTP(
+                server: server, request: request, response: r, error: nil, start: start, end: clock.now())
             return r
         } catch {
-            recorder.recordHTTP(server: server, request: request, response: nil, error: error, start: start, end: clock.now())
+            recorder.recordHTTP(
+                server: server, request: request, response: nil, error: error, start: start, end: clock.now())
             throw error
         }
     }

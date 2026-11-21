@@ -25,7 +25,7 @@ concurrency:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    container: swift:6.1-noble
+    container: swift:6.3-noble
     steps:
       - uses: actions/checkout@v4
       - run: swift build --product hipreport
@@ -64,7 +64,7 @@ jobs:
         working-directory: gp-fake-gateway
       - name: Build hipreport (static, in the Swift container)
         run: >
-          docker run --rm -v "$PWD:/src" -w /src swift:6.1-noble
+          docker run --rm -v "$PWD:/src" -w /src swift:6.3-noble
           swift build -c release --product hipreport --static-swift-stdlib
       - run: >
           sudo e2e/hipreport.sh "$PWD/openconnect/openconnect" "$PWD/gp-fake-gateway/fakegp"

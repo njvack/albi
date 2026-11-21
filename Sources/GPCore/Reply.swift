@@ -75,7 +75,7 @@ public enum Reply: Equatable, Sendable {
         case "GlobalProtect gateway does not exist", "GlobalProtect portal does not exist":
             .notFound(message)
         case "Invalid authentication cookie", "Portal name not found",
-             "Allow Automatic Restoration of SSL VPN is disabled":
+            "Allow Automatic Restoration of SSL VPN is disabled":
             .cookieRejected(message)
         case "Valid client certificate is required":
             .certificateRequired

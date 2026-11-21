@@ -40,7 +40,8 @@ import Testing
     }
 
     @Test func chunked() throws {
-        let s = "HTTP/1.1 512 Custom error\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nab\r\n\r\n3;x=y\r\ncde\r\n0\r\n\r\n"
+        let s =
+            "HTTP/1.1 512 Custom error\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nab\r\n\r\n3;x=y\r\ncde\r\n0\r\n\r\n"
         #expect(try parse(s) == HTTPResponse(status: 512, body: "ab\r\ncde"))
         #expect(try parse(s, splitEvery: 1) == HTTPResponse(status: 512, body: "ab\r\ncde"))
     }

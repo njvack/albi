@@ -10,11 +10,11 @@ import Diagnostics
 import GPCore
 
 let usage = """
-usage: albi-diag summary FILE
-       albi-diag check FILE [--scrub WORD]...
-       albi-diag replay FILE
-       albi-diag scenario FILE [--name NAME]
-"""
+    usage: albi-diag summary FILE
+           albi-diag check FILE [--scrub WORD]...
+           albi-diag replay FILE
+           albi-diag scenario FILE [--name NAME]
+    """
 
 func fail(_ s: String) -> Never {
     FileHandle.standardError.write(Data((s + "\n").utf8))
@@ -52,7 +52,9 @@ case "summary":
             print(s)
         case "http":
             let st = e["status"].map { "\($0)" } ?? (e["error"] as? String ?? "?")
-            print("\(t) \(pin)http \(IncidentFile.requestKind(e["path"] as? String ?? "")) → \(st) (\(String(format: "%.3f", e["duration"] as? Double ?? 0)) s)")
+            print(
+                "\(t) \(pin)http \(IncidentFile.requestKind(e["path"] as? String ?? "")) → \(st) (\(String(format: "%.3f", e["duration"] as? Double ?? 0)) s)"
+            )
         case "incident": print("\(t) incident \(e["message"] ?? "")")
         default: break
         }
@@ -75,7 +77,8 @@ case "check":
     for m in ipv4.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
         let o = (1...4).map { Int((text as NSString).substring(with: m.range(at: $0))) ?? 0 }
         guard o.allSatisfy({ $0 <= 255 }) else { continue }
-        let ok = o[0] == 10 || o[0] == 127 || o[0] == 0 || o[0] == 255 || o[0] >= 224
+        let ok =
+            o[0] == 10 || o[0] == 127 || o[0] == 0 || o[0] == 255 || o[0] >= 224
             || (o[0] == 172 && (16...31).contains(o[1])) || (o[0] == 192 && o[1] == 168)
             || (o[0] == 198 && (18...19).contains(o[1])) || (o[0] == 192 && o[1] == 0 && o[2] == 2)
             || (o[0] == 169 && o[1] == 254) || o[1...].allSatisfy({ $0 == 255 || $0 == 0 })
@@ -102,7 +105,9 @@ case "replay":
     print("final state: \(r.finalState)")
     print("recorded actions in the window: \(r.recorded.count), replayed: \(r.replayed.count)")
     if let d = r.divergence {
-        print("first difference at action \(d): recorded \(d < r.recorded.count ? r.recorded[d] : "(end)"), replayed \(d < r.replayed.count ? r.replayed[d] : "(end)")")
+        print(
+            "first difference at action \(d): recorded \(d < r.recorded.count ? r.recorded[d] : "(end)"), replayed \(d < r.replayed.count ? r.replayed[d] : "(end)")"
+        )
         exit(1)
     }
     print("replay matches the recording")

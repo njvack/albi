@@ -63,11 +63,13 @@ import Testing
 
     @Test func parsesListing() {
         let got = parseSoftwareUpdateList(Self.listing)
-        #expect(got == [
-            PendingUpdate(label: "Safari27.2TahoeAuto-27.2", title: "Safari", version: "27.2"),
-            PendingUpdate(label: "macOS Tahoe 26.7.3-25G342", title: "macOS Tahoe 26.7.3", version: "26.7.3", restart: true),
-            PendingUpdate(label: "macOS 27.2.1-26B131", title: "macOS 27.2.1", version: "27.2.1", restart: true),
-        ])
+        #expect(
+            got == [
+                PendingUpdate(label: "Safari27.2TahoeAuto-27.2", title: "Safari", version: "27.2"),
+                PendingUpdate(
+                    label: "macOS Tahoe 26.7.3-25G342", title: "macOS Tahoe 26.7.3", version: "26.7.3", restart: true),
+                PendingUpdate(label: "macOS 27.2.1-26B131", title: "macOS 27.2.1", version: "27.2.1", restart: true),
+            ])
         #expect(got.map(\.build) == [nil, "25G342", "26B131"])
         #expect(got.map(\.feed) == [.safari, .macOS, .macOS])
     }
@@ -92,38 +94,50 @@ import Testing
     @Test func matchesGP() {
         let scan = Env(Self.system(Self.listing)).missingPatches()
         #expect(scan.error == nil)
-        #expect(scan.patches == [
-            MissingPatch(title: "Safari27.2TahoeAuto-27.2", description: "Safari 27.2", product: "Safari",
-                         infoURL: "https://support.apple.com/en-us/149527", kbArticleID: "149527", severity: 1),
-            MissingPatch(title: "macOS Tahoe 26.7.3-25G342", description: "macOS Tahoe 26.7.3", product: "macOS Tahoe 26.7.3",
-                         infoURL: "https://support.apple.com/en-us/149719", kbArticleID: "149719", severity: 2),
-            MissingPatch(title: "macOS 27.2.1-26B131", description: "macOS 27.2.1", product: "macOS 27.2.1",
-                         infoURL: "https://support.apple.com/en-us/149718", kbArticleID: "149718", severity: 2),
-        ])
-        #expect(scan.feeds == [
-            "macos: fetched \(SofaFeed.macOS.url)",
-            "safari: fetched \(SofaFeed.safari.url)",
-        ])
+        #expect(
+            scan.patches == [
+                MissingPatch(
+                    title: "Safari27.2TahoeAuto-27.2", description: "Safari 27.2", product: "Safari",
+                    infoURL: "https://support.apple.com/en-us/149527", kbArticleID: "149527", severity: 1),
+                MissingPatch(
+                    title: "macOS Tahoe 26.7.3-25G342", description: "macOS Tahoe 26.7.3",
+                    product: "macOS Tahoe 26.7.3",
+                    infoURL: "https://support.apple.com/en-us/149719", kbArticleID: "149719", severity: 2),
+                MissingPatch(
+                    title: "macOS 27.2.1-26B131", description: "macOS 27.2.1", product: "macOS 27.2.1",
+                    infoURL: "https://support.apple.com/en-us/149718", kbArticleID: "149718", severity: 2),
+            ])
+        #expect(
+            scan.feeds == [
+                "macos: fetched \(SofaFeed.macOS.url)",
+                "safari: fetched \(SofaFeed.safari.url)",
+            ])
     }
 
     @Test func severityWithoutFeeds() {
-        let scan = Env(Self.system(Self.listing + """
-            * Label: Command Line Tools for Xcode-27.1
-            \tTitle: Command Line Tools for Xcode, Version: 27.1, Size: 900000K, Recommended: YES, Action: restart,
-            * Label: XProtectPlistConfigData-5300
-            \tTitle: XProtectPlistConfigData, Version: 5300, Size: 100K, Recommended: NO,
-            """, feeds: false)).missingPatches()
+        let scan = Env(
+            Self.system(
+                Self.listing + """
+                    * Label: Command Line Tools for Xcode-27.1
+                    \tTitle: Command Line Tools for Xcode, Version: 27.1, Size: 900000K, Recommended: YES, Action: restart,
+                    * Label: XProtectPlistConfigData-5300
+                    \tTitle: XProtectPlistConfigData, Version: 5300, Size: 100K, Recommended: NO,
+                    """, feeds: false)
+        ).missingPatches()
         #expect(scan.patches.map(\.severity) == [1, 2, 2, 2, 1])
         #expect(scan.patches.allSatisfy { $0.kbArticleID.isEmpty && $0.infoURL.isEmpty })
-        #expect(scan.feeds == [
-            "macos: could not fetch \(SofaFeed.macOS.url) and nothing cached; kb-article-id left blank",
-            "safari: could not fetch \(SofaFeed.safari.url) and nothing cached; kb-article-id left blank",
-        ])
+        #expect(
+            scan.feeds == [
+                "macos: could not fetch \(SofaFeed.macOS.url) and nothing cached; kb-article-id left blank",
+                "safari: could not fetch \(SofaFeed.safari.url) and nothing cached; kb-article-id left blank",
+            ])
     }
 
     @Test func severityScale() {
         let u = PendingUpdate(label: "x", title: "Safari")
-        func adv(_ s: String?, _ e: Bool) -> Advisory { Advisory(number: "1", url: "", severity: severityRank(s), exploited: e) }
+        func adv(_ s: String?, _ e: Bool) -> Advisory {
+            Advisory(number: "1", url: "", severity: severityRank(s), exploited: e)
+        }
         #expect(u.severity(adv("Low", false)) == 0)
         #expect(u.severity(adv("Medium", false)) == 1)
         #expect(u.severity(adv("High", false)) == 2)
@@ -137,8 +151,11 @@ import Testing
     @Test func parsesFeeds() throws {
         let mac = try #require(parseSofaFeed(Data(Self.macFeed.utf8)))
         #expect(mac.byBuild["26B7131"]?.number == "149718")
-        #expect(mac.byVersion["26.7.1"] == Advisory(number: "149228", url: "https://support.apple.com/en-us/149228",
-                                                     severity: nil, exploited: false))
+        #expect(
+            mac.byVersion["26.7.1"]
+                == Advisory(
+                    number: "149228", url: "https://support.apple.com/en-us/149228",
+                    severity: nil, exploited: false))
         #expect(mac.byVersion["27.0.1"] == nil, "no article")
         #expect(try #require(parseSofaFeed(Data(Self.safariFeed.utf8))).byVersion["27.2"]?.number == "149527")
         #expect(parseSofaFeed(Data("{}".utf8)) == nil)
@@ -159,8 +176,10 @@ import Testing
 
     @Test func staleCacheIsRefreshed() {
         let sys = Self.system(Self.listing)
-        sys.files.append(.init(path: Self.cachePath(.macOS), content: #"{"OSVersions": []}"#,
-                               modified: Self.now - 7 * 3600))
+        sys.files.append(
+            .init(
+                path: Self.cachePath(.macOS), content: #"{"OSVersions": []}"#,
+                modified: Self.now - 7 * 3600))
         let scan = Env(sys).missingPatches()
         #expect(scan.patches[1].kbArticleID == "149719")
         #expect(scan.feeds.first == "macos: fetched \(SofaFeed.macOS.url)")
@@ -174,8 +193,11 @@ import Testing
         sys.files.append(.init(path: Self.cachePath(.macOS), content: Self.macFeed, modified: Self.now - 7 * 3600))
         let scan = Env(sys).missingPatches()
         #expect(scan.patches[1].kbArticleID == "149719")
-        #expect(scan.feeds.first == "macos: could not fetch \(SofaFeed.macOS.url); using stale \(Self.cachePath(.macOS)), 420 min old")
-        #expect(sys.readFile(Self.cachePath(.macOS)) == Data(Self.macFeed.utf8), "a bad fetch must not replace the cache")
+        #expect(
+            scan.feeds.first
+                == "macos: could not fetch \(SofaFeed.macOS.url); using stale \(Self.cachePath(.macOS)), 420 min old")
+        #expect(
+            sys.readFile(Self.cachePath(.macOS)) == Data(Self.macFeed.utf8), "a bad fetch must not replace the cache")
     }
 
     @Test func commandFailureReportsNone() {
@@ -190,21 +212,23 @@ import Testing
     @Test func reportListsPatchesOnce() throws {
         let doc = collect(Env(Self.system(Self.listing)), CheckSet(), Request()).xml.document
         #expect(doc.components(separatedBy: "<missing-patches>").count == 2)
-        #expect(doc.contains("""
-                  <missing-patches>
-                    <entry>
-                      <title>Safari27.2TahoeAuto-27.2</title>
-                      <description>Safari 27.2</description>
-                      <product>Safari</product>
-                      <vendor>Apple Inc.</vendor>
-                      <info-url>https://support.apple.com/en-us/149527</info-url>
-                      <kb-article-id>149527</kb-article-id>
-                      <security-bulletin-id/>
-                      <severity>1</severity>
-                      <category/>
-                      <is-installed>no</is-installed>
-                    </entry>
-            """))
+        #expect(
+            doc.contains(
+                """
+                      <missing-patches>
+                        <entry>
+                          <title>Safari27.2TahoeAuto-27.2</title>
+                          <description>Safari 27.2</description>
+                          <product>Safari</product>
+                          <vendor>Apple Inc.</vendor>
+                          <info-url>https://support.apple.com/en-us/149527</info-url>
+                          <kb-article-id>149527</kb-article-id>
+                          <security-bulletin-id/>
+                          <severity>1</severity>
+                          <category/>
+                          <is-installed>no</is-installed>
+                        </entry>
+                """))
         #expect(doc.contains("<title>macOS Tahoe 26.7.3-25G342</title>"))
     }
 

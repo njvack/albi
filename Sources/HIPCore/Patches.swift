@@ -25,9 +25,11 @@ public struct MissingPatch: Sendable, Codable, Equatable {
         case securityBulletinID = "security_bulletin_id", severity, category
     }
 
-    public init(title: String, description: String = "", product: String = "", vendor: String = "Apple Inc.",
-                infoURL: String = "", kbArticleID: String = "", securityBulletinID: String = "",
-                severity: Int, category: String = "") {
+    public init(
+        title: String, description: String = "", product: String = "", vendor: String = "Apple Inc.",
+        infoURL: String = "", kbArticleID: String = "", securityBulletinID: String = "",
+        severity: Int, category: String = ""
+    ) {
         self.title = title
         self.description = description
         self.product = product
@@ -40,18 +42,20 @@ public struct MissingPatch: Sendable, Codable, Equatable {
     }
 
     var xml: Node {
-        Node("entry", [
-            .text("title", title),
-            .text("description", description),
-            .text("product", product),
-            .text("vendor", vendor),
-            .text("info-url", infoURL),
-            .text("kb-article-id", kbArticleID),
-            .text("security-bulletin-id", securityBulletinID),
-            .text("severity", String(severity)),
-            .text("category", category),
-            .text("is-installed", "no"),
-        ])
+        Node(
+            "entry",
+            [
+                .text("title", title),
+                .text("description", description),
+                .text("product", product),
+                .text("vendor", vendor),
+                .text("info-url", infoURL),
+                .text("kb-article-id", kbArticleID),
+                .text("security-bulletin-id", securityBulletinID),
+                .text("severity", String(severity)),
+                .text("category", category),
+                .text("is-installed", "no"),
+            ])
     }
 }
 
@@ -118,8 +122,9 @@ struct PendingUpdate: Equatable {
     func patch(_ adv: Advisory?) -> MissingPatch {
         var desc = title
         if !version.isEmpty && !title.hasSuffix(version) { desc += (desc.isEmpty ? "" : " ") + version }
-        return MissingPatch(title: label, description: desc, product: title, infoURL: adv?.url ?? "",
-                            kbArticleID: adv?.number ?? "", severity: severity(adv))
+        return MissingPatch(
+            title: label, description: desc, product: title, infoURL: adv?.url ?? "",
+            kbArticleID: adv?.number ?? "", severity: severity(adv))
     }
 
     /// OPSWAT's ratings aren't available to us. Apple's advisory severity,

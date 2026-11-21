@@ -72,7 +72,9 @@ public enum HTTP1 {
             let lines = String(decoding: head, as: UTF8.self).split(separator: "\r\n", omittingEmptySubsequences: false)
             guard let first = lines.first else { throw .badStatusLine }
             let parts = first.split(separator: " ", maxSplits: 2)
-            guard parts.count >= 2, parts[0].hasPrefix("HTTP/1."), let code = Int(parts[1]) else { throw .badStatusLine }
+            guard parts.count >= 2, parts[0].hasPrefix("HTTP/1."), let code = Int(parts[1]) else {
+                throw .badStatusLine
+            }
             status = code
             for l in lines.dropFirst() where !l.isEmpty {
                 guard let colon = l.firstIndex(of: ":") else { throw .badHeader }
@@ -119,7 +121,8 @@ public enum HTTP1 {
             var i = 0
             while true {
                 guard let lineEnd = find([13, 10], in: b, from: i) else { return nil }
-                let sizeText = String(decoding: b[i..<lineEnd], as: UTF8.self)
+                let sizeText =
+                    String(decoding: b[i..<lineEnd], as: UTF8.self)
                     .split(separator: ";", maxSplits: 1).first.map { String($0).trimmingXMLWhitespace() } ?? ""
                 guard let size = Int(sizeText, radix: 16), size >= 0 else { throw .badChunk }
                 i = lineEnd + 2

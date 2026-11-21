@@ -33,7 +33,9 @@ public struct FixtureSet {
             let target = r.redactTarget(x.target)
             index.append("\(n)\t\(x.method)\t\(target)\t\(x.status.map(String.init) ?? "-")\t\(x.label)")
             if !x.requestBody.isEmpty {
-                let isForm = x.requestHeaders.contains { $0.name.lowercased() == "content-type" && $0.value.contains("form") }
+                let isForm = x.requestHeaders.contains {
+                    $0.name.lowercased() == "content-type" && $0.value.contains("form")
+                }
                 let body = isForm ? r.redactForm(x.requestBody) : r.redact(x.requestBody)
                 files.append(File(name: base + (isForm ? ".request.form" : ".request.txt"), contents: body + "\n"))
             }
@@ -41,7 +43,9 @@ public struct FixtureSet {
                 let ext = body.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<") ? "xml" : "txt"
                 files.append(File(name: base + ".response.\(ext)", contents: r.redact(body) + "\n"))
             }
-            logLines.append((x.time.map { "[\($0)] " } ?? "") + "--- exchange \(n): \(x.method) \(target) -> \(x.statusLine ?? "no response logged")")
+            logLines.append(
+                (x.time.map { "[\($0)] " } ?? "")
+                    + "--- exchange \(n): \(x.method) \(target) -> \(x.statusLine ?? "no response logged")")
             flushEvents(through: i)
         }
         files.append(File(name: "index.tsv", contents: index.joined(separator: "\n") + "\n"))

@@ -50,8 +50,8 @@ public struct Form: Equatable, Sendable, ExpressibleByDictionaryLiteral {
         for c in s.utf8 {
             switch c {
             case UInt8(ascii: "a")...UInt8(ascii: "z"), UInt8(ascii: "A")...UInt8(ascii: "Z"),
-                 UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "-"), UInt8(ascii: "_"),
-                 UInt8(ascii: "."), UInt8(ascii: "~"):
+                UInt8(ascii: "0")...UInt8(ascii: "9"), UInt8(ascii: "-"), UInt8(ascii: "_"),
+                UInt8(ascii: "."), UInt8(ascii: "~"):
                 out.append(Character(Unicode.Scalar(c)))
             default:
                 out.append("%")
@@ -84,10 +84,11 @@ public struct Form: Equatable, Sendable, ExpressibleByDictionaryLiteral {
 
     /// Parses an encoded form.
     public static func parse(_ s: String) -> Form {
-        Form(s.split(separator: "&").map { part in
-            let kv = part.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
-            return (unescape(String(kv[0])), kv.count > 1 ? unescape(String(kv[1])) : "")
-        })
+        Form(
+            s.split(separator: "&").map { part in
+                let kv = part.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+                return (unescape(String(kv[0])), kv.count > 1 ? unescape(String(kv[1])) : "")
+            })
     }
 
     private static func hexValue(_ c: UInt8) -> UInt8? {

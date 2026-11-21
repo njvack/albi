@@ -32,6 +32,10 @@ settings:
     ENABLE_HARDENED_RUNTIME: YES
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "Developer ID Application"
+    # Warnings fail the build. The package's own targets get the same from
+    # Package.swift.
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
 targets:
   ExtensionApp:
     type: application

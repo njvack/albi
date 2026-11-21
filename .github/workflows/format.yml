@@ -1,0 +1,29 @@
+name: format
+
+# swift format lint, with the rules in .swift-format. The image is pinned so
+# the formatter's version only changes on purpose; run the same command
+# locally to check, or `swift format format --in-place` with the same paths
+# to fix.
+on:
+  push:
+    branches: [main]
+    paths: &paths
+      - '**.swift'
+      - '.swift-format'
+      - '.github/workflows/format.yml'
+  pull_request:
+    paths: *paths
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    container: swift:6.3-noble
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift format --version
+      - run: swift format lint --strict --recursive --parallel Package.swift Sources Tests Apps

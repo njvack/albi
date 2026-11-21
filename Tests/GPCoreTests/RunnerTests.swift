@@ -36,34 +36,52 @@ final class FakeGateway: GatewayConnector, @unchecked Sendable {
         let badCookie = ok(#"<response status="error"><error>Invalid authentication cookie</error></response>"#)
         switch path {
         case "/global-protect/prelogin.esp" where !portal:
-            return ok("<prelogin-response><status>Error</status><msg>GlobalProtect portal does not exist</msg></prelogin-response>")
+            return ok(
+                "<prelogin-response><status>Error</status><msg>GlobalProtect portal does not exist</msg></prelogin-response>"
+            )
         case "/global-protect/prelogin.esp", "/ssl-vpn/prelogin.esp":
-            return ok("<prelogin-response><status>Success</status><username-label>Username</username-label><password-label>Password</password-label></prelogin-response>")
+            return ok(
+                "<prelogin-response><status>Success</status><username-label>Username</username-label><password-label>Password</password-label></prelogin-response>"
+            )
         case "/global-protect/getconfig.esp":
             guard f["passwd"] == password else { return HTTPResponse(status: 512, body: "") }
-            return ok(#"<policy><version>6.2.8</version><gateways><external><list><entry name="gw.test"><description>GW</description></entry></list></external></gateways><hip-collection><hip-report-interval>1800</hip-report-interval></hip-collection></policy>"#)
+            return ok(
+                #"<policy><version>6.2.8</version><gateways><external><list><entry name="gw.test"><description>GW</description></entry></list></external></gateways><hip-collection><hip-report-interval>1800</hip-report-interval></hip-collection></policy>"#
+            )
         case "/ssl-vpn/login.esp":
             if let input = f["inputStr"] {
-                guard challenges.remove(input) != nil, f["passwd"] == challengeAnswer else { return HTTPResponse(status: 512, body: "") }
+                guard challenges.remove(input) != nil, f["passwd"] == challengeAnswer else {
+                    return HTTPResponse(status: 512, body: "")
+                }
             } else {
                 guard f["passwd"] == password else { return HTTPResponse(status: 512, body: "") }
                 if challengeAnswer != nil {
                     let token = "ch\(challenges.count)"
                     challenges.insert(token)
-                    return ok("<challenge><user>test</user><inputstr>\(token)</inputstr><respmsg>Approve the push</respmsg></challenge>")
+                    return ok(
+                        "<challenge><user>test</user><inputstr>\(token)</inputstr><respmsg>Approve the push</respmsg></challenge>"
+                    )
                 }
             }
             issued += 1
-            let args = ["(null)", "cookie\(issued)", "PC", "fake-portal", f["user"] ?? "", "Fake", "vsys1", "fake-domain",
-                        "(null)", "", "", "", "tunnel", "-1", "4100", ip, "", "", ""]
-            return ok("<jnlp><application-desc>" + args.map { "<argument>\($0)</argument>" }.joined() + "</application-desc></jnlp>")
+            let args = [
+                "(null)", "cookie\(issued)", "PC", "fake-portal", f["user"] ?? "", "Fake", "vsys1", "fake-domain",
+                "(null)", "", "", "", "tunnel", "-1", "4100", ip, "", "", "",
+            ]
+            return ok(
+                "<jnlp><application-desc>" + args.map { "<argument>\($0)</argument>" }.joined()
+                    + "</application-desc></jnlp>")
         case "/ssl-vpn/getconfig.esp":
             if rejectCookies { return badCookie }
-            return ok("<response><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><lifetime>86400</lifetime><ip-address>\(ip)</ip-address><netmask>255.255.255.255</netmask><access-routes><member>10.99.0.0/24</member></access-routes><dns><member>10.99.0.53</member></dns><dns-suffix><member>fake.test</member></dns-suffix></response>")
+            return ok(
+                "<response><ssl-tunnel-url>/ssl-tunnel-connect.sslvpn</ssl-tunnel-url><lifetime>86400</lifetime><ip-address>\(ip)</ip-address><netmask>255.255.255.255</netmask><access-routes><member>10.99.0.0/24</member></access-routes><dns><member>10.99.0.53</member></dns><dns-suffix><member>fake.test</member></dns-suffix></response>"
+            )
         case "/ssl-vpn/hipreportcheck.esp":
             if rejectCookies { return badCookie }
             let needed = hipNeeded && !_hipReports.contains { $0.contains(f["md5"] ?? "?") }
-            return ok("<response status=\"success\"><hip-report-needed>\(needed ? "yes" : "no")</hip-report-needed></response>")
+            return ok(
+                "<response status=\"success\"><hip-report-needed>\(needed ? "yes" : "no")</hip-report-needed></response>"
+            )
         case "/ssl-vpn/hipreport.esp":
             _hipReports.append(f["report"] ?? "")
             return ok(#"<response status="success"/>"#)
@@ -112,8 +130,10 @@ final class FakeTunnel: TunnelConnection, @unchecked Sendable {
             if !started {
                 started = true
                 let req = String(decoding: bytes, as: UTF8.self)
-                let cookie = Form.parse(String(req.split(separator: "?")[1].split(separator: " ")[0]))["authcookie"] ?? ""
-                return gateway.cookieValid(cookie) ? [Array("START_TUNNEL".utf8)] : [Array("HTTP/1.1 502 Bad Gateway\r\n\r\n".utf8)]
+                let cookie =
+                    Form.parse(String(req.split(separator: "?")[1].split(separator: " ")[0]))["authcookie"] ?? ""
+                return gateway.cookieValid(cookie)
+                    ? [Array("START_TUNNEL".utf8)] : [Array("HTTP/1.1 502 Bad Gateway\r\n\r\n".utf8)]
             }
             decoder.append(bytes)
             var out: [[UInt8]] = []
@@ -129,7 +149,11 @@ final class FakeTunnel: TunnelConnection, @unchecked Sendable {
             }
             return out
         }
-        if lock.with({ silent && started }) && !replies.isEmpty && String(decoding: replies[0].prefix(5), as: UTF8.self) != "START" { return }
+        if lock.with({ silent && started }) && !replies.isEmpty
+            && String(decoding: replies[0].prefix(5), as: UTF8.self) != "START"
+        {
+            return
+        }
         for r in replies { cont.yield(r) }
     }
 
@@ -224,8 +248,11 @@ let testClient = ClientInfo(computer: "albi-test")
         #expect(r.cookie.authcookie == "cookie1")
         #expect(r.cookie.user == "test")
         #expect(r.portal?.version == "6.2.8")
-        #expect(gw.requests == ["/global-protect/prelogin.esp", "/global-protect/getconfig.esp",
-                                "/ssl-vpn/prelogin.esp", "/ssl-vpn/login.esp", "/ssl-vpn/login.esp"])
+        #expect(
+            gw.requests == [
+                "/global-protect/prelogin.esp", "/global-protect/getconfig.esp",
+                "/ssl-vpn/prelogin.esp", "/ssl-vpn/login.esp", "/ssl-vpn/login.esp",
+            ])
     }
 
     @Test func autoFallsBackToGateway() async throws {
@@ -270,7 +297,11 @@ let testClient = ClientInfo(computer: "albi-test")
     @Test func samlIsRefused() async {
         struct SAML: HTTPTransport {
             func send(_ r: HTTPRequest, to s: String) async throws -> HTTPResponse {
-                HTTPResponse(status: 200, body: "<prelogin-response><status>Success</status><saml-auth-method>REDIRECT</saml-auth-method><saml-request>eA==</saml-request></prelogin-response>")
+                HTTPResponse(
+                    status: 200,
+                    body:
+                        "<prelogin-response><status>Success</status><saml-auth-method>REDIRECT</saml-auth-method><saml-request>eA==</saml-request></prelogin-response>"
+                )
             }
         }
         await #expect(throws: GPError.self) {
@@ -291,8 +322,9 @@ let testClient = ClientInfo(computer: "albi-test")
 
     func connected(_ gw: FakeGateway, _ host: FakeHost, policy: SessionPolicy? = nil) async throws -> SessionRunner {
         let login = try await Login(transport: gw, credentials: creds, client: testClient).run(.gateway("gw.test"))
-        let runner = SessionRunner(server: login.gateway, client: testClient,
-                                   session: Session(cookie: login.cookie, policy: policy ?? fastPolicy()), io: gw, host: host)
+        let runner = SessionRunner(
+            server: login.gateway, client: testClient,
+            session: Session(cookie: login.cookie, policy: policy ?? fastPolicy()), io: gw, host: host)
         await runner.start()
         await eventually("connected") { await runner.state == .connected }
         return runner
@@ -322,7 +354,9 @@ let testClient = ClientInfo(computer: "albi-test")
         let gw = FakeGateway(), host = FakeHost()
         let runner = try await connected(gw, host)
         gw.dropTunnels()
-        await eventually("second tunnel") { let st = await runner.state; return gw.tunnels.count == 2 && st == .connected }
+        await eventually("second tunnel") {
+            let st = await runner.state; return gw.tunnels.count == 2 && st == .connected
+        }
         #expect(gw.loggedOut.isEmpty)
         await runner.send(packets: [ping])
         await eventually("echo after reconnect") { host.deliveredCount == 1 }
@@ -334,7 +368,9 @@ let testClient = ClientInfo(computer: "albi-test")
         let gw = FakeGateway(), host = FakeHost()
         let runner = try await connected(gw, host)
         await runner.post(.pathChanged(usable: true))
-        await eventually("reconnected") { let st = await runner.state; return gw.tunnels.count == 2 && st == .connected }
+        await eventually("reconnected") {
+            let st = await runner.state; return gw.tunnels.count == 2 && st == .connected
+        }
         #expect(gw.tunnels[0].closed)
         await runner.stop(logout: false)
     }
@@ -370,7 +406,10 @@ let testClient = ClientInfo(computer: "albi-test")
         let old = await runner.cookie
         _ = try await gw.send(Requests.logout(old), to: "gw.test")
         gw.dropTunnels()
-        await eventually("new cookie") { let c = await runner.cookie; let st = await runner.state; return c.authcookie == "cookie2" && st == .connected }
+        await eventually("new cookie") {
+            let c = await runner.cookie; let st = await runner.state;
+            return c.authcookie == "cookie2" && st == .connected
+        }
         #expect(host.saved.last??.authcookie == "cookie2")
         // The log says why the old cookie was given up on: the fake
         // gateway refuses a logged-out cookie at the tunnel request.
@@ -390,7 +429,9 @@ let testClient = ClientInfo(computer: "albi-test")
         // Stop echoing: make the tunnel swallow writes by closing the read side only.
         let t = gw.tunnels[0]
         t.stopAnswering()
-        await eventually("reconnect after dead peer") { let st = await runner.state; return gw.tunnels.count == 2 && st == .connected }
+        await eventually("reconnect after dead peer") {
+            let st = await runner.state; return gw.tunnels.count == 2 && st == .connected
+        }
         await runner.stop(logout: false)
     }
 }

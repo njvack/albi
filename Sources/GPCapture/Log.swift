@@ -23,9 +23,11 @@ public struct Exchange: Equatable, Sendable {
     public var responseHeaders: [HTTPHeader] = []
     public var responseBody: String?
 
-    public init(time: String? = nil, method: String, target: String, requestHeaders: [HTTPHeader] = [],
-                requestBody: String = "", statusLine: String? = nil, responseHeaders: [HTTPHeader] = [],
-                responseBody: String? = nil) {
+    public init(
+        time: String? = nil, method: String, target: String, requestHeaders: [HTTPHeader] = [],
+        requestBody: String = "", statusLine: String? = nil, responseHeaders: [HTTPHeader] = [],
+        responseBody: String? = nil
+    ) {
         self.time = time
         self.method = method
         self.target = target
@@ -104,7 +106,8 @@ public struct CaptureLog: Sendable {
             if line.hasSuffix("\r") { line = line.dropLast() }
             var time: String?
             if line.hasPrefix("["), line.count >= 22, line.dropFirst(20).hasPrefix("] "),
-               line.dropFirst(1).prefix(19).allSatisfy({ $0.isNumber || $0 == "-" || $0 == ":" || $0 == " " }) {
+                line.dropFirst(1).prefix(19).allSatisfy({ $0.isNumber || $0 == "-" || $0 == ":" || $0 == " " })
+            {
                 time = String(line.dropFirst(1).prefix(19))
                 line = line.dropFirst(22)
             }
@@ -114,7 +117,8 @@ public struct CaptureLog: Sendable {
                 let content = String(text.dropFirst(min(2, text.count)))
                 if Self.isHexDump(content) && state != .requestHeaders && state != .requestBody { continue }
                 if let (method, target) = Self.requestLine(content),
-                   state != .requestHeaders {
+                    state != .requestHeaders
+                {
                     finishBody()
                     exchanges.append(Exchange(time: time, method: method, target: target))
                     current = exchanges.count - 1
@@ -179,7 +183,8 @@ public struct CaptureLog: Sendable {
     static func requestLine(_ s: String) -> (String, String)? {
         let parts = s.split(separator: " ")
         guard parts.count == 3, parts[2].hasPrefix("HTTP/1."),
-              parts[0].allSatisfy({ $0.isUppercase }), parts[1].hasPrefix("/") else { return nil }
+            parts[0].allSatisfy({ $0.isUppercase }), parts[1].hasPrefix("/")
+        else { return nil }
         return (String(parts[0]), String(parts[1]))
     }
 
