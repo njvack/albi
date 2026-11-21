@@ -58,8 +58,15 @@ struct MenuBarLabel: View {
     let model: AppModel
     @Environment(\.openWindow) private var openWindow
 
+    private var icon: Image {
+        switch model.status.state.menuBarIcon {
+        case .asset(let name): Image(name)
+        case .symbol(let name): Image(systemName: name)
+        }
+    }
+
     var body: some View {
-        Image(systemName: model.status.state.symbolName)
+        icon
             .accessibilityLabel(model.status.state.accessibilityLabel)
             .task {
                 await model.start()
