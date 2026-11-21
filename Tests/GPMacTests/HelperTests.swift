@@ -9,18 +9,20 @@ import Testing
     /// albi-helper and the extension both follow TunnelController's events
     /// through `HelperStatus.apply`.
     @Test func statusFollowsControllerEvents() {
+        // #expect can't call a mutating method, so record each result first.
         var s = HelperStatus()
-        #expect(s.apply(.authenticating))
-        #expect(s.state == .authenticating)
-        #expect(s.apply(.needsSecondFactor(prompt: "Code?")))
-        #expect(s.state == .needsSecondFactor(prompt: "Code?"))
-        #expect(s.apply(.state(.connecting(.hip))))
-        #expect(s.state == .connecting(phase: "hip"))
-        #expect(s.apply(.state(.reauthenticating)))
-        #expect(s.state == .authenticating)
-        #expect(!s.apply(.state(.stopped(reason: "x"))))
-        #expect(!s.apply(.log("hello")))
-        #expect(s.state == .authenticating)
+        var changed = s.apply(.authenticating)
+        #expect(changed && s.state == .authenticating)
+        changed = s.apply(.needsSecondFactor(prompt: "Code?"))
+        #expect(changed && s.state == .needsSecondFactor(prompt: "Code?"))
+        changed = s.apply(.state(.connecting(.hip)))
+        #expect(changed && s.state == .connecting(phase: "hip"))
+        changed = s.apply(.state(.reauthenticating))
+        #expect(changed && s.state == .authenticating)
+        changed = s.apply(.state(.stopped(reason: "x")))
+        #expect(!changed)
+        changed = s.apply(.log("hello"))
+        #expect(!changed && s.state == .authenticating)
     }
 
     @Test func providerStatusCarriesTheTunnelStatus() throws {
