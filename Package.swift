@@ -91,8 +91,7 @@ let package = Package(
         // macOS only.
         .executableTarget(
             name: "albi-helper",
-            dependencies: ["AlbiConstants", "GPCore", "GPMac", "Diagnostics"],
-            swiftSettings: [.swiftLanguageMode(.v5)]
+            dependencies: ["AlbiConstants", "GPCore", "GPMac", "Diagnostics"]
         ),
     ]
 )
