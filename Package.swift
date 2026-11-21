@@ -109,3 +109,13 @@ let package = Package(
         ),
     ]
 )
+
+// Compiler warnings fail the build, for every target here, in `swift build`
+// and in Xcode alike. unsafeFlags is fine for a root or path-based package,
+// which is all Albi is; a package that depended on Albi by URL would refuse
+// it. -Xswiftc -warnings-as-errors on the command line would instead reach
+// TOMLDecoder too, where SwiftPM's -suppress-warnings conflicts with it.
+// With tools version 6.2, .treatAllWarnings(as: .error) replaces this.
+for target in package.targets {
+    target.swiftSettings = (target.swiftSettings ?? []) + [.unsafeFlags(["-warnings-as-errors"])]
+}

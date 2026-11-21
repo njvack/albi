@@ -65,6 +65,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: swift --version
+      # Every target, executables too, so a warning anywhere fails here
+      # rather than only in the e2e or Xcode jobs.
+      - run: swift build
       - run: swift test --filter 'AlbiConstantsTests|GPCoreTests|GPMacTests|GPCaptureTests|DiagnosticsTests|AlbiAppTests|HelperBackendTests'
 
   e2e:
