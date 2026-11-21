@@ -6,6 +6,35 @@ import Testing
 @testable import GPMac
 
 @Suite struct HelperProtocolTests {
+    /// albi-helper and the extension both follow TunnelController's events
+    /// through `HelperStatus.apply`.
+    @Test func statusFollowsControllerEvents() {
+        // #expect can't call a mutating method, so record each result first.
+        var s = HelperStatus()
+        var changed = s.apply(.authenticating)
+        #expect(changed && s.state == .authenticating)
+        changed = s.apply(.needsSecondFactor(prompt: "Code?"))
+        #expect(changed && s.state == .needsSecondFactor(prompt: "Code?"))
+        changed = s.apply(.state(.connecting(.hip)))
+        #expect(changed && s.state == .connecting(phase: "hip"))
+        changed = s.apply(.state(.reauthenticating))
+        #expect(changed && s.state == .authenticating)
+        changed = s.apply(.state(.stopped(reason: "x")))
+        #expect(!changed)
+        changed = s.apply(.log("hello"))
+        #expect(!changed && s.state == .authenticating)
+    }
+
+    @Test func providerStatusCarriesTheTunnelStatus() throws {
+        var status = ProviderMessage.Status(state: "connected")
+        status.tunnel = HelperStatus(state: .connected, routes: ["10.0.0.0/8"])
+        let back = try JSONDecoder().decode(ProviderMessage.Status.self, from: JSONEncoder().encode(status))
+        #expect(back.tunnel == status.tunnel)
+        let req = try JSONDecoder().decode(ProviderMessage.Request.self,
+                                           from: JSONEncoder().encode(ProviderMessage.Request(secondFactorCode: "123456")))
+        #expect(req.secondFactorCode == "123456")
+    }
+
     @Test func requestsRoundTrip() throws {
         let id = UUID()
         var p = Profile(server: "vpn.example.edu", username: "nate")

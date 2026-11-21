@@ -2,6 +2,7 @@
 import AlbiConstants
 import Diagnostics
 import Foundation
+import GPCore
 
 /// The root helper's XPC interface. Requests and replies are JSON
 /// (`HelperRequest`, `HelperReply`), so the protocol itself never changes
@@ -105,8 +106,9 @@ public struct HelperReply: Codable, Sendable {
     }
 }
 
-/// The tunnel's status as the helper reports it. The app maps it onto its
-/// own `TunnelStatus`.
+/// The tunnel's status as the helper reports it, and as the packet tunnel
+/// extension reports it in `ProviderMessage.Status.tunnel`. The app maps it
+/// onto its own `TunnelStatus`.
 public struct HelperStatus: Codable, Equatable, Sendable {
     public enum State: Codable, Equatable, Sendable {
         case disconnected
@@ -150,6 +152,46 @@ public struct HelperStatus: Codable, Equatable, Sendable {
         self.hipRequested = hipRequested
         self.hipLastSent = hipLastSent
         self.lastIncident = lastIncident
+    }
+}
+
+extension HelperStatus {
+    /// Follows one of TunnelController's events. Returns false for events
+    /// that don't change what the app shows (log lines, idle, stopped: the
+    /// owner sets the final state once the session has ended).
+    public mutating func apply(_ e: TunnelController.Event) -> Bool {
+        switch e {
+        case .authenticating: state = .authenticating
+        case .waitingForPush: state = .waitingForPush
+        case .needsSecondFactor(let prompt): state = .needsSecondFactor(prompt: prompt)
+        case .state(let s):
+            switch s {
+            case .idle, .stopped: return false
+            case .connecting(let phase): state = .connecting(phase: "\(phase)")
+            case .connected: state = .connected
+            case .reconnecting(let n, let why): state = .reconnecting(attempt: n, reason: why)
+            case .waitingForNetwork: state = .waitingForNetwork
+            case .reauthenticating: state = .authenticating
+            case .needsLogin(let why): state = .needsLogin(reason: why)
+            }
+        case .log: return false
+        }
+        return true
+    }
+
+    /// Takes the gateway, address, routes, times and HIP from a snapshot.
+    public mutating func apply(_ snap: TunnelController.Snapshot) {
+        gateway = snap.gateway
+        ipv4 = snap.settings?.ipv4Address
+        connectedSince = snap.connectedSince
+        cookieExpiry = snap.cookieExpiry
+        if let s = snap.settings {
+            routes = s.isFullTunnel ? [] : s.includedIPv4.map { "\($0.address)/\($0.prefixLength)" }
+            dnsDomains = s.matchDomains ?? s.searchDomains
+        }
+        hipRequested = snap.hipRequested
+        hipLastSent = snap.hipLastSent
+        lastIncident = snap.lastIncident ?? lastIncident
     }
 }
 

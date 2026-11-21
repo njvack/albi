@@ -28,11 +28,15 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
         var lastProbe: ProviderMessage.HIPProbe?
         var connectedOnce = false
         var lastState: SessionState = .idle
+        /// What the app shows, in the same shape albi-helper sends.
+        var report = HelperStatus()
     }
     private let state = Mutex(State())
     private var controller: TunnelController? { state.withLock { $0.controller } }
 
     private let hip = HIPBridge()
+    /// Second-factor codes from the app, for profiles that ask each time.
+    private let codes = CodeBridge()
     /// hipreport inside this extension's bundle (Contents/MacOS), out of
     /// the user's reach. Used when the profile sets `bundledHIP`.
     private let bundledHIP = BundledHIP()
@@ -55,18 +59,23 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
                 if profile.bundledHIP == true { return try await bundledHIP.report(for: ctx) }
                 return try await hip.report(for: ctx, timeout: 20)
             },
+            askSecondFactor: { [codes] _ in try await codes.code() },
             makeHost: { [weak self] hooks, _, _ in
                 guard let self else { throw TunnelError("the provider went away") }
                 return PacketFlowHost(provider: self, hooks: hooks)
             },
             onEvent: { [weak self] e in
+                self?.state.withLock { _ = $0.report.apply(e) }
                 switch e {
                 case .state(let s): self?.stateChanged(s)
                 case .log(let m): log.info("\(m, privacy: .public)")
                 default: break
                 }
             })
-        state.withLock { $0.controller = controller }
+        state.withLock {
+            $0.controller = controller
+            $0.report = HelperStatus(state: .authenticating)
+        }
 
         nonisolated(unsafe) let completionHandler = completionHandler
         Task {
@@ -104,6 +113,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
         log.info("stopping (reason \(reason.rawValue))")
         nonisolated(unsafe) let completionHandler = completionHandler
         Task {
+            await codes.cancel()
             await controller?.stop()
             completionHandler()
         }
@@ -133,6 +143,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             } else if req.hipUnavailable == true {
                 await hip.answer(report: nil)
             }
+            if let code = req.secondFactorCode { await codes.answer(code) }
             if req.diagnosticsDump == true { controller?.saveDiagnosticsNow() }
             if req.clearCookies == true {
                 controller?.clearCookies()
@@ -150,6 +161,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
                                                 lastIncident: snap?.lastIncident,
                                                 diagnosticsEnabled: controller?.configuration.diagnostics.enabled)
             status.hipProbe = lastProbe
+            var report = state.withLock { $0.report }
+            if let snap { report.apply(snap) }
+            status.tunnel = report
             completionHandler?(try? JSONEncoder().encode(status))
         }
     }

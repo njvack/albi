@@ -14,6 +14,7 @@ on:
       - 'Sources/Diagnostics/**'
       - 'Sources/AlbiApp/**'
       - 'Sources/HelperBackend/**'
+      - 'Sources/ExtensionBackend/**'
       - 'Sources/albi-cli/**'
       - 'Sources/albi-diag/**'
       - 'Sources/gp-capture/**'

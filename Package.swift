@@ -18,6 +18,7 @@ let package = Package(
         .executable(name: "albi-diag", targets: ["albi-diag"]),
         .library(name: "AlbiApp", targets: ["AlbiApp"]),
         .library(name: "HelperBackend", targets: ["HelperBackend"]),
+        .library(name: "ExtensionBackend", targets: ["ExtensionBackend"]),
         .executable(name: "albi-netprobe", targets: ["albi-netprobe"]),
         .executable(name: "albi-helper", targets: ["albi-helper"]),
     ],
@@ -85,6 +86,12 @@ let package = Package(
         // at login as a LaunchAgent. HelperApp in Apps/ uses it. macOS only.
         .target(name: "HelperBackend", dependencies: ["AlbiApp", "AlbiConstants", "GPMac", "Diagnostics"]),
         .testTarget(name: "HelperBackendTests", dependencies: ["HelperBackend", "AlbiApp", "GPMac"]),
+
+        // The extension backend: VPNService over NETunnelProviderManager and
+        // the packet tunnel system extension (provider messages for status,
+        // HIP and second-factor codes). ExtensionApp in Apps/ uses it.
+        // macOS only.
+        .target(name: "ExtensionBackend", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
 
         // Root-helper probe: makes a utun, routes and temporary DNS keys
         // and checks they vanish when the process dies; also registers a

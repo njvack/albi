@@ -40,23 +40,29 @@ targets:
     sources: [Extension/App, Shared]
     dependencies:
       - package: Albi
-        product: GPCore
+        product: AlbiApp
       - package: Albi
-        product: GPMac
-      - package: Albi
-        product: Diagnostics
+        product: ExtensionBackend
       - target: ExtensionTunnel
         embed: true
         codeSign: true
         copy:
           destination: wrapper
           subpath: Contents/Library/SystemExtensions
+      # Answers the extension's HIP requests, as the user. The same tool
+      # as the helper build's.
+      - target: albi-hipreport
+        embed: true
+        codeSign: true
+        copy:
+          destination: executables
     info:
       path: Extension/App/Info.plist
       properties:
         CFBundleDisplayName: Albi
         LSApplicationCategoryType: public.app-category.utilities
         LSMinimumSystemVersion: "27.0"
+        LSUIElement: true
         AlbiTunnelBundleIdentifier: $(ALBI_BUNDLE_ID_PREFIX).tunnel
     entitlements:
       path: Extension/App/ExtensionApp.entitlements
@@ -224,9 +230,9 @@ targets:
         DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
         ENABLE_HARDENED_RUNTIME: NO
   albi-hipreport:
-    # hipreport for the helper to run as root: the same program as the
-    # extension's, without the sandbox entitlements (a sandbox-inheriting
-    # binary can't start from an unsandboxed parent).
+    # hipreport without the sandbox entitlements (a sandbox-inheriting
+    # binary can't start from an unsandboxed parent): the helper runs it as
+    # root, and ExtensionApp runs it as the user.
     type: tool
     platform: macOS
     sources:

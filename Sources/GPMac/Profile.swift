@@ -77,9 +77,13 @@ public enum ProviderMessage {
         /// "Clear stored cookies" while connected: forget the saved cookie,
         /// and log out when the tunnel stops.
         public var clearCookies: Bool?
+        /// The answer to a `needsSecondFactor` prompt.
+        public var secondFactorCode: String?
 
         public init(poll: Bool? = nil, hipReport: String? = nil, hipUnavailable: Bool? = nil,
-                    diagnosticsDump: Bool? = nil, probeBundledHIP: Bool? = nil, clearCookies: Bool? = nil) {
+                    diagnosticsDump: Bool? = nil, probeBundledHIP: Bool? = nil, clearCookies: Bool? = nil,
+                    secondFactorCode: String? = nil) {
+            self.secondFactorCode = secondFactorCode
             self.clearCookies = clearCookies
             self.probeBundledHIP = probeBundledHIP
             self.poll = poll
@@ -129,6 +133,9 @@ public enum ProviderMessage {
         public var diagnosticsEnabled: Bool?
         /// The last bundled-hipreport probe, if one ran.
         public var hipProbe: HIPProbe?
+        /// The session as the app shows it: the same status albi-helper
+        /// sends, so both backends map onto the UI the same way.
+        public var tunnel: HelperStatus?
 
         public init(state: String, gateway: String? = nil, ipv4: String? = nil, expiresIn: Double? = nil,
                     hipRequest: HIPRequest? = nil, lastHIPReport: Date? = nil, lastIncident: String? = nil,
@@ -216,6 +223,41 @@ public actor HIPBridge {
         guard let p = pending else { return }
         pending = nil
         p.1.resume(throwing: GPError.server("the app did not supply a HIP report in time"))
+    }
+}
+
+/// Holds a second-factor prompt from the session until the app answers it.
+/// Nobody may be there to answer, so it gives up after `timeout` and the
+/// session says a login is needed.
+public actor CodeBridge {
+    private var pending: CheckedContinuation<String, Error>?
+
+    public init() {}
+
+    public func code(timeout: Double = 300) async throws -> String {
+        pending?.resume(throwing: GPError.cancelled)
+        pending = nil
+        let t = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(timeout))
+            await self?.expire()
+        }
+        defer { t.cancel() }
+        return try await withCheckedThrowingContinuation { pending = $0 }
+    }
+
+    public func answer(_ code: String) {
+        pending?.resume(returning: code)
+        pending = nil
+    }
+
+    public func cancel() {
+        pending?.resume(throwing: GPError.cancelled)
+        pending = nil
+    }
+
+    private func expire() {
+        pending?.resume(throwing: GPError.badCredentials("no verification code was entered"))
+        pending = nil
     }
 }
 #endif

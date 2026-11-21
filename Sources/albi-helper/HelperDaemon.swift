@@ -348,25 +348,8 @@ actor HelperCore {
             return
         }
         guard gen == generation else { return }
-        switch e {
-        case .authenticating: status.state = .authenticating
-        case .waitingForPush: status.state = .waitingForPush
-        case .needsSecondFactor(let prompt): status.state = .needsSecondFactor(prompt: prompt)
-        case .state(let s):
-            log.notice("state \(String(describing: s), privacy: .public)")
-            switch s {
-            case .idle: return
-            case .connecting(let phase): status.state = .connecting(phase: "\(phase)")
-            case .connected: status.state = .connected
-            case .reconnecting(let n, let why): status.state = .reconnecting(attempt: n, reason: why)
-            case .waitingForNetwork: status.state = .waitingForNetwork
-            case .reauthenticating: status.state = .authenticating
-            case .needsLogin(let why): status.state = .needsLogin(reason: why)
-            // `run` sets the final state once the session has ended.
-            case .stopped: return
-            }
-        case .log: return
-        }
+        if case .state(let s) = e { log.notice("state \(String(describing: s), privacy: .public)") }
+        guard status.apply(e) else { return }
         await refresh()
         broadcast()
     }
@@ -399,18 +382,7 @@ actor HelperCore {
 
     private func refresh() async {
         guard let c = controller else { return }
-        let snap = await c.snapshot()
-        status.gateway = snap.gateway
-        status.ipv4 = snap.settings?.ipv4Address
-        status.connectedSince = snap.connectedSince
-        status.cookieExpiry = snap.cookieExpiry
-        if let s = snap.settings {
-            status.routes = s.isFullTunnel ? [] : s.includedIPv4.map { "\($0.address)/\($0.prefixLength)" }
-            status.dnsDomains = s.matchDomains ?? s.searchDomains
-        }
-        status.hipRequested = snap.hipRequested
-        status.hipLastSent = snap.hipLastSent
-        status.lastIncident = snap.lastIncident ?? status.lastIncident
+        status.apply(await c.snapshot())
     }
 
     private func update(_ change: (inout HelperStatus) -> Void) {
