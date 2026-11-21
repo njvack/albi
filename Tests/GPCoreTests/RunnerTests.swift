@@ -171,6 +171,7 @@ final class FakeHost: TunnelHost, @unchecked Sendable {
     var settings: [TunnelSettings] { lock.with { _settings } }
     var delivered: [[UInt8]] { lock.with { _delivered } }
     var saved: [AuthCookie?] { lock.with { _saved } }
+    var logs: [String] { lock.with { _logs } }
     var report: String? = "<hip-report><md5-sum>MD5</md5-sum></hip-report>"
     var reauth: (@Sendable () async throws -> AuthCookie)?
 
@@ -371,7 +372,16 @@ let testClient = ClientInfo(computer: "albi-test")
         gw.dropTunnels()
         await eventually("new cookie") { let c = await runner.cookie; let st = await runner.state; return c.authcookie == "cookie2" && st == .connected }
         #expect(host.saved.last??.authcookie == "cookie2")
+        // The log says why the old cookie was given up on: the fake
+        // gateway refuses a logged-out cookie at the tunnel request.
+        #expect(host.logs.contains { $0.hasPrefix("tunnel request failed:") })
         await runner.stop(logout: true)
+    }
+
+    @Test func idleDurations() {
+        #expect(hoursAndMinutes(43200) == "12h 0m")
+        #expect(hoursAndMinutes(90061) == "25h 1m")
+        #expect(hoursAndMinutes(1799) == "29m")
     }
 
     @Test func deadPeerDetected() async throws {

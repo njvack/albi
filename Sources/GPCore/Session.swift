@@ -162,6 +162,10 @@ public struct Session: Sendable {
 
     public var isTunnelUp: Bool { tunnelUp }
 
+    /// When the last frame arrived on the tunnel (or it opened), on the
+    /// session clock. 0 before the first tunnel.
+    public var lastReceived: Double { lastRx }
+
     // MARK: Events
 
     public mutating func handle(_ event: Event, now: Double) -> [Action] {

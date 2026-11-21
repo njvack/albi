@@ -119,6 +119,7 @@ public actor SessionRunner {
     public func post(_ event: Session.Event) {
         let now = clock.now()
         if let recorder, event != .received { recorder.record(.event(event), at: now) }
+        if event == .wake { noteIdleTimeout(now: now) }
         run(session.handle(event, now: now))
     }
 
@@ -179,7 +180,7 @@ public actor SessionRunner {
         case .fetchConfig(let cookie, let v4, let v6):
             configGen += 1
             let gen = configGen
-            spawn { [io, server, client] in
+            spawn { [io, server, client, host] in
                 let ev: Session.Event
                 do {
                     let resp = try await io.send(Requests.getConfig(cookie, client: client, previousIPv4: v4, previousIPv6: v6), to: server)
@@ -188,6 +189,7 @@ public actor SessionRunner {
                     }
                     ev = .configFetched(try GatewayConfig(Reply.document(status: resp.status, body: resp.body)))
                 } catch {
+                    host.log("getconfig failed: \(error)")
                     ev = .configFailed(Session.Failure(error))
                 }
                 await self.result(ev, gen: gen, of: .config)
@@ -228,7 +230,7 @@ public actor SessionRunner {
         case .openTunnel(let cookie, let path):
             tunnelGen += 1
             let gen = tunnelGen
-            spawn { [io, server] in
+            spawn { [io, server, host] in
                 do {
                     let conn = try await io.openTunnel(to: server)
                     do {
@@ -249,6 +251,7 @@ public actor SessionRunner {
                         throw error
                     }
                 } catch {
+                    host.log("tunnel request failed: \(error)")
                     await self.result(.tunnelFailed(Session.Failure(error)), gen: gen, of: .tunnel)
                 }
             }
@@ -404,12 +407,28 @@ public actor SessionRunner {
         run(session.tick(now: clock.now()))
     }
 
+    /// On wake, says so when the tunnel has been quiet longer than the
+    /// gateway keeps an idle session: the gateway has likely logged it out,
+    /// and the reconnect will need a fresh login.
+    private func noteIdleTimeout(now: Double) {
+        guard let idle = session.config?.idleTimeout, idle > 0, session.lastReceived > 0 else { return }
+        let quiet = now - session.lastReceived
+        guard quiet >= Double(idle) else { return }
+        host.log("no tunnel traffic for \(hoursAndMinutes(quiet)); the gateway ends sessions idle for \(hoursAndMinutes(Double(idle))), so expect to log in again")
+    }
+
     private func isFinal(_ s: SessionState) -> Bool {
         switch s {
         case .stopped, .needsLogin: true
         default: false
         }
     }
+}
+
+/// `90061` → `25h 1m`.
+func hoursAndMinutes(_ seconds: Double) -> String {
+    let m = Int(seconds) / 60
+    return m >= 60 ? "\(m / 60)h \(m % 60)m" : "\(m)m"
 }
 
 /// `host:port` → `host`; handles bracketed IPv6.

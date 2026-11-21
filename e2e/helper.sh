@@ -88,7 +88,7 @@ scenario() {
   wait_for 10 grep -q 'opened pid=' "$log"
   CLI_PID=$(sed -n 's/.*opened pid=\([0-9]*\).*/\1/p' "$log" | head -1)
   local utun
-  utun=$(sed -n 's/^albi: tun \(utun[0-9]*\) opened.*/\1/p' "$log" | head -1)
+  utun=$(sed -n 's/^albi: [0-9-]* [0-9:]* tun \(utun[0-9]*\) opened.*/\1/p' "$log" | head -1)
   if [ -z "$CLI_PID" ] || ! wait_for 30 grep -q 'network applied' "$log"; then
     fail "$name: tunnel did not come up"
     sed 's/^/  albi: /' "$log"
