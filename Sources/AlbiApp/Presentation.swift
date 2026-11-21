@@ -1,20 +1,25 @@
 #if canImport(SwiftUI)
 import Foundation
 
+/// A menu-bar icon: a template image in the app's asset catalog, or an SF
+/// Symbol.
+public enum MenuBarIcon: Equatable, Sendable {
+    case asset(String)
+    case symbol(String)
+}
+
 /// How each tunnel state reads in the menu bar and the menu.
 extension TunnelState {
-    /// SF Symbol for the menu-bar icon.
-    public var symbolName: String {
+    /// The menu-bar icon: the bridge glyphs from the app's asset catalog for
+    /// the tunnel's own states, and SF Symbols where the user has to act.
+    public var menuBarIcon: MenuBarIcon {
         switch self {
-        case .disconnected: "shield"
-        case .authenticating, .connecting: "shield.lefthalf.filled"
-        case .waitingForPush, .needsSecondFactor: "iphone.radiowaves.left.and.right"
-        case .connected(.esp): "lock.shield.fill"
-        case .connected(.https): "lock.shield"
-        case .reconnecting, .waitingForNetwork: "arrow.triangle.2.circlepath"
-        case .disconnecting: "shield.slash"
-        case .needsLogin: "person.crop.circle.badge.exclamationmark"
-        case .failed: "exclamationmark.shield"
+        case .disconnected, .disconnecting: .asset("MenuBarDisconnected")
+        case .authenticating, .connecting, .reconnecting, .waitingForNetwork: .asset("MenuBarConnecting")
+        case .connected: .asset("MenuBarConnected")
+        case .waitingForPush, .needsSecondFactor: .symbol("iphone.radiowaves.left.and.right")
+        case .needsLogin: .symbol("person.crop.circle.badge.exclamationmark")
+        case .failed: .symbol("exclamationmark.shield")
         }
     }
 

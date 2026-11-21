@@ -283,8 +283,12 @@ private func waitFor(_ model: AppModel, _ ok: (TunnelState) -> Bool) async throw
         let titles = Set(states.map { $0.title(profile: "Work") })
         #expect(titles.count == states.count)
         #expect(TunnelState.reconnecting(attempt: 3, reason: "x").title(profile: nil) == "Reconnecting (Attempt 3)…")
-        #expect(TunnelState.connected(.esp).symbolName != TunnelState.connected(.https).symbolName)
-        #expect(TunnelState.disconnected.symbolName != TunnelState.connected(.https).symbolName)
+        #expect(TunnelState.connected(.esp).menuBarIcon == .asset("MenuBarConnected"))
+        #expect(TunnelState.connected(.https).menuBarIcon == .asset("MenuBarConnected"))
+        #expect(TunnelState.connecting(.hip).menuBarIcon == .asset("MenuBarConnecting"))
+        #expect(TunnelState.reconnecting(attempt: 1, reason: "x").menuBarIcon == .asset("MenuBarConnecting"))
+        #expect(TunnelState.disconnected.menuBarIcon == .asset("MenuBarDisconnected"))
+        #expect(TunnelState.failed(reason: "x").menuBarIcon == .symbol("exclamationmark.shield"))
     }
 
     @Test func expiryText() {
