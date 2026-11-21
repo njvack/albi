@@ -55,28 +55,6 @@ public final class QuitDisconnects: NSObject, NSApplicationDelegate {
     }
 }
 
-/// Launch at login as a LaunchAgent in the app's bundle
-/// (Contents/Library/LaunchAgents), which also has launchd start the app
-/// again if it crashes. A normal quit exits 0, and launchd leaves it be.
-@MainActor
-public final class AgentLoginItem: LoginItem {
-    let service: SMAppService
-
-    public init(plistName: String = AlbiIDs.menuAgentPlist) {
-        service = SMAppService.agent(plistName: plistName)
-    }
-
-    public var isEnabled: Bool { service.status == .enabled }
-
-    public func setEnabled(_ on: Bool) throws {
-        if on {
-            try service.register()
-        } else {
-            try service.unregister()
-        }
-    }
-}
-
 /// Launch at login as the app itself (SMAppService.mainApp).
 @MainActor
 public final class MainAppLoginItem: LoginItem {

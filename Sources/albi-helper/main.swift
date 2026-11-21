@@ -1,6 +1,6 @@
 // albi-helper: Albi's root LaunchDaemon. It takes the place of the packet
 // tunnel system extension: the app talks to it over XPC on the Mach service
-// com.github.njvack.albi.helper, and it runs the tunnel through
+// com.github.njvack.albi.helper.daemon, and it runs the tunnel through
 // TunnelController with a utun, routes and DNS from UtunHost.
 //
 // The app registers it with SMAppService from Contents/Library/LaunchDaemons;

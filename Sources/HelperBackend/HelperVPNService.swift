@@ -1,4 +1,5 @@
 #if canImport(SwiftUI)
+import AlbiApp
 import Diagnostics
 import Foundation
 import GPMac
@@ -168,7 +169,7 @@ public final class HelperVPNService: VPNService {
 
     func helperState() async -> SetupStatus.Helper {
         guard FileManager.default.fileExists(atPath: Self.bundledHelper.path) else {
-            return .unavailable("This copy of Albi has no helper in Contents/MacOS. Build the AlbiMenu scheme.")
+            return .unavailable("This copy of Albi has no helper in Contents/MacOS. Build the HelperApp scheme.")
         }
         switch Self.daemon.status {
         case .notRegistered: return .notRegistered

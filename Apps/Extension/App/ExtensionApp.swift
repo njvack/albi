@@ -1,9 +1,11 @@
 import SwiftUI
 
-// Step 1 test build: one window to set up the profile, approve the
-// extension, connect and watch the session. The menu-bar app is Phase 3.
+// Albi with the extension backend. For now this is still the Step 1 test
+// build: one window to set up the profile, approve the extension, connect
+// and watch the session. Next it moves onto the shared menu-bar app
+// (AlbiScenes) over an ExtensionVPNService, like HelperApp.
 @main
-struct AlbiApp: App {
+struct ExtensionApp: App {
     @StateObject private var vpn = VPNController()
 
     var body: some Scene {
