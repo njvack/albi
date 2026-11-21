@@ -1,4 +1,4 @@
-"""Writes the AppIcon.icon layers: full-bleed 1024 px SVGs that Icon
+"""Writes the AppIcon.icon layers (sage teal palette): full-bleed 1024 px SVGs that Icon
 Composer stacks over the red fill. macOS applies the shape and glass."""
 import sys
 
@@ -25,7 +25,7 @@ def svg(body):
 
 
 bridge = (f'<path d="M216,440 L808,440 L808,790 L216,790 Z {A1} {A2}" '
-          f'fill="#ffffff" fill-rule="evenodd"/><path d="{MERLONS}" fill="#ffffff"/>')
+          f'fill="#f8f6ef" fill-rule="evenodd"/><path d="{MERLONS}" fill="#f8f6ef"/>')
 
 bars = []
 for x0 in (296, 552):
@@ -35,10 +35,10 @@ for x0 in (296, 552):
         bars.append(f'<path d="M{x-14},730 L{x},762 L{x+14},730 Z"/>')
     bars.append(f'<rect x="{x0}" y="600" width="176" height="18"/>')
 grille = (f'<clipPath id="a"><path d="{A1} {A2}"/></clipPath>'
-          f'<g clip-path="url(#a)" fill="#f2c40f">{"".join(bars)}</g>')
+          f'<g clip-path="url(#a)" fill="#ecd9a2">{"".join(bars)}</g>')
 
-gateway = f'<path d="{A1} {A2}" fill="#4a060b"/>'
-river = '<rect x="-200" y="790" width="1424" height="600" fill="#6a0910"/>'
+gateway = f'<path d="{A1} {A2}" fill="#22463f"/>'
+river = '<rect x="-200" y="790" width="1424" height="600" fill="#2e5d56"/>'
 
 for name, body in (('bridge', bridge), ('grille', grille),
                    ('gateway', gateway), ('river', river)):
