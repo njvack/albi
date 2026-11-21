@@ -7,3 +7,10 @@ DerivedData/
 Apps/Albi.xcodeproj/
 Apps/Config/Signing.xcconfig
 gp-capture-*/
+# XcodeGen writes these from the info: and entitlements: blocks in
+# Apps/project.yml; edit that file instead.
+Apps/*/Info.plist
+Apps/*/*.entitlements
+# xcodebuild -derivedDataPath build (see README)
+Apps/build/
+*.log
