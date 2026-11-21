@@ -23,7 +23,8 @@ enum HelperDaemon {
         _ = _NSGetExecutablePath(nil, &size)
         var buf = [CChar](repeating: 0, count: Int(size) + 1)
         guard _NSGetExecutablePath(&buf, &size) == 0 else { return nil }
-        return URL(fileURLWithPath: String(cString: buf)).resolvingSymlinksInPath()
+        let path = String(decoding: buf.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        return URL(fileURLWithPath: path).resolvingSymlinksInPath()
     }
 
     static func main() {
