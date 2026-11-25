@@ -1,12 +1,15 @@
-// albi-helper: Albi's root LaunchDaemon. It takes the place of the packet
-// tunnel system extension: the app talks to it over XPC on the Mach service
-// com.github.njvack.albi.helper.daemon, and it runs the tunnel through
-// TunnelController with a utun, routes and DNS from UtunHost.
+// albi-helper: Albi's root LaunchDaemon. It makes the network changes the
+// helper build's VPN session needs and an unprivileged process can't: the
+// app talks to it over XPC on the Mach service
+// com.github.njvack.albi.helper.daemon, and it opens a utun and hands the app
+// the descriptor, sets the utun's addresses, routes and DNS from settings it
+// checks first, and takes them out again. The session itself (login, TLS,
+// cookies, passwords, packets) runs in the app, as the user.
 //
 // The app registers it with SMAppService from Contents/Library/LaunchDaemons;
-// launchd runs it as root and keeps it alive. It sweeps journaled routes at
-// startup and reconnects if helper-state.json says the user wants to be
-// connected, so a crash or a reboot comes back on its own.
+// launchd runs it as root and keeps it alive. Whatever it set up for a client
+// goes when that client's connection does, and it sweeps journaled routes at
+// startup, so a crash on either side leaves nothing behind.
 //
 //   albi-helper            run as the daemon (launchd does this)
 //   albi-helper status     ask the running helper for its status (any user)
@@ -23,8 +26,8 @@
             FileHandle.standardError.write(Data("albi-helper: the daemon runs as root, from launchd\n".utf8))
             exit(1)
         }
-        // A core file would hold the session cookie and any password in
-        // memory; never write one.
+        // Nothing secret passes through here any more, but a root core file
+        // is still nothing to leave lying around.
         var noCore = rlimit(rlim_cur: 0, rlim_max: 0)
         _ = setrlimit(RLIMIT_CORE, &noCore)
         HelperDaemon.main()

@@ -347,6 +347,23 @@
             return name
         }
 
+        /// The routers of the Mac's own network services (not tunnels), from
+        /// configd's state. The root helper routes around the tunnel only via
+        /// one of these.
+        public static func serviceRouters() -> [String] {
+            guard let store = SCDynamicStoreCreate(nil, "albi-path" as CFString, nil, nil),
+                let keys = SCDynamicStoreCopyKeyList(store, "State:/Network/Service/[^/]+/IPv4" as CFString)
+                    as? [String]
+            else { return [] }
+            return keys.compactMap { k in
+                guard let d = SCDynamicStoreCopyValue(store, k as CFString) as? [String: Any],
+                    let name = d["InterfaceName"] as? String, !name.hasPrefix("utun"),
+                    let r = d["Router"] as? String
+                else { return nil }
+                return r
+            }
+        }
+
         /// The router of the network service on `ifname`, from configd's state
         /// (not the global state, which a tunnel can take over).
         static func router(for ifname: String) -> String? {

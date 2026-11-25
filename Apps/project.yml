@@ -222,8 +222,6 @@ targets:
         product: GPCore
       - package: Albi
         product: GPMac
-      - package: Albi
-        product: Diagnostics
     settings:
       base:
         PRODUCT_NAME: albi-helper

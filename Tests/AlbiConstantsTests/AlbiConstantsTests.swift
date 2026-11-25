@@ -57,7 +57,7 @@ import Testing
     @Test func pathsLiveInTheSupportDirectory() {
         let files = [
             AlbiPaths.checksDirectory, AlbiPaths.diagnosticsDirectory, AlbiPaths.helperJournal,
-            AlbiPaths.profiles, AlbiPaths.helperState,
+            AlbiPaths.profiles,
         ]
         for f in files {
             #expect(f.hasPrefix(AlbiPaths.supportDirectory + "/"), "\(f)")

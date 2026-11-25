@@ -82,9 +82,10 @@ let package = Package(
         .target(name: "AlbiApp", dependencies: ["AlbiConstants", "GPMac", "Diagnostics"]),
         .testTarget(name: "AlbiAppTests", dependencies: ["AlbiApp", "GPMac", "Diagnostics"]),
 
-        // The helper backend: VPNService over XPC to albi-helper, and launch
+        // The helper backend: the VPN session, run in the app as the user,
+        // with albi-helper over XPC for the utun, routes and DNS; and launch
         // at login as a LaunchAgent. HelperApp in Apps/ uses it. macOS only.
-        .target(name: "HelperBackend", dependencies: ["AlbiApp", "AlbiConstants", "GPMac", "Diagnostics"]),
+        .target(name: "HelperBackend", dependencies: ["AlbiApp", "AlbiConstants", "GPCore", "GPMac", "Diagnostics"]),
         .testTarget(name: "HelperBackendTests", dependencies: ["HelperBackend", "AlbiApp", "GPMac"]),
 
         // The extension backend: VPNService over NETunnelProviderManager and
@@ -99,13 +100,13 @@ let package = Package(
         // scripts/smappservice-probe.sh drive it. macOS only.
         .executableTarget(name: "albi-netprobe"),
 
-        // The root LaunchDaemon that runs the tunnel in place of the system
-        // extension: TunnelController over UtunHost, driven by the app over
-        // XPC. The app embeds it and registers it with SMAppService.
-        // macOS only.
+        // The root LaunchDaemon that does what the helper build's session
+        // can't as the user: opens the utun and sets its addresses, routes
+        // and DNS, over XPC. The app embeds it and registers it with
+        // SMAppService. macOS only.
         .executableTarget(
             name: "albi-helper",
-            dependencies: ["AlbiConstants", "GPCore", "GPMac", "Diagnostics"]
+            dependencies: ["AlbiConstants", "GPCore", "GPMac"]
         ),
     ]
 )
