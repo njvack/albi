@@ -3,7 +3,7 @@
     import Security
 
     /// Who signed a piece of code, and the code-signing requirements that the
-    /// helper, the app and hipreport hold each other to.
+    /// helper and the app hold each other to.
     ///
     /// A build signed by a team (an Apple Development certificate) is pinned by
     /// team ID and identifier, so it survives rebuilds. An ad-hoc build has no
@@ -98,22 +98,6 @@
             }
             // Ad hoc: the app as it is now, at the helper's startup.
             return CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [me] + (appIdentity.map { [$0] } ?? []))
-        }
-
-        /// What the helper requires of the albi-hipreport it runs as root,
-        /// checked on disk just before each run: its team and identifier,
-        /// or for an ad-hoc build the binary as it was at the helper's
-        /// startup. nil (run nothing) when the helper is unsigned or
-        /// hipreport isn't signed by the helper's team.
-        public static func hipreportRequirement(helper: URL, hipreport: URL) -> String? {
-            guard let me = CodeIdentity.of(helper) else { return nil }
-            if let team = me.teamID {
-                return CodeIdentity.requirement(
-                    team: team, identifiers: identifiers(team: team, of: [hipreport]), adHoc: [])
-            }
-            return CodeIdentity.of(hipreport).flatMap {
-                CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [$0])
-            }
         }
 
         /// What the app expects of the helper it connects to: the same team,
