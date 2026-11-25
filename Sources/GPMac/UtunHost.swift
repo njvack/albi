@@ -3,9 +3,10 @@
     import Foundation
     import GPCore
 
-    /// The `TunnelHost` for a root process: packets over a utun, routes and DNS
-    /// through `NetConfig`. It takes the place `PacketFlowHost` has in the
-    /// extension.
+    /// The `TunnelHost` over a utun: packets on its descriptor, and addresses,
+    /// routes and DNS through a `TunnelNetwork`, which is the root helper for
+    /// the app's session and `NetConfig` in this process for `albi-cli --tun`.
+    /// It takes the place `PacketFlowHost` has in the extension.
     ///
     /// Settings arrive before the tunnel is open (getconfig comes first), but
     /// routes and DNS go in only once the session is connected. A gateway socket
@@ -18,7 +19,7 @@
 
         public let device: UtunDevice
         public let dnsMode: NetConfig.DNSMode
-        private let net: NetConfig
+        private let network: any TunnelNetwork
         private let hooks: Hooks
         private let router: @Sendable () -> String?
         private var gatewayHosts: [String]
@@ -41,16 +42,33 @@
         private var sources = Sources()
         private var dropped = 0
 
-        /// Opens a utun. `router` gives the physical network's IPv4 router, for
+        /// Opens a utun and changes the network from this process, which must
+        /// be root. `router` gives the physical network's IPv4 router, for
         /// excluded routes and the host routes to the gateway. `gatewayHosts`
         /// are resolved for those host routes, along with getconfig's gw-address.
-        public init(
+        public convenience init(
             dnsMode: NetConfig.DNSMode = .split, journal: URL = NetConfig.defaultJournal,
             gatewayHosts: [String] = [], mtu: Int? = nil,
             routes: [TunnelSettings.IPv4Route]? = nil, tracePackets: Int = 0,
             router: @escaping @Sendable () -> String?, hooks: Hooks
         ) throws {
-            device = try UtunDevice()
+            let device = try UtunDevice()
+            self.init(
+                device: device,
+                network: LocalTunnelNetwork(interface: device.interface, journal: journal, log: hooks.log),
+                dnsMode: dnsMode, gatewayHosts: gatewayHosts, mtu: mtu, routes: routes, tracePackets: tracePackets,
+                router: router, hooks: hooks)
+        }
+
+        /// Runs over a utun someone else opened, with `network` making the
+        /// changes only root may.
+        public init(
+            device: UtunDevice, network: any TunnelNetwork, dnsMode: NetConfig.DNSMode = .split,
+            gatewayHosts: [String] = [], mtu: Int? = nil, routes: [TunnelSettings.IPv4Route]? = nil,
+            tracePackets: Int = 0, router: @escaping @Sendable () -> String?, hooks: Hooks
+        ) {
+            self.device = device
+            self.network = network
             self.dnsMode = dnsMode
             self.gatewayHosts = gatewayHosts
             self.mtu = mtu
@@ -58,7 +76,6 @@
             traceLimit = tracePackets
             self.router = router
             self.hooks = hooks
-            net = NetConfig(journal: journal, log: hooks.log)
         }
 
         public func apply(_ new: TunnelSettings) async throws {
@@ -68,11 +85,7 @@
             let changed = try queue.sync { () throws -> Bool in
                 guard !shutDown else { return false }
                 let changed = s != settings
-                if let a = s.ipv4Address { try device.setIPv4(a, previous: settings?.ipv4Address) }
-                if let a = s.ipv6Address, a != settings?.ipv6Address {
-                    try device.addIPv6(a, prefixLength: s.ipv6PrefixLength ?? 128)
-                }
-                try device.setMTU(s.mtu)
+                try network.configure(s)
                 settings = s
                 let src = Sources(
                     v4: s.ipv4Address.flatMap(Self.bytes(v4:)), v6: s.ipv6Address.flatMap(Self.bytes(v6:)))
@@ -184,7 +197,7 @@
         public func pathChanged() {
             queue.async {
                 guard self.applied != nil, !self.shutDown else { return }
-                do { try self.net.updateRouter(self.router()) } catch {
+                do { try self.network.updateRouter(self.router()) } catch {
                     self.hooks.log("updating excluded routes: \(error)")
                 }
             }
@@ -207,8 +220,12 @@
             queue.sync {
                 guard !shutDown else { return }
                 shutDown = true
-                removeNetwork()
+                let had = applied != nil
+                addresses.set([:])
+                applied = nil
+                network.close()
                 device.close()
+                if had { hooks.log("network removed") }
             }
         }
 
@@ -222,10 +239,10 @@
                 if let a = Self.ipv4Addresses(of: [h]).first { book[h] = a }
             }
             do {
-                try net.apply(s, interface: device.name, router: router(), gateways: gateways, dnsMode: dnsMode)
+                let summary = try network.install(s, router: router(), gateways: gateways, dnsMode: dnsMode)
                 applied = s
                 addresses.set(book)
-                hooks.log("network applied: \(net.summary)")
+                hooks.log("network applied: \(summary)")
             } catch {
                 hooks.log("applying network settings failed: \(error)")
             }
@@ -296,7 +313,7 @@
         private func removeNetwork() {
             let had = applied != nil
             addresses.set([:])
-            net.teardown()
+            network.remove()
             applied = nil
             if had { hooks.log("network removed") }
         }

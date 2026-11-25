@@ -76,7 +76,71 @@
             self.fd = fd
         }
 
+        /// Takes over a utun descriptor that another process opened (the root
+        /// helper hands one over XPC). Packets only: changing the interface
+        /// needs root, so that stays with whoever opened it.
+        public init(adopting fd: Int32, name: String) {
+            self.fd = fd
+            self.name = name
+            _ = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK)
+            _ = fcntl(fd, F_SETFD, FD_CLOEXEC)
+        }
+
+        /// The interface, for setting its addresses and MTU (root only).
+        public var interface: UtunInterface { UtunInterface(name: name) }
+
         deinit { close() }
+
+        /// Calls `handler` with each batch of packets the system sends into the
+        /// tunnel, without their protocol-family header, on `queue`.
+        public func startReading(on queue: DispatchQueue, _ handler: @escaping @Sendable ([[UInt8]]) -> Void) {
+            let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
+            let fd = self.fd
+            src.setEventHandler {
+                var buf = [UInt8](repeating: 0, count: 65536 + 4)
+                var batch: [[UInt8]] = []
+                while batch.count < 64 {
+                    let n = buf.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
+                    guard n > 4 else { break }
+                    batch.append(Array(buf[4..<n]))
+                }
+                if !batch.isEmpty { handler(batch) }
+            }
+            lock.withLock { source = src }
+            src.resume()
+        }
+
+        /// Hands packets to the system. Drops what doesn't fit, as a link would.
+        public func write(_ packets: [[UInt8]]) {
+            for p in packets where !p.isEmpty {
+                let family: UInt8 = p[0] >> 4 == 6 ? UInt8(AF_INET6) : UInt8(AF_INET)
+                var out: [UInt8] = [0, 0, 0, family]
+                out += p
+                _ = out.withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }
+            }
+        }
+
+        /// Closes the descriptor; the kernel removes the interface.
+        public func close() {
+            let (first, src): (Bool, DispatchSourceRead?) = lock.withLock {
+                defer { closed = true }
+                return (!closed, source)
+            }
+            guard first else { return }
+            if let src {
+                src.setCancelHandler { [fd] in _ = Darwin.close(fd) }
+                src.cancel()
+            } else {
+                Darwin.close(fd)
+            }
+        }
+    }
+
+    /// A utun's addresses and MTU, set by name. Needs root.
+    public struct UtunInterface: Sendable {
+        public let name: String
+
+        public init(name: String) { self.name = name }
 
         /// Sets the IPv4 address, point-to-point to itself as NetworkExtension
         /// does, replacing `previous` if given. Bringing an address up also
@@ -131,50 +195,6 @@
             req.ifr_ifru.ifru_mtu = Int32(mtu)
             let rc = withUnsafeMutablePointer(to: &req) { ioctl(s, ioW("i", 52, ifreq.self), $0) }
             guard rc == 0 else { throw SystemError("SIOCSIFMTU \(mtu)") }
-        }
-
-        /// Calls `handler` with each batch of packets the system sends into the
-        /// tunnel, without their protocol-family header, on `queue`.
-        public func startReading(on queue: DispatchQueue, _ handler: @escaping @Sendable ([[UInt8]]) -> Void) {
-            let src = DispatchSource.makeReadSource(fileDescriptor: fd, queue: queue)
-            let fd = self.fd
-            src.setEventHandler {
-                var buf = [UInt8](repeating: 0, count: 65536 + 4)
-                var batch: [[UInt8]] = []
-                while batch.count < 64 {
-                    let n = buf.withUnsafeMutableBytes { read(fd, $0.baseAddress, $0.count) }
-                    guard n > 4 else { break }
-                    batch.append(Array(buf[4..<n]))
-                }
-                if !batch.isEmpty { handler(batch) }
-            }
-            lock.withLock { source = src }
-            src.resume()
-        }
-
-        /// Hands packets to the system. Drops what doesn't fit, as a link would.
-        public func write(_ packets: [[UInt8]]) {
-            for p in packets where !p.isEmpty {
-                let family: UInt8 = p[0] >> 4 == 6 ? UInt8(AF_INET6) : UInt8(AF_INET)
-                var out: [UInt8] = [0, 0, 0, family]
-                out += p
-                _ = out.withUnsafeBytes { Darwin.write(fd, $0.baseAddress, $0.count) }
-            }
-        }
-
-        /// Closes the descriptor; the kernel removes the interface.
-        public func close() {
-            let (first, src): (Bool, DispatchSourceRead?) = lock.withLock {
-                defer { closed = true }
-                return (!closed, source)
-            }
-            guard first else { return }
-            if let src {
-                src.setCancelHandler { [fd] in _ = Darwin.close(fd) }
-                src.cancel()
-            } else {
-                Darwin.close(fd)
-            }
         }
 
         private func setName<T>(_ field: inout T) {
