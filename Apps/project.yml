@@ -3,8 +3,9 @@
 #
 #   Extension: ExtensionApp + ExtensionTunnel, a packet tunnel system
 #     extension. Needs a paid Developer ID team. Sources in Extension/.
-#   Helper: HelperApp + albi-helper, a root LaunchDaemon the app registers
-#     with SMAppService. No paid team needed. Sources in Helper/.
+#   Helper: HelperApp runs the tunnel itself, as the user, with
+#     albi-helper, a root LaunchDaemon the app registers with SMAppService,
+#     for the utun, routes and DNS. No paid team needed. Sources in Helper/.
 #
 # Generate with: cd Apps && xcodegen generate
 name: Albi
@@ -151,9 +152,10 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: $(ALBI_BUNDLE_ID_PREFIX).hipreport
         SKIP_INSTALL: YES
   HelperApp:
-    # The app whose tunnel runs in albi-helper, a root LaunchDaemon in
-    # Contents/MacOS that the app registers with SMAppService from
-    # Contents/Library/LaunchDaemons; no paid team needed. Signs ad hoc by
+    # The app that runs the tunnel itself, as the user, with albi-helper, a
+    # root LaunchDaemon in Contents/MacOS that the app registers with
+    # SMAppService from Contents/Library/LaunchDaemons, for the utun, routes
+    # and DNS; no paid team needed. Signs ad hoc by
     # default; set ALBI_HELPER_SIGN_IDENTITY and ALBI_HELPER_TEAM in
     # Signing.xcconfig to sign with a free Apple Development certificate,
     # which keeps the helper's launchd registration valid across rebuilds.
@@ -233,8 +235,8 @@ targets:
         ENABLE_HARDENED_RUNTIME: YES
   albi-hipreport:
     # hipreport without the sandbox entitlements (a sandbox-inheriting
-    # binary can't start from an unsandboxed parent): the helper runs it as
-    # root, and ExtensionApp runs it as the user.
+    # binary can't start from an unsandboxed parent): both apps run it as
+    # the user.
     type: tool
     platform: macOS
     sources:

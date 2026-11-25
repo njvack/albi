@@ -5,21 +5,21 @@ A macOS client for Palo Alto GlobalProtect VPNs.
 This repository is one Swift package plus the Xcode project for the app. The app comes in two builds that share one menu-bar UI and differ in where the tunnel runs:
 
 - **Extension**: `ExtensionApp` with `ExtensionTunnel`, a packet tunnel system extension. Needs a paid Developer ID team. Installs as `Albi Extension.app`, bundle ID `com.github.njvack.albi`.
-- **Helper**: `HelperApp` with `albi-helper`, a root LaunchDaemon. No paid team needed. Installs as `Albi.app`, bundle ID `com.github.njvack.albi.helper`.
+- **Helper**: `HelperApp`, which runs the tunnel itself as the user, with `albi-helper`, a root LaunchDaemon, for the utun, routes and DNS. No paid team needed. Installs as `Albi.app`, bundle ID `com.github.njvack.albi.helper`.
 
 | Target | What |
 | --- | --- |
 | `HIPCore` | HIP report collection: check files, probes, report XML, the JSON summary |
-| `hipreport` | command-line HIP reporter, run by the app or the root helper |
+| `hipreport` | command-line HIP reporter, run by the app as the user |
 | `GPCore` | the GlobalProtect client core: login, getconfig, HIP check, GPST tunnel framing, the session state machine and its runner |
 | `GPMac` | the macOS I/O layer: URLSession, NWConnection, NWPathMonitor, NetworkExtension glue, Keychain |
 | `albi-cli` | command-line harness: logs in and runs the tunnel in userspace, pinging through it |
 | `GPCapture`, `gp-capture` | records a real gateway session through openconnect as redacted test fixtures |
 | `Diagnostics`, `albi-diag` | diagnostics mode: redacted incident files from the flight recorder, replay, and gp-fake-gateway scenario drafts |
 | `AlbiApp` | the menu-bar app's SwiftUI scenes and view models, against the `VPNService` protocol, shared by both builds (macOS only) |
-| `HelperBackend` | the helper build's `VPNService` over XPC to albi-helper, and its launch-at-login agent (macOS only) |
+| `HelperBackend` | the helper build's `VPNService`: the session, run in the app, with albi-helper over XPC for the network; and its launch-at-login agent (macOS only) |
 | `ExtensionBackend` | the extension build's `VPNService` over NETunnelProviderManager and provider messages (macOS only) |
-| `albi-helper` | the root LaunchDaemon that runs the tunnel for the helper build, over XPC |
+| `albi-helper` | the root LaunchDaemon that opens the utun and sets its addresses, routes and DNS for the helper build, over XPC |
 | `Apps/` | Xcode project (XcodeGen): `Apps/Extension/` (app and tunnel extension), `Apps/Helper/` (app and launchd plists), `Apps/Shared/` (icon and glyphs) |
 
 ## Build and test
@@ -42,7 +42,7 @@ CI pins Swift 6.3 for the linter, since formatter output can change between vers
 
 ## hipreport
 
-`hipreport` writes the GlobalProtect HIP report from a library of check files: what is actually installed and running on the Mac. It runs as its own process so the root helper can run it for facts only root can read; run as the user, those report `n/a`. It also works as an openconnect `--csd-wrapper`, which is how it is tested end to end. It is a port of the Go reporter in [njvack/openconnect-hipreports](https://github.com/njvack/openconnect-hipreports), which stays as the parity reference; both produce identical reports from the same fixture.
+`hipreport` writes the GlobalProtect HIP report from a library of check files: what is actually installed and running on the Mac. It runs as its own process, as the user, so running it by hand gives what the app sends; facts only root can read report `n/a`. It also works as an openconnect `--csd-wrapper`, which is how it is tested end to end. It is a port of the Go reporter in [njvack/openconnect-hipreports](https://github.com/njvack/openconnect-hipreports), which stays as the parity reference; both produce identical reports from the same fixture.
 
 ```sh
 hipreport --md5 ... --cookie ... --client-ip ...   # the report, on stdout
@@ -188,9 +188,17 @@ The extension also carries its own sandboxed `hipreport` in `Contents/MacOS`, si
 
 `AlbiApp` holds the menu-bar app: a `MenuBarExtra` menu with one icon per tunnel state, the login window (AutoFill username and password, a code step for profiles that ask each time), the setup checklist, the HIP compliance table, and Settings with profiles. Settings › General has "At launch": Connect, Don't connect, or Restore last state (the default), which reconnects unless the user's last choice was Disconnect. Diagnostics mode (Settings › General) turns on incident files; the app notifies when one is written and has Save Diagnostics Now and Show in Finder. It talks only to the `VPNService` protocol, so both builds share it.
 
-The HelperApp scheme builds the app with its tunnel in `albi-helper`, a root LaunchDaemon in `Contents/MacOS`, so it needs no paid Apple Developer account. The app registers it with `SMAppService` (setup item "Approve the Albi helper") and talks to it over XPC (`HelperVPNService` in `HelperBackend`, Mach service `com.github.njvack.albi.helper.daemon`). The helper keeps the profiles in `/Library/Application Support/Albi/profiles.json`, passwords and cookies in the System keychain, and runs the tunnel through `TunnelController` (shared with the packet tunnel extension) over `UtunHost`. It sweeps journaled routes when it starts, and `helper-state.json` records whether you want to be connected, so after a crash or a reboot launchd's KeepAlive brings it back connected. Quitting the app disconnects (the app is the VPN's only UI), but unlike Disconnect it leaves Restore last state to reconnect at the next launch. Launch at Login is a LaunchAgent in the app's bundle, so launchd also restarts the app if it crashes; when the app goes away without quitting, the helper keeps the tunnel up for 60 seconds for it to come back, then disconnects. The helper makes HIP reports with the `albi-hipreport` in the app's bundle, as root, so root-only checks work.
+The HelperApp scheme builds the app with the tunnel in the app itself, run as you, and `albi-helper`, a root LaunchDaemon in `Contents/MacOS`, for what needs root, so it needs no paid Apple Developer account. The app registers the helper with `SMAppService` (setup item "Approve the Albi helper") and talks to it over XPC (Mach service `com.github.njvack.albi.helper.daemon`).
 
-Upgrading from `Albi Menu.app` (before the helper build moved under `com.github.njvack.albi.helper`): in the old app, turn off Launch at Login, then quit it and run `sudo launchctl bootout system/com.github.njvack.albi.helper` so the old daemon lets go of the utun. Delete `/Applications/Albi Menu.app`, and remove any leftover "Albi Menu" entries under System Settings › General › Login Items & Extensions (`sfltool resetbtm` clears them all, for every app, if they won't go). Profiles in `/Library/Application Support/Albi` carry over. Saved passwords should too (same keychain service); if the new helper can't read one, the login window asks for it again. App settings such as "At launch" start from their defaults, since they belonged to the old bundle ID.
+- The session (`AgentCore` in `HelperBackend`) does login, TLS, getconfig, cookies, passwords, the second factor and the packet loop, through `TunnelController` (shared with the packet tunnel extension) over `UtunHost`. Profiles are in `~/Library/Application Support/Albi/profiles.json`; passwords and cookies are in your login keychain, where an item trusts only the app that made it. A password you don't save stays in the app's memory for the session and goes nowhere else.
+- The helper takes typed commands only, and only for the utun it opened for the calling connection: open a utun and hand over its descriptor, set its addresses and MTU, install routes and DNS, re-point excluded routes at a new router, take them out, close. It checks settings with the same rules as getconfig (`TunnelSettings.checked()`), routes around the tunnel only via one of the Mac's own routers, and opens one tunnel at a time. Whatever it set up goes when the app's connection does, and it sweeps journaled routes when it starts, so a crash on either side leaves no routes or DNS behind. It keeps no profiles, credentials or session state.
+- HIP reports come from the `albi-hipreport` in the app's bundle, run as you, so root-only checks report n/a and running it by hand gives the same report.
+
+Quitting the app disconnects (the app is the VPN's only UI), but unlike Disconnect it leaves Restore last state to reconnect at the next launch. Launch at Login is a LaunchAgent in the app's bundle, so launchd also restarts the app if it crashes; "At launch" then reconnects with the saved cookie, or the saved password once the gateway stops taking the cookie. Nothing connects before you log in.
+
+Upgrading from a build whose helper ran the whole session: profiles in `/Library/Application Support/Albi/profiles.json` are imported once. Saved passwords were in the System keychain, which the app can't read, so the login window asks for each again.
+
+Upgrading from `Albi Menu.app` (before the helper build moved under `com.github.njvack.albi.helper`): in the old app, turn off Launch at Login, then quit it and run `sudo launchctl bootout system/com.github.njvack.albi.helper` so the old daemon lets go of the utun. Delete `/Applications/Albi Menu.app`, and remove any leftover "Albi Menu" entries under System Settings › General › Login Items & Extensions (`sfltool resetbtm` clears them all, for every app, if they won't go). Profiles in `/Library/Application Support/Albi` carry over. App settings such as "At launch" start from their defaults, since they belonged to the old bundle ID.
 
 To run it:
 
@@ -201,9 +209,9 @@ rm -rf /Applications/Albi.app && cp -R build/Build/Products/Debug/Albi.app /Appl
 open /Applications/Albi.app
 ```
 
-Then click Approve… in the setup window, turn Albi on under System Settings › General › Login Items & Extensions › Allow in the Background, and add a profile in Settings. The app signs ad hoc by default; launchd records the helper's signature when it's registered, so after a rebuild the setup window says the helper needs reinstalling (one click, and possibly the System Settings toggle again). Signing with a free Apple Development certificate avoids that: see `Apps/Config/Signing.example.xcconfig`.
+Then click Approve… in the setup window, turn Albi on under System Settings › General › Login Items & Extensions › Allow in the Background, and add a profile in Settings. The app signs ad hoc by default; launchd records the helper's signature when it's registered, so after a rebuild the setup window says the helper needs reinstalling (one click, and possibly the System Settings toggle again). Ad hoc, macOS also asks before a rebuilt app reads the passwords it saved, since the keychain trusts the build that saved them. Signing with a free Apple Development certificate avoids both: see `Apps/Config/Signing.example.xcconfig`.
 
-- `/Applications/Albi.app/Contents/MacOS/albi-helper status` prints the running helper's build and status.
+- `/Applications/Albi.app/Contents/MacOS/albi-helper status` prints the running helper's build and what it has set up.
 - Logs: `log stream --predicate 'subsystem == "com.github.njvack.albi"' --level info`.
 - `sudo launchctl print system/com.github.njvack.albi.helper.daemon` shows launchd's view of it.
 
