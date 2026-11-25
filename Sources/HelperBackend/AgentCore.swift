@@ -126,7 +126,7 @@
             guard stored.profiles.contains(where: { $0.id == id }) else { throw AgentError("No such profile.") }
             await stopController()
             startPowerWatcher()
-            connect(id, password: password)
+            launch(id, password: password)
         }
 
         func disconnect() async {
@@ -167,7 +167,7 @@
 
         // MARK: The tunnel
 
-        private func connect(_ id: UUID, password: String?) {
+        private func launch(_ id: UUID, password: String?) {
             guard let p = stored.profiles.first(where: { $0.id == id }) else { return }
             generation += 1
             let gen = generation
