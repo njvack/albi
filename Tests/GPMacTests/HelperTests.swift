@@ -43,6 +43,25 @@
         }
     }
 
+    @Suite struct ServerNameTests {
+        @Test func acceptsHostsAndPorts() {
+            for ok in [
+                "vpn.example.edu", "vpn.example.edu:8443", "10.0.0.1", "10.0.0.1:443", "[fd00::1]", "[::1]:8443", "gw",
+            ] {
+                #expect(Profile.isValidServer(ok), "\(ok)")
+            }
+        }
+
+        @Test func rejectsURLsAndJunk() {
+            for bad in [
+                "", "https://vpn.example.edu", "vpn.example.edu/path", "vpn example", "a:b:c", "vpn.example.edu:0",
+                "vpn.example.edu:99999", "user@vpn", "[fd00::1", "[fd00::1]x", "vpn..edu", "-", "vpn.example.edu:",
+            ] {
+                #expect(!Profile.isValidServer(bad), "\(bad)")
+            }
+        }
+    }
+
     @Suite struct HelperProtocolTests {
         /// albi-helper and the extension both follow TunnelController's events
         /// through `HelperStatus.apply`.

@@ -36,6 +36,46 @@
 
         public var trust: TrustPolicy { pins.isEmpty ? .system : .pinned(pins) }
 
+        /// Whether `server` is `host` or `host:port`, with host a DNS name, an
+        /// IPv4 address or a bracketed IPv6 address: nothing a URL could be
+        /// built around to reach somewhere else.
+        public static func isValidServer(_ s: String) -> Bool {
+            guard !s.isEmpty, s.utf8.count <= 260 else { return false }
+            var host: Substring
+            var port: Substring?
+            if s.hasPrefix("[") {
+                guard let end = s.firstIndex(of: "]") else { return false }
+                host = s[s.index(after: s.startIndex)..<end]
+                let rest = s[s.index(after: end)...]
+                if !rest.isEmpty {
+                    guard rest.hasPrefix(":") else { return false }
+                    port = rest.dropFirst()
+                }
+                guard host.contains(":"), host.allSatisfy({ $0.isHexDigit || $0 == ":" || $0 == "." }) else {
+                    return false
+                }
+            } else {
+                let parts = s.split(separator: ":", omittingEmptySubsequences: false)
+                guard parts.count <= 2 else { return false }
+                host = parts[0]
+                port = parts.count == 2 ? parts[1] : nil
+                let labels = host.split(separator: ".", omittingEmptySubsequences: false)
+                guard !host.isEmpty, host.utf8.count <= 253,
+                    labels.allSatisfy({ l in
+                        (1...63).contains(l.utf8.count) && l.first != "-" && l.last != "-"
+                            && l.utf8.allSatisfy { b in
+                                (b >= 0x30 && b <= 0x39) || (b >= 0x41 && b <= 0x5a) || (b >= 0x61 && b <= 0x7a)
+                                    || b == 0x2d
+                            }
+                    })
+                else { return false }
+            }
+            if let port {
+                guard port.allSatisfy(\.isASCII), let n = Int(port), (1...65535).contains(n) else { return false }
+            }
+            return true
+        }
+
         public var target: Login.Target {
             switch mode {
             case .auto: .auto(server)

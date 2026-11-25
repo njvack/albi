@@ -222,9 +222,17 @@
             case .loadProfiles:
                 return HelperReply(profiles: stored.profiles)
             case .saveProfile(let p):
+                guard Profile.isValidServer(p.profile.server) else {
+                    return HelperReply(error: "\"\(p.profile.server)\" isn't a server name or address.")
+                }
                 if let i = stored.profiles.firstIndex(where: { $0.id == p.id }) {
                     let old = stored.profiles[i].profile
-                    if old.username != p.profile.username || old.server != p.profile.server || !p.profile.savePassword {
+                    // The saved password goes with the server, the account and
+                    // how the server is trusted: change any of them and it must
+                    // be typed again, so it's never sent somewhere new.
+                    if old.username != p.profile.username || old.server != p.profile.server
+                        || old.pins != p.profile.pins || old.mode != p.profile.mode || !p.profile.savePassword
+                    {
                         keychain.set(TunnelController.passwordAccount(old), nil)
                     }
                     stored.profiles[i] = p
