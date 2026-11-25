@@ -4,17 +4,20 @@
     import Foundation
     import GPCore
 
-    /// The root helper's XPC interface. Requests and replies are JSON
-    /// (`HelperRequest`, `HelperReply`), so the protocol itself never changes
-    /// shape as messages are added.
+    /// The root helper's XPC interface. The helper changes the network for
+    /// the session, which runs in the app as the user: it opens a utun and
+    /// hands over the descriptor, then sets the utun's addresses, routes and
+    /// DNS from settings it checks first, and takes them out again. Nothing
+    /// else: no login, no credentials, no packets. Requests and replies are
+    /// JSON (`HelperRequest`, `HelperReply`), so the protocol itself never
+    /// changes shape as messages are added.
     @objc public protocol AlbiHelperXPC {
         func call(_ request: Data, reply: @escaping @Sendable (Data) -> Void)
-    }
-
-    /// What the app exports back on the same connection, so the helper can push
-    /// status as it changes.
-    @objc public protocol AlbiHelperClientXPC {
-        func statusChanged(_ status: Data)
+        /// Opens a utun for this connection, closing any it had, and replies
+        /// with its descriptor and a `HelperReply` naming it. With no
+        /// descriptor, the reply's `error` says why. The utun and everything
+        /// set on it go when the connection does.
+        func openTunnel(reply: @escaping @Sendable (FileHandle?, Data) -> Void)
     }
 
     public enum AlbiHelper {
@@ -22,19 +25,23 @@
         public static let label = AlbiIDs.helperLabel
         /// The launchd plist inside the app's Contents/Library/LaunchDaemons.
         public static let plistName = AlbiIDs.helperPlist
-        /// Root-owned state, readable by everyone.
-        public static let directory = URL(fileURLWithPath: AlbiPaths.supportDirectory)
-        public static let profilesFile = URL(fileURLWithPath: AlbiPaths.profiles)
-        /// `{profile, wantConnected}`: what launchd's KeepAlive restart reconnects.
-        public static let stateFile = URL(fileURLWithPath: AlbiPaths.helperState)
         /// Bumped when requests or replies change incompatibly.
-        public static let protocolVersion = 1
+        public static let protocolVersion = 2
+        /// Gateway addresses one install may route around the tunnel.
+        public static let maxGateways = 16
 
         public static func interface() -> NSXPCInterface { NSXPCInterface(with: AlbiHelperXPC.self) }
-        public static func clientInterface() -> NSXPCInterface { NSXPCInterface(with: AlbiHelperClientXPC.self) }
+
+        /// Whether the helper may give `s` a host route around the tunnel: an
+        /// IPv4 address in dotted-quad form that a gateway could have, so not
+        /// in 0.0.0.0/8, loopback, link-local, multicast or reserved.
+        public static func isGatewayAddress(_ s: String) -> Bool {
+            guard let b = UtunHost.bytes(v4: s), s == b.map(String.init).joined(separator: ".") else { return false }
+            return b[0] != 0 && b[0] != 127 && b[0] < 224 && !(b[0] == 169 && b[1] == 254)
+        }
     }
 
-    /// One saved VPN, as the helper keeps it in profiles.json.
+    /// One saved VPN, as the app keeps it in profiles.json.
     public struct StoredProfile: Codable, Equatable, Sendable, Identifiable {
         public var id: UUID
         public var name: String
@@ -58,59 +65,51 @@
         }
     }
 
-    /// helper-state.json.
-    public struct HelperDesiredState: Codable, Equatable, Sendable {
-        public var profile: UUID?
-        public var wantConnected: Bool
-
-        public init(profile: UUID?, wantConnected: Bool) {
-            self.profile = profile
-            self.wantConnected = wantConnected
-        }
-    }
-
+    /// What the app's session asks of the root helper. Each tunnel request
+    /// acts on the utun this connection opened, and fails without one.
     public enum HelperRequest: Codable, Sendable {
         /// The helper's protocol version and build, for the setup check.
         case hello
-        case loadProfiles
-        case saveProfile(StoredProfile)
-        case deleteProfile(UUID)
-        case hasSavedPassword(UUID)
-        case connect(UUID, password: String?)
-        case disconnect
-        case answerSecondFactor(String)
+        /// Sets the utun's addresses and MTU.
+        case configureInterface(TunnelSettings)
+        /// Routes and DNS for the settings. `router` must be the router of
+        /// one of the Mac's own network services; `gateways` are IPv4
+        /// addresses that get host routes via it.
+        case installNetwork(TunnelSettings, router: String?, gateways: [String], dnsMode: NetConfig.DNSMode)
+        /// Re-points gateway and excluded routes at a new router.
+        case updateRouter(String?)
+        /// Takes out routes and DNS; the utun stays.
+        case removeNetwork
+        /// Takes out everything and closes the helper's end of the utun.
+        case closeTunnel
+        /// What the helper has set up now, for `albi-helper status`.
         case status
-        case diagnosticsSettings
-        case setDiagnosticsSettings(DiagnosticsSettings)
-        case saveDiagnosticsNow
     }
 
     public struct HelperReply: Codable, Sendable {
         public var error: String?
-        public var profiles: [StoredProfile]?
-        public var flag: Bool?
-        public var status: HelperStatus?
-        public var diagnostics: DiagnosticsSettings?
         public var version: Int?
         public var build: String?
+        /// The utun `openTunnel` made.
+        public var interface: String?
+        /// What's installed, for logs and `albi-helper status`.
+        public var summary: String?
 
         public init(
-            error: String? = nil, profiles: [StoredProfile]? = nil, flag: Bool? = nil, status: HelperStatus? = nil,
-            diagnostics: DiagnosticsSettings? = nil, version: Int? = nil, build: String? = nil
+            error: String? = nil, version: Int? = nil, build: String? = nil, interface: String? = nil,
+            summary: String? = nil
         ) {
             self.error = error
-            self.profiles = profiles
-            self.flag = flag
-            self.status = status
-            self.diagnostics = diagnostics
             self.version = version
             self.build = build
+            self.interface = interface
+            self.summary = summary
         }
     }
 
-    /// The tunnel's status as the helper reports it, and as the packet tunnel
-    /// extension reports it in `ProviderMessage.Status.tunnel`. The app maps it
-    /// onto its own `TunnelStatus`.
+    /// The session's status as the helper build's session reports it, and as
+    /// the packet tunnel extension reports it in `ProviderMessage.Status.tunnel`.
+    /// The app maps it onto its own `TunnelStatus`.
     public struct HelperStatus: Codable, Equatable, Sendable {
         public enum State: Codable, Equatable, Sendable {
             case disconnected

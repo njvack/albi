@@ -108,17 +108,40 @@
         }
 
         @Test func requestsRoundTrip() throws {
-            let id = UUID()
-            var p = Profile(server: "vpn.example.edu", username: "nate")
-            p.secondFactor = nil
+            let c = try GatewayConfig(
+                Reply.document(
+                    status: 200,
+                    body:
+                        "<response><ip-address>10.0.0.2</ip-address><access-routes><member>10.1.0.0/16</member></access-routes><dns><member>10.0.0.53</member></dns></response>"
+                ))
+            let s = TunnelSettings(config: c, remoteAddress: "gw.example.edu")
             let reqs: [HelperRequest] = [
-                .hello, .connect(id, password: "pw"), .connect(id, password: nil),
-                .saveProfile(StoredProfile(id: id, name: "Work", profile: p)), .answerSecondFactor("123456"),
-                .setDiagnosticsSettings(DiagnosticsSettings(enabled: true, windowMinutes: 5)),
+                .hello, .status, .configureInterface(s),
+                .installNetwork(s, router: "192.168.1.1", gateways: ["203.0.113.9"], dnsMode: .split),
+                .updateRouter(nil), .removeNetwork, .closeTunnel,
             ]
             for r in reqs {
                 let back = try HelperCoding.decode(HelperRequest.self, HelperCoding.encode(r))
                 #expect(HelperCoding.encode(back) == HelperCoding.encode(r))
+            }
+            guard
+                case .configureInterface(let back) = try HelperCoding.decode(
+                    HelperRequest.self, HelperCoding.encode(HelperRequest.configureInterface(s)))
+            else {
+                Issue.record("wrong request")
+                return
+            }
+            #expect(back == s)
+            #expect(try back.checked() == s)
+        }
+
+        @Test func gatewayAddressesAreUnicastLiterals() {
+            for ok in ["203.0.113.9", "10.0.0.1", "8.8.8.8"] { #expect(AlbiHelper.isGatewayAddress(ok), "\(ok)") }
+            for bad in [
+                "127.0.0.1", "0.1.2.3", "169.254.1.1", "224.0.0.1", "255.255.255.255", "010.0.0.1", "vpn.example.edu",
+                "::1", "", "1.2.3",
+            ] {
+                #expect(!AlbiHelper.isGatewayAddress(bad), "\(bad)")
             }
         }
 

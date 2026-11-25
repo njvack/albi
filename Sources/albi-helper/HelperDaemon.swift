@@ -1,6 +1,5 @@
 #if os(macOS)
     import AlbiConstants
-    import Diagnostics
     import Foundation
     import GPCore
     import GPMac
@@ -46,8 +45,8 @@
             log.notice("albi-helper started (build \(build, privacy: .public), pid \(getpid()))")
 
             // launchd sends SIGTERM to stop us (unload, shutdown, unregister).
-            // Take the tunnel down without logging out and without touching the
-            // desired state, so the next start reconnects.
+            // Take out whatever we set up; the session in the app sees the
+            // connection go and reconnects when we're back.
             var sources: [DispatchSourceSignal] = []
             for sig in [SIGTERM, SIGINT] {
                 signal(sig, SIG_IGN)
@@ -62,7 +61,6 @@
                 src.resume()
                 sources.append(src)
             }
-            Task { await core.start() }
             withExtendedLifetime((listener, delegate, sources)) { dispatchMain() }
         }
     }
@@ -85,33 +83,38 @@
             // exec'ing something else after connecting.
             guard let requirement else { return false }
             c.setCodeSigningRequirement(requirement)
+            let client = HelperClient(pid: c.processIdentifier, uid: c.effectiveUserIdentifier)
             c.exportedInterface = AlbiHelper.interface()
-            c.exportedObject = Exported(core: core)
-            c.remoteObjectInterface = AlbiHelper.clientInterface()
-            let client = HelperClient(c)
-            c.invalidationHandler = { [core] in Task { await core.remove(client) } }
-            c.interruptionHandler = { [core] in Task { await core.remove(client) } }
-            Task { await core.add(client) }
+            c.exportedObject = Exported(core: core, client: client)
+            // Whatever this client set up goes with it, however it ends.
+            c.invalidationHandler = { [core] in Task { await core.release(client) } }
+            c.interruptionHandler = { [core] in Task { await core.release(client) } }
             c.resume()
             return true
         }
     }
 
-    final class HelperClient: @unchecked Sendable, Hashable {
-        let connection: NSXPCConnection
-        init(_ c: NSXPCConnection) { connection = c }
-
-        func send(_ data: Data) {
-            (connection.remoteObjectProxyWithErrorHandler { _ in } as? AlbiHelperClientXPC)?.statusChanged(data)
+    /// One XPC connection, by identity.
+    final class HelperClient: Sendable, Hashable, CustomStringConvertible {
+        let pid: pid_t
+        let uid: uid_t
+        init(pid: pid_t, uid: uid_t) {
+            self.pid = pid
+            self.uid = uid
         }
 
+        var description: String { "pid \(pid) uid \(uid)" }
         static func == (a: HelperClient, b: HelperClient) -> Bool { a === b }
         func hash(into h: inout Hasher) { h.combine(ObjectIdentifier(self)) }
     }
 
     final class Exported: NSObject, AlbiHelperXPC, Sendable {
         let core: HelperCore
-        init(core: HelperCore) { self.core = core }
+        let client: HelperClient
+        init(core: HelperCore, client: HelperClient) {
+            self.core = core
+            self.client = client
+        }
 
         func call(_ request: Data, reply: @escaping @Sendable (Data) -> Void) {
             let req: HelperRequest
@@ -121,395 +124,142 @@
                 reply(HelperCoding.encode(HelperReply(error: "albi-helper could not read the request: \(error)")))
                 return
             }
-            Task {
-                let r = await core.handle(req)
+            Task { [core, client] in
+                let r = await core.handle(req, from: client)
                 reply(HelperCoding.encode(r))
+            }
+        }
+
+        func openTunnel(reply: @escaping @Sendable (FileHandle?, Data) -> Void) {
+            Task { [core, client] in
+                let (handle, r) = await core.open(for: client)
+                reply(handle, HelperCoding.encode(r))
             }
         }
     }
 
-    /// The helper's state: profiles, the desired state, the running tunnel and
-    /// the clients watching it.
+    /// The one tunnel the helper has set up, and the client it's for. The
+    /// helper keeps no other state: profiles, credentials and the session
+    /// are the app's.
     actor HelperCore {
-        private var stored = HelperProfiles()
-        private var desired = HelperDesiredState(profile: nil, wantConnected: false)
-        private var controller: TunnelController?
-        /// Bumped for each connect, so a stale task's results are ignored.
-        private var generation = 0
-        private var status = HelperStatus()
-        private var clients: Set<HelperClient> = []
-        private var codeWaiter: CheckedContinuation<String, Error>?
-        private var power: PowerWatcher?
-        private let keychain = KeychainStore(service: AlbiIDs.helperKeychainService)
-        private let hip = HelperCore.bundledHIP()
-
-        /// The hipreport beside this binary: albi-hipreport in the app (the
-        /// extension's sandboxed hipreport can't run outside a sandbox), or
-        /// hipreport in a SwiftPM build directory.
-        static func hipreport() -> URL? {
-            guard let dir = HelperDaemon.executable?.deletingLastPathComponent() else { return nil }
-            return ["albi-hipreport", "hipreport"].map { dir.appendingPathComponent($0) }
-                .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        private struct Lease {
+            let client: HelperClient
+            let device: UtunDevice
+            let network: LocalTunnelNetwork
+            var summary: String?
         }
 
-        /// hipreport, held to the helper's own signature. With no requirement
-        /// (an unsigned helper) there's nothing safe to run as root.
-        static func bundledHIP() -> BundledHIP {
-            guard let helper = HelperDaemon.executable, let exe = hipreport(),
-                let req = AlbiHelper.hipreportRequirement(helper: helper, hipreport: exe)
-            else {
-                log.error("no signed hipreport beside the helper; HIP reports are off")
-                return BundledHIP(executable: nil)
+        private var lease: Lease?
+
+        // MARK: The utun
+
+        /// Opens a utun for `client` and hands back a descriptor for it. One
+        /// tunnel at a time: routes and DNS from two would fight.
+        func open(for client: HelperClient) -> (FileHandle?, HelperReply) {
+            if let l = lease {
+                guard l.client == client else {
+                    log.error(
+                        "\(client, privacy: .public) asked for a tunnel while \(l.client, privacy: .public) has one")
+                    return (nil, HelperReply(error: "Another Albi session has the VPN open."))
+                }
+                close("reopened")
             }
-            return BundledHIP(executable: exe, requirement: req)
-        }
-
-        /// Reads the saved files, before the listener takes requests.
-        init() {
-            stored = Self.read(HelperProfiles.self, AlbiHelper.profilesFile) ?? HelperProfiles()
-            desired =
-                Self.read(HelperDesiredState.self, AlbiHelper.stateFile)
-                ?? HelperDesiredState(profile: nil, wantConnected: false)
-        }
-
-        /// Watches sleep and wake, and reconnects if the saved state says so.
-        func start() {
-            let p = PowerWatcher { [weak self] e in
-                Task { await self?.powerEvent(e) }
+            // Routes a crashed run journaled and nobody swept.
+            NetConfig.sweep { log.notice("\($0, privacy: .public)") }
+            let device: UtunDevice
+            do { device = try UtunDevice() } catch {
+                log.error("opening a utun: \(String(describing: error), privacy: .public)")
+                return (nil, HelperReply(error: "The helper couldn't open a tunnel interface: \(error)"))
             }
-            if !p.start() { log.error("could not watch for sleep and wake") }
-            power = p
-            if desired.wantConnected, let id = desired.profile, stored.profiles.contains(where: { $0.id == id }) {
-                log.notice("reconnecting, as the saved state asks")
-                connect(id, password: nil)
+            let copy = dup(device.fd)
+            guard copy >= 0 else {
+                device.close()
+                return (nil, HelperReply(error: "The helper couldn't hand over the tunnel interface."))
             }
+            let network = LocalTunnelNetwork(interface: device.interface) { log.notice("\($0, privacy: .public)") }
+            lease = Lease(client: client, device: device, network: network)
+            log.notice("\(device.name, privacy: .public) opened for \(client, privacy: .public)")
+            return (FileHandle(fileDescriptor: copy, closeOnDealloc: true), HelperReply(interface: device.name))
         }
 
-        func shutdown() async {
-            power?.stop()
-            await controller?.stop()
-            controller = nil
+        /// The client went away: take out what it set up.
+        func release(_ client: HelperClient) {
+            guard lease?.client == client else { return }
+            close("\(client) went away")
         }
 
-        /// How long the tunnel outlives the app when the app goes away without
-        /// quitting (a crash): long enough for launchd to start it again.
-        static let orphanGrace: Duration = .seconds(60)
-        private var orphanTimer: Task<Void, Never>?
-
-        func add(_ c: HelperClient) {
-            clients.insert(c)
-            orphanTimer?.cancel()
-            orphanTimer = nil
+        func shutdown() {
+            close("helper stopping")
         }
 
-        /// A quitting app disconnects first, so a client that goes away while
-        /// the tunnel is up crashed or was killed. Keep the tunnel for
-        /// `orphanGrace` in case it comes back; then take it down, since nothing
-        /// is left showing it.
-        func remove(_ c: HelperClient) {
-            guard clients.remove(c) != nil, clients.isEmpty, controller != nil, orphanTimer == nil else { return }
-            log.notice(
-                "the app went away with the tunnel up; disconnecting unless it's back within \(Int(Self.orphanGrace.components.seconds)) s"
-            )
-            orphanTimer = Task { [weak self] in
-                try? await Task.sleep(for: Self.orphanGrace)
-                guard !Task.isCancelled else { return }
-                await self?.orphaned()
-            }
-        }
-
-        private func orphaned() async {
-            orphanTimer = nil
-            guard clients.isEmpty, controller != nil else { return }
-            log.notice("the app didn't come back; disconnecting")
-            _ = await handle(.disconnect)
+        private func close(_ why: String) {
+            guard let l = lease else { return }
+            lease = nil
+            l.network.close()
+            l.device.close()
+            log.notice("\(l.device.name, privacy: .public) closed: \(why, privacy: .public)")
         }
 
         // MARK: Requests
 
-        func handle(_ req: HelperRequest) async -> HelperReply {
+        func handle(_ req: HelperRequest, from client: HelperClient) -> HelperReply {
             switch req {
             case .hello:
                 return HelperReply(version: AlbiHelper.protocolVersion, build: HelperDaemon.build)
-            case .loadProfiles:
-                return HelperReply(profiles: stored.profiles)
-            case .saveProfile(let p):
-                guard Profile.isValidServer(p.profile.server) else {
-                    return HelperReply(error: "\"\(p.profile.server)\" isn't a server name or address.")
-                }
-                if let i = stored.profiles.firstIndex(where: { $0.id == p.id }) {
-                    let old = stored.profiles[i].profile
-                    // The saved password goes with the server, the account and
-                    // how the server is trusted: change any of them and it must
-                    // be typed again, so it's never sent somewhere new.
-                    if old.username != p.profile.username || old.server != p.profile.server
-                        || old.pins != p.profile.pins || old.mode != p.profile.mode || !p.profile.savePassword
-                    {
-                        keychain.set(TunnelController.passwordAccount(old), nil)
-                    }
-                    stored.profiles[i] = p
-                } else {
-                    stored.profiles.append(p)
-                }
-                return saveProfiles()
-            case .deleteProfile(let id):
-                if let p = stored.profiles.first(where: { $0.id == id }) {
-                    keychain.set(TunnelController.passwordAccount(p.profile), nil)
-                }
-                stored.profiles.removeAll { $0.id == id }
-                if desired.profile == id { setDesired(HelperDesiredState(profile: nil, wantConnected: false)) }
-                return saveProfiles()
-            case .hasSavedPassword(let id):
-                guard let p = stored.profiles.first(where: { $0.id == id }), p.profile.savePassword else {
-                    return HelperReply(flag: false)
-                }
-                return HelperReply(flag: keychain.get(TunnelController.passwordAccount(p.profile)) != nil)
-            case .connect(let id, let password):
-                guard stored.profiles.contains(where: { $0.id == id }) else {
-                    return HelperReply(error: "No such profile.")
-                }
-                await stopController()
-                setDesired(HelperDesiredState(profile: id, wantConnected: true))
-                connect(id, password: password)
-                return HelperReply()
-            case .disconnect:
-                setDesired(HelperDesiredState(profile: desired.profile, wantConnected: false))
-                if controller != nil {
-                    update { $0.state = .disconnecting }
-                    await stopController()
-                }
-                codeWaiter?.resume(throwing: GPError.cancelled)
-                codeWaiter = nil
-                update { s in s = HelperStatus(profileID: s.profileID, lastIncident: s.lastIncident) }
-                return HelperReply()
-            case .answerSecondFactor(let code):
-                codeWaiter?.resume(returning: code)
-                codeWaiter = nil
-                return HelperReply()
             case .status:
-                await refresh()
-                return HelperReply(status: status)
-            case .diagnosticsSettings:
-                return HelperReply(diagnostics: stored.diagnostics)
-            case .setDiagnosticsSettings(let d):
-                stored.diagnostics = d
-                return saveProfiles()
-            case .saveDiagnosticsNow:
-                controller?.saveDiagnosticsNow()
-                try? await Task.sleep(for: .milliseconds(500))
-                await refresh()
+                guard let l = lease else { return HelperReply(summary: "no tunnel") }
+                return HelperReply(
+                    interface: l.device.name, summary: "\(l.client): \(l.summary ?? "no routes or DNS")")
+            case .closeTunnel:
+                if lease?.client == client { close("closed by \(client)") }
                 return HelperReply()
+            default:
+                break
             }
-        }
-
-        // MARK: The tunnel
-
-        private func connect(_ id: UUID, password: String?) {
-            guard let p = stored.profiles.first(where: { $0.id == id }) else { return }
-            generation += 1
-            let gen = generation
-            status = HelperStatus(profileID: id, state: .authenticating)
-            broadcast()
-            Task { await run(p, password: password, generation: gen) }
-        }
-
-        /// Runs one profile until it's stopped, needs a login, or is replaced.
-        /// A start that fails for a reason that may pass (no network yet, the
-        /// gateway unreachable) is retried with backoff.
-        private func run(_ p: StoredProfile, password: String?, generation gen: Int) async {
-            var attempt = 0
-            var password = password
-            while gen == generation {
-                let c = makeController(p, password: password, generation: gen)
-                controller = c
-                do {
-                    try await c.start()
-                } catch {
-                    await c.stop()
-                    guard gen == generation else { return }
-                    controller = nil
-                    if Self.needsUser(error) {
-                        update { $0.state = .needsLogin(reason: Self.describe(error)) }
-                        return
-                    }
-                    attempt += 1
-                    // The password was just typed: keep it for the retry only if
-                    // the profile doesn't save it (else the keychain has it).
-                    if p.profile.savePassword { password = nil }
-                    let delay = min(60.0, 5.0 * pow(2.0, Double(attempt - 1)))
-                    log.notice("start failed (\(Self.describe(error), privacy: .public)); retrying in \(Int(delay)) s")
-                    update { $0.state = .reconnecting(attempt: attempt, reason: Self.describe(error)) }
-                    try? await Task.sleep(for: .seconds(delay))
-                    continue
-                }
-                let end = await c.waitUntilFinished()
-                guard gen == generation else { return }
-                await c.stop()
-                controller = nil
-                await refresh()
-                switch end {
-                case .needsLogin(let why):
-                    update { $0.state = .needsLogin(reason: why) }
-                default:
-                    update { s in s = HelperStatus(profileID: s.profileID, lastIncident: s.lastIncident) }
-                }
-                return
+            guard var l = lease, l.client == client else {
+                return HelperReply(error: "This connection has no tunnel open.")
             }
-        }
-
-        private func makeController(_ p: StoredProfile, password: String?, generation gen: Int) -> TunnelController {
-            let profile = p.profile
-            let serverHost = Self.host(profile.server)
-            let config = TunnelController.Configuration(
-                profile: profile, password: password, diagnostics: stored.diagnostics,
-                keychain: keychain)
-            return TunnelController(
-                config,
-                hipReport: { [hip] ctx in try await hip.report(for: ctx) },
-                askSecondFactor: { [weak self] prompt in
-                    guard let self else { throw GPError.cancelled }
-                    return try await self.waitForCode(prompt)
-                },
-                makeHost: { hooks, gateway, watcher in
-                    try UtunHost(
-                        dnsMode: .split, gatewayHosts: [serverHost, Self.host(gateway)],
-                        router: { [watcher] in watcher.ipv4Router }, hooks: hooks)
-                },
-                onEvent: { [weak self] e in
-                    Task { await self?.event(e, generation: gen) }
-                })
-        }
-
-        private func stopController() async {
-            generation += 1
-            let c = controller
-            controller = nil
-            await c?.stop()
-        }
-
-        private func event(_ e: TunnelController.Event, generation gen: Int) async {
-            if case .log(let m) = e {
-                log.info("\(m, privacy: .public)")
-                return
-            }
-            guard gen == generation else { return }
-            if case .state(let s) = e { log.notice("state \(String(describing: s), privacy: .public)") }
-            guard status.apply(e) else { return }
-            await refresh()
-            broadcast()
-        }
-
-        private func waitForCode(_ prompt: String) async throws -> String {
-            codeWaiter?.resume(throwing: GPError.cancelled)
-            // Nobody may be there to answer (the app isn't running): give up
-            // after five minutes, so the session can say a login is needed.
-            let timeout = Task { [weak self] in
-                try await Task.sleep(for: .seconds(300))
-                await self?.expireCode()
-            }
-            defer { timeout.cancel() }
-            return try await withCheckedThrowingContinuation { codeWaiter = $0 }
-        }
-
-        private func expireCode() {
-            codeWaiter?.resume(throwing: GPError.badCredentials("no verification code was entered"))
-            codeWaiter = nil
-        }
-
-        private func powerEvent(_ e: PowerWatcher.Event) async {
-            switch e {
-            case .willSleep: await controller?.sleep()
-            case .didWake: await controller?.wake()
-            }
-        }
-
-        // MARK: Status
-
-        private func refresh() async {
-            guard let c = controller else { return }
-            status.apply(await c.snapshot())
-        }
-
-        private func update(_ change: (inout HelperStatus) -> Void) {
-            change(&status)
-            broadcast()
-        }
-
-        private func broadcast() {
-            let data = HelperCoding.encode(status)
-            for c in clients { c.send(data) }
-        }
-
-        // MARK: Files
-
-        private func saveProfiles() -> HelperReply {
             do {
-                try Self.write(stored, AlbiHelper.profilesFile)
-                return HelperReply(profiles: stored.profiles)
-            } catch {
-                return HelperReply(error: "Couldn't save profiles: \(error.localizedDescription)")
-            }
-        }
-
-        private func setDesired(_ d: HelperDesiredState) {
-            desired = d
-            do { try Self.write(d, AlbiHelper.stateFile) } catch {
-                log.error("writing the desired state: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-
-        static func read<T: Decodable>(_ t: T.Type, _ url: URL) -> T? {
-            guard let d = try? Data(contentsOf: url) else { return nil }
-            do {
-                return try HelperCoding.decode(t, d)
-            } catch {
-                log.error("unreadable \(url.path, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                return nil
-            }
-        }
-
-        /// Root-owned, readable by everyone (no secrets: those are in the keychain).
-        static func write<T: Encodable>(_ v: T, _ url: URL) throws {
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
-                attributes: [.posixPermissions: 0o755])
-            try HelperCoding.encode(v).write(to: url, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
-        }
-
-        // MARK: Helpers
-
-        /// Errors only the user can fix: a login is needed.
-        static func needsUser(_ e: Error) -> Bool {
-            if e is StoredCredentials.NeedsUser || e is ControllerError { return true }
-            if let g = e as? GPError {
-                switch g {
-                case .badCredentials, .cookieRejected, .certificateRequired, .cancelled: return true
-                default: return false
+                switch req {
+                case .configureInterface(let s):
+                    try l.network.configure(try s.checked())
+                case .installNetwork(let s, let router, let gateways, let dnsMode):
+                    let s = try s.checked()
+                    try Self.checkRouter(router)
+                    guard gateways.count <= AlbiHelper.maxGateways, gateways.allSatisfy(AlbiHelper.isGatewayAddress)
+                    else { throw Refused("gateway addresses \(gateways)") }
+                    l.summary = try l.network.install(s, router: router, gateways: gateways, dnsMode: dnsMode)
+                    lease = l
+                    return HelperReply(summary: l.summary)
+                case .updateRouter(let router):
+                    try Self.checkRouter(router)
+                    try l.network.updateRouter(router)
+                case .removeNetwork:
+                    l.network.remove()
+                    l.summary = nil
+                    lease = l
+                case .hello, .status, .closeTunnel:
+                    break
                 }
+                return HelperReply()
+            } catch {
+                log.error("\(client, privacy: .public): \(String(describing: error), privacy: .public)")
+                return HelperReply(error: "\(error)")
             }
-            return false
         }
 
-        static func describe(_ e: Error) -> String {
-            if e is StoredCredentials.NeedsUser { return "The gateway needs you to log in." }
-            if let g = e as? GPError {
-                switch g {
-                case .badCredentials(let m): return m.isEmpty ? "The gateway rejected the login." : m
-                case .cookieRejected: return "The gateway ended the session."
-                case .cancelled: return "Login cancelled."
-                default: return "\(g)"
-                }
-            }
-            return (e as? LocalizedError)?.errorDescription ?? "\(e)"
+        /// Excluded and gateway routes go via the router of one of the Mac's
+        /// own network services, never somewhere the client names.
+        static func checkRouter(_ router: String?) throws {
+            guard let router else { return }
+            guard PathWatcher.serviceRouters().contains(router) else { throw Refused("router \(router)") }
         }
+    }
 
-        /// "host:port" → "host".
-        static func host(_ server: String) -> String {
-            if server.hasPrefix("[") { return String(server.dropFirst().prefix { $0 != "]" }) }
-            let parts = server.split(separator: ":")
-            return parts.count == 2 ? String(parts[0]) : server
-        }
+    struct Refused: Error, CustomStringConvertible {
+        var what: String
+        init(_ what: String) { self.what = what }
+        var description: String { "refused: \(what)" }
     }
 
     /// `albi-helper status`: prints the running helper's status as JSON.

@@ -393,6 +393,71 @@ let fakeGetConfig = """
         #expect(hostOnly("[::1]:8443") == "::1")
         #expect(hostOnly("gw") == "gw")
     }
+
+    @Test func settingsFromGetconfigPassTheCheck() throws {
+        let c = try GatewayConfig(Reply.document(status: 200, body: fakeGetConfig))
+        let s = TunnelSettings(config: c, remoteAddress: "gw.example.com")
+        #expect(try s.checked() == s)
+        let full = TunnelSettings(
+            config: try GatewayConfig(
+                Reply.document(status: 200, body: "<response><ip-address>10.0.0.2</ip-address></response>")),
+            remoteAddress: "gw")
+        #expect(try full.checked() == full)
+    }
+
+    @Test func checkRejectsWhatAGatewayCouldNotHaveSent() throws {
+        let c = try GatewayConfig(Reply.document(status: 200, body: fakeGetConfig))
+        let good = TunnelSettings(config: c, remoteAddress: "gw.example.com")
+        let bad: [(String, (inout TunnelSettings) -> Void)] = [
+            ("loopback address", { $0.ipv4Address = "127.0.0.1" }),
+            ("non-canonical address", { $0.ipv4Address = "010.99.0.2" }),
+            ("bad mask", { $0.ipv4Mask = "255.0.255.0" }),
+            ("link-local v6", { $0.ipv6Address = "fe80::1" }),
+            ("v6 prefix", { $0.ipv6PrefixLength = 0 }),
+            (
+                "host bits",
+                { $0.includedIPv4.append(.init(address: "10.1.2.3", mask: "255.255.0.0", prefixLength: 16)) }
+            ),
+            (
+                "mask mismatch",
+                { $0.includedIPv4.append(.init(address: "10.1.0.0", mask: "255.0.0.0", prefixLength: 16)) }
+            ),
+            (
+                "loopback route",
+                { $0.includedIPv4.append(.init(address: "127.0.0.0", mask: "255.0.0.0", prefixLength: 8)) }
+            ),
+            ("exclude everything", { $0.excludedIPv4.append(.default) }),
+            ("multicast v6 route", { $0.includedIPv6.append(.init(address: "ff02::", prefixLength: 16)) }),
+            ("loopback DNS", { $0.dnsServers = ["127.0.0.1"] }),
+            ("name as DNS server", { $0.dnsServers = ["dns.example"] }),
+            ("empty match domain", { $0.matchDomains = [""] }),
+            ("uppercase domain", { $0.searchDomains = ["Corp.Example"] }),
+            ("huge MTU", { $0.mtu = 70000 }),
+            ("tiny MTU", { $0.mtu = 100 }),
+            ("too many DNS servers", { $0.dnsServers = (1...9).map { "10.0.0.\($0)" } }),
+            (
+                "too many routes",
+                {
+                    $0.includedIPv4 = (0..<4097).map {
+                        .init(address: "10.\($0 / 256).\($0 % 256).0", mask: "255.255.255.0", prefixLength: 24)
+                    }
+                }
+            ),
+            (
+                "no address",
+                {
+                    $0.ipv4Address = nil; $0.ipv4Mask = nil; $0.ipv6Address = nil; $0.ipv6PrefixLength = nil;
+                    $0.includedIPv6 = []; $0.excludedIPv6 = []
+                }
+            ),
+        ]
+        for (name, change) in bad {
+            var s = good
+            change(&s)
+            #expect(throws: TunnelSettings.Rejected.self, "\(name)") { try s.checked() }
+        }
+    }
+
 }
 
 @Suite struct PingTests {

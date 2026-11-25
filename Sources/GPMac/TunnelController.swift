@@ -104,7 +104,7 @@
         }
 
         public typealias MakeHost =
-            @Sendable (_ hooks: HostHooks, _ gateway: String, _ watcher: PathWatcher) throws -> any PacketHost
+            @Sendable (_ hooks: HostHooks, _ gateway: String, _ watcher: PathWatcher) async throws -> any PacketHost
 
         public let configuration: Configuration
         private let hipReport: @Sendable (HIPContext) async throws -> String?
@@ -280,7 +280,7 @@
                 stateChanged: { [weak self] s in self?.stateChanged(s) },
                 log: log
             )
-            let host = try makeHost(hooks, gateway, watcher)
+            let host = try await makeHost(hooks, gateway, watcher)
             hostRef.value = host
             let runner = SessionRunner(
                 server: gateway, client: client,

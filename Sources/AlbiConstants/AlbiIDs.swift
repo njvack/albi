@@ -21,8 +21,9 @@ public enum AlbiIDs {
     public static let helperLoginAgentLabel = "com.github.njvack.albi.helper.login"
     public static let helperLoginAgentPlist = "com.github.njvack.albi.helper.login.plist"
 
-    /// Keychain service for credentials the root helper keeps. Not a launchd
-    /// or bundle ID: renaming it would orphan saved passwords.
+    /// Keychain service for the helper build's passwords and cookies, in the
+    /// user's login keychain. Not a launchd or bundle ID: renaming it would
+    /// orphan saved passwords.
     public static let helperKeychainService = "com.github.njvack.albi.helper"
     /// Keychain service for credentials the tunnel extension keeps.
     public static let tunnelKeychainService = "com.github.njvack.albi.tunnel"

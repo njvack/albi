@@ -41,7 +41,7 @@
     /// The default route and the user's own DNS settings are never touched. Not
     /// thread-safe: call from one queue.
     public final class NetConfig: @unchecked Sendable {
-        public enum DNSMode: String, Sendable {
+        public enum DNSMode: String, Codable, Sendable {
             /// Only the gateway's domains go to its DNS servers (supplemental
             /// match domains). Coexists with other VPNs' DNS, such as Tailscale's.
             /// A full tunnel still sends every name; see `resolverScope`.

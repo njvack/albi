@@ -9,15 +9,16 @@ public enum AlbiPaths {
     public static let supportDirectory = "/Library/Application Support/Albi"
     /// Local HIP check files. Must be owned by root and writable by nobody else.
     public static let checksDirectory = "/Library/Application Support/Albi/checks.d"
-    /// Where the helper and the extension (root) write diagnostics dumps.
+    /// Where the extension (root) writes diagnostics dumps; the helper
+    /// build's session writes to ~/Library/Application Support/Albi/Diagnostics.
     /// Readable by everyone: dumps are redacted before they are written.
     public static let diagnosticsDirectory = "/Library/Application Support/Albi/Diagnostics"
     /// The routes NetConfig added, so a later run can sweep them after a crash.
     public static let helperJournal = "/Library/Application Support/Albi/helper-journal.json"
-    /// The helper's saved VPNs.
+    /// Where the root helper kept the saved VPNs before the session moved
+    /// into the app. The app imports them once into the user's own
+    /// ~/Library/Application Support/Albi/profiles.json.
     public static let profiles = "/Library/Application Support/Albi/profiles.json"
-    /// `{profile, wantConnected}`: what launchd's KeepAlive restart reconnects.
-    public static let helperState = "/Library/Application Support/Albi/helper-state.json"
 
     /// hipreport's cache when it runs as root, so users can't write the root
     /// helper's cache. Other users get their own ~/Library/Caches/Albi.
