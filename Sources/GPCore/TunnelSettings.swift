@@ -1,8 +1,8 @@
 /// The network settings a tunnel needs, as plain values. The macOS layer turns
 /// this into one `NEPacketTunnelNetworkSettings`; keeping it here lets the
 /// mapping from getconfig be tested on Linux.
-public struct TunnelSettings: Equatable, Sendable {
-    public struct IPv4Route: Equatable, Hashable, Sendable {
+public struct TunnelSettings: Codable, Equatable, Sendable {
+    public struct IPv4Route: Codable, Equatable, Hashable, Sendable {
         public var address: String
         public var mask: String
         public var prefixLength: Int
@@ -15,7 +15,7 @@ public struct TunnelSettings: Equatable, Sendable {
         }
     }
 
-    public struct IPv6Route: Equatable, Hashable, Sendable {
+    public struct IPv6Route: Codable, Equatable, Hashable, Sendable {
         public var address: String
         public var prefixLength: Int
         public static let `default` = IPv6Route(address: "::", prefixLength: 0)
@@ -154,6 +154,70 @@ public struct TunnelSettings: Equatable, Sendable {
             mtu = c.mtu ?? fallbackMTU
         }
         self.ignored = ignored
+    }
+
+    /// Settings that come from another process, checked again with the
+    /// rules `init(config:)` applies to the gateway's answer. The root helper
+    /// gets them from the user's session, and a session that built them from
+    /// getconfig sends nothing these reject, so instead of leaving a value out
+    /// this throws: anything off means the sender isn't doing that.
+    /// `remoteAddress` and `ignored` are only for display and aren't checked;
+    /// nothing that changes the system may use them.
+    public func checked() throws(Rejected) -> TunnelSettings {
+        func reject(_ what: String) -> Rejected { Rejected(what: what) }
+        if let a = ipv4Address {
+            guard let v = IPv4.parse(a), IPv4.isUsableHost(v), IPv4.format(v) == a else {
+                throw reject("ipv4 address \(a)")
+            }
+            if let m = ipv4Mask, IPv4.parse(m).flatMap(IPv4.prefixLength(mask:)) == nil {
+                throw reject("ipv4 mask \(m)")
+            }
+        } else if ipv4Mask != nil {
+            throw reject("ipv4 mask without an address")
+        }
+        if let a = ipv6Address {
+            guard let b = IPv6.parse(a), IPv6.isUsableHost(b) else { throw reject("ipv6 address \(a)") }
+            guard let n = ipv6PrefixLength, (1...128).contains(n) else { throw reject("ipv6 prefix length") }
+        } else if ipv6PrefixLength != nil || !includedIPv6.isEmpty || !excludedIPv6.isEmpty {
+            throw reject("ipv6 settings without an address")
+        }
+        guard ipv4Address != nil || ipv6Address != nil else { throw reject("no address") }
+        let count = includedIPv4.count + excludedIPv4.count + includedIPv6.count + excludedIPv6.count
+        guard count <= Limits.routes else { throw reject("\(count) routes") }
+        for (list, isExclude) in [(includedIPv4, false), (excludedIPv4, true)] {
+            for r in list {
+                // Parsing the route's own text must give the route back: host
+                // bits clear and the mask matching the prefix length.
+                guard TunnelSettings.parseIPv4Route("\(r.address)/\(r.prefixLength)") == r,
+                    r.isAllowed(excluded: isExclude)
+                else { throw reject("route \(r.address)/\(r.prefixLength) (\(r.mask))") }
+            }
+        }
+        for (list, isExclude) in [(includedIPv6, false), (excludedIPv6, true)] {
+            for r in list {
+                guard TunnelSettings.parseIPv6Route("\(r.address)/\(r.prefixLength)") == r,
+                    r.isAllowed(excluded: isExclude)
+                else { throw reject("route \(r.address)/\(r.prefixLength)") }
+            }
+        }
+        guard dnsServers.count <= Limits.dnsServers else { throw reject("\(dnsServers.count) DNS servers") }
+        for d in dnsServers where TunnelSettings.dnsServer(d) == nil {
+            throw reject("DNS server \(d)")
+        }
+        for list in [searchDomains, matchDomains ?? []] {
+            guard list.count <= Limits.dnsDomains else { throw reject("\(list.count) DNS domains") }
+            for d in list where TunnelSettings.domainName(d) != d {
+                throw reject("DNS domain \(d)")
+            }
+        }
+        guard Limits.mtu.contains(mtu) else { throw reject("mtu \(mtu)") }
+        return self
+    }
+
+    /// What `checked()` found wrong.
+    public struct Rejected: Error, Equatable, CustomStringConvertible {
+        public var what: String
+        public var description: String { "tunnel settings rejected: \(what)" }
     }
 
     /// Bounds on what a gateway may push.
