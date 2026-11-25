@@ -29,7 +29,7 @@
         }
 
         /// What the helper must be signed as, for a team-signed app.
-        static let helperRequirement = AlbiHelper.helperRequirement(app: Bundle.main.bundleURL)
+        static let helperRequirement = AlbiHelper.helperRequirement(app: Bundle.main.bundleURL, helper: bundledHelper)
 
         static var daemon: SMAppService { SMAppService.daemon(plistName: AlbiHelper.plistName) }
 

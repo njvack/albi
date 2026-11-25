@@ -38,9 +38,9 @@
                 identifier: id, teamID: team, cdhash: unique.map { String(format: "%02x", $0) }.joined())
         }
 
-        /// A requirement that `others` meet, written so that it holds across
-        /// rebuilds when this identity has a team: the same team, and one of
-        /// the given identifiers. For an ad-hoc identity, the exact binaries.
+        /// A requirement for other code. With a team, it holds across
+        /// rebuilds: that team and one of `identifiers`. Without one, the
+        /// exact binaries in `adHoc`.
         public static func requirement(team: String?, identifiers: [String], adHoc: [CodeIdentity]) -> String? {
             if let team {
                 let ids = identifiers.filter(isSafe)
@@ -77,8 +77,12 @@
     }
 
     extension AlbiHelper {
-        /// The helper's identifier is the app's plus this.
-        public static let daemonSuffix = ".daemon"
+        /// The identifiers to pin, read from the code itself: for a team
+        /// build, each piece's own identifier as long as it's signed by
+        /// `team`, so nothing depends on how Xcode names tools.
+        static func identifiers(team: String, of urls: [URL]) -> [String] {
+            urls.compactMap { CodeIdentity.of($0) }.filter { $0.teamID == team }.map(\.identifier)
+        }
 
         /// What the helper accepts on its XPC listener: the app it ships in,
         /// or its own binary (`albi-helper status`). `helper` is the helper's
@@ -87,28 +91,25 @@
         public static func clientRequirement(helper: URL) -> String? {
             guard let me = CodeIdentity.of(helper) else { return nil }
             let app = helper.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            var ids = [me.identifier]
-            if me.identifier.hasSuffix(daemonSuffix) { ids.append(String(me.identifier.dropLast(daemonSuffix.count))) }
-            if me.teamID != nil {
-                return CodeIdentity.requirement(team: me.teamID, identifiers: ids, adHoc: [])
+            let appIdentity = app.pathExtension == "app" ? CodeIdentity.of(app) : nil
+            if let team = me.teamID {
+                let ids = [me.identifier] + identifiers(team: team, of: app.pathExtension == "app" ? [app] : [])
+                return CodeIdentity.requirement(team: team, identifiers: ids, adHoc: [])
             }
             // Ad hoc: the app as it is now, at the helper's startup.
-            let appID = app.pathExtension == "app" ? CodeIdentity.of(app) : nil
-            let adHoc = [me] + (appID.map { [$0] } ?? [])
-            return CodeIdentity.requirement(team: nil, identifiers: [], adHoc: adHoc)
+            return CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [me] + (appIdentity.map { [$0] } ?? []))
         }
 
         /// What the helper requires of the albi-hipreport it runs as root,
-        /// checked on disk just before each run. With a team: that team and
-        /// the identifier albi-hipreport is built with. Ad hoc: the binary as
-        /// it was at the helper's startup. nil (run nothing) when the helper
-        /// is unsigned.
+        /// checked on disk just before each run: its team and identifier,
+        /// or for an ad-hoc build the binary as it was at the helper's
+        /// startup. nil (run nothing) when the helper is unsigned or
+        /// hipreport isn't signed by the helper's team.
         public static func hipreportRequirement(helper: URL, hipreport: URL) -> String? {
             guard let me = CodeIdentity.of(helper) else { return nil }
             if let team = me.teamID {
-                guard me.identifier.hasSuffix(daemonSuffix) else { return nil }
-                let id = String(me.identifier.dropLast(daemonSuffix.count)) + ".hipreport"
-                return CodeIdentity.requirement(team: team, identifiers: [id], adHoc: [])
+                return CodeIdentity.requirement(
+                    team: team, identifiers: identifiers(team: team, of: [hipreport]), adHoc: [])
             }
             return CodeIdentity.of(hipreport).flatMap {
                 CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [$0])
@@ -116,12 +117,13 @@
         }
 
         /// What the app expects of the helper it connects to: the same team,
-        /// with the helper's identifier. nil for an ad-hoc or unsigned app,
-        /// which then trusts the Mach service name alone (only launchd's
-        /// system domain can publish it, and only for a registered daemon).
-        public static func helperRequirement(app: URL) -> String? {
+        /// and the identifier of the helper in its own bundle. nil for an
+        /// ad-hoc or unsigned app, which then trusts the Mach service name
+        /// alone (only launchd's system domain can publish it, and only for a
+        /// registered daemon).
+        public static func helperRequirement(app: URL, helper: URL) -> String? {
             guard let me = CodeIdentity.of(app), let team = me.teamID else { return nil }
-            return CodeIdentity.requirement(team: team, identifiers: [me.identifier + daemonSuffix], adHoc: [])
+            return CodeIdentity.requirement(team: team, identifiers: identifiers(team: team, of: [helper]), adHoc: [])
         }
     }
 #endif
