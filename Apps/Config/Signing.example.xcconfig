@@ -12,6 +12,10 @@ ALBI_TUNNEL_PROFILE = Albi Tunnel Developer ID
 // ("-") works, but each rebuild changes the helper's signature and the app
 // has to reinstall the helper. A free Apple Development certificate (Xcode >
 // Settings > Accounts, add your Apple ID; the team ID is in Keychain Access
-// on the "Apple Development: ..." certificate, as the OU) keeps it stable:
+// on the "Apple Development: ..." certificate, as the OU) keeps it stable.
+// It also makes the helper's client check real: with a team, albi-helper
+// accepts only code from that team with the app's identifier. Ad hoc, it
+// pins the exact app binary it found at startup, which is weaker.
+
 ALBI_HELPER_SIGN_IDENTITY = Apple Development
 ALBI_HELPER_TEAM = ABCDE12345

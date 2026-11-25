@@ -207,7 +207,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
         DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
-        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_HARDENED_RUNTIME: YES
   albi-helper:
     # The root LaunchDaemon. Signed with the app's identity: launchd
     # records its code requirement when the app registers it.
@@ -232,7 +232,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
         DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
-        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_HARDENED_RUNTIME: YES
   albi-hipreport:
     # hipreport without the sandbox entitlements (a sandbox-inheriting
     # binary can't start from an unsandboxed parent): the helper runs it as
@@ -252,4 +252,4 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: $(ALBI_HELPER_SIGN_IDENTITY)
         DEVELOPMENT_TEAM: $(ALBI_HELPER_TEAM)
-        ENABLE_HARDENED_RUNTIME: NO
+        ENABLE_HARDENED_RUNTIME: YES

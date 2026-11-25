@@ -1,9 +1,47 @@
 #if os(macOS)
     import Diagnostics
     import Foundation
+    import Security
     import Testing
     @testable import GPCore
     @testable import GPMac
+
+    @Suite struct CodeIdentityTests {
+        @Test func teamRequirementPinsTeamAndIdentifiers() {
+            let r = CodeIdentity.requirement(
+                team: "ABCDE12345", identifiers: ["com.x.helper", "com.x.helper.daemon"], adHoc: [])
+            #expect(
+                r
+                    == "anchor apple generic and certificate leaf[subject.OU] = \"ABCDE12345\" and (identifier \"com.x.helper\" or identifier \"com.x.helper.daemon\")"
+            )
+        }
+
+        @Test func adHocRequirementPinsHashes() {
+            let a = CodeIdentity(identifier: "a", teamID: nil, cdhash: "00ff")
+            let b = CodeIdentity(identifier: "b", teamID: nil, cdhash: "abcd")
+            #expect(
+                CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [a, b])
+                    == "cdhash H\"00ff\" or cdhash H\"abcd\"")
+            #expect(CodeIdentity.requirement(team: nil, identifiers: [], adHoc: []) == nil)
+        }
+
+        @Test func refusesUnsafeStrings() {
+            #expect(CodeIdentity.requirement(team: "T\" or true", identifiers: ["x"], adHoc: []) == nil)
+            #expect(CodeIdentity.requirement(team: "T", identifiers: ["x\") or (true"], adHoc: []) == nil)
+        }
+
+        @Test func requirementsCompile() throws {
+            for r in [
+                CodeIdentity.requirement(team: "ABCDE12345", identifiers: ["com.x.helper"], adHoc: []),
+                CodeIdentity.requirement(
+                    team: nil, identifiers: [],
+                    adHoc: [CodeIdentity(identifier: "a", teamID: nil, cdhash: String(repeating: "ab", count: 20))]),
+            ] {
+                var req: SecRequirement?
+                #expect(SecRequirementCreateWithString(try #require(r) as CFString, [], &req) == errSecSuccess)
+            }
+        }
+    }
 
     @Suite struct HelperProtocolTests {
         /// albi-helper and the extension both follow TunnelController's events

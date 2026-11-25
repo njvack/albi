@@ -34,7 +34,13 @@
 
             let core = HelperCore()
             let listener = NSXPCListener(machServiceName: AlbiHelper.label)
-            let delegate = ListenerDelegate(core: core)
+            let requirement = executable.flatMap(AlbiHelper.clientRequirement(helper:))
+            if let requirement {
+                log.notice("accepting clients that meet: \(requirement, privacy: .public)")
+            } else {
+                log.fault("albi-helper is unsigned or its signature is broken; refusing every client")
+            }
+            let delegate = ListenerDelegate(core: core, requirement: requirement)
             listener.delegate = delegate
             listener.resume()
             log.notice("albi-helper started (build \(build, privacy: .public), pid \(getpid()))")
@@ -65,11 +71,20 @@
     // actor, so they are Sendable and their Tasks can capture them.
     final class ListenerDelegate: NSObject, NSXPCListenerDelegate, Sendable {
         let core: HelperCore
+        /// The code-signing requirement a client must meet; nil accepts nobody.
+        let requirement: String?
 
-        init(core: HelperCore) { self.core = core }
+        init(core: HelperCore, requirement: String?) {
+            self.core = core
+            self.requirement = requirement
+        }
 
         func listener(_ listener: NSXPCListener, shouldAcceptNewConnection c: NSXPCConnection) -> Bool {
-            // Phase 4 checks the caller's code signature here.
+            // XPC checks the requirement against the caller's audit token on
+            // every message, not its PID or path, so a process can't pass by
+            // exec'ing something else after connecting.
+            guard let requirement else { return false }
+            c.setCodeSigningRequirement(requirement)
             c.exportedInterface = AlbiHelper.interface()
             c.exportedObject = Exported(core: core)
             c.remoteObjectInterface = AlbiHelper.clientInterface()
