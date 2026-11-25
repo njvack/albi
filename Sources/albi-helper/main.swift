@@ -23,6 +23,10 @@
             FileHandle.standardError.write(Data("albi-helper: the daemon runs as root, from launchd\n".utf8))
             exit(1)
         }
+        // A core file would hold the session cookie and any password in
+        // memory; never write one.
+        var noCore = rlimit(rlim_cur: 0, rlim_max: 0)
+        _ = setrlimit(RLIMIT_CORE, &noCore)
         HelperDaemon.main()
     case "status":
         HelperStatusCommand.run()
