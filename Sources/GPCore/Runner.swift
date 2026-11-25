@@ -199,8 +199,11 @@ public actor SessionRunner {
             }
         case .applySettings(let c):
             // gw-address is the gateway's own IP; NE wants an address here.
-            let settings = TunnelSettings(config: c, remoteAddress: c.gatewayAddress ?? hostOnly(server))
-            if !settings.ignoredRoutes.isEmpty { host.log("ignored routes: \(settings.ignoredRoutes)") }
+            // Only an address literal: a name would be resolved, and the
+            // result given a host route around the tunnel.
+            let gw = c.gatewayAddress.flatMap { IPv4.parse($0) != nil || IPv6.parse($0) != nil ? $0 : nil }
+            let settings = TunnelSettings(config: c, remoteAddress: gw ?? hostOnly(server))
+            if !settings.ignored.isEmpty { host.log("ignored from getconfig: \(settings.ignored)") }
             spawn { [host] in
                 do { try await host.apply(settings) } catch { host.log("applying settings failed: \(error)") }
             }

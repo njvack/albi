@@ -85,23 +85,21 @@
             let s = socket(AF_INET, SOCK_DGRAM, 0)
             guard s >= 0 else { throw SystemError("socket(AF_INET)") }
             defer { Darwin.close(s) }
-            if let previous, previous != address {
+            if let previous, previous != address, let old = Self.sockaddrIn(previous) {
                 var req = ifreq()
                 setName(&req.ifr_name)
-                withUnsafeMutableBytes(of: &req.ifr_ifru) { raw in
-                    raw.storeBytes(of: Self.sockaddrIn(previous), as: sockaddr_in.self)
-                }
+                withUnsafeMutableBytes(of: &req.ifr_ifru) { raw in raw.storeBytes(of: old, as: sockaddr_in.self) }
                 // SIOCDIFADDR; gone already is fine
                 _ = withUnsafeMutablePointer(to: &req) { ioctl(s, ioW("i", 25, ifreq.self), $0) }
             }
+            guard let a = Self.sockaddrIn(address), let host = Self.sockaddrIn("255.255.255.255") else {
+                throw SystemError("bad IPv4 address \(address)", EINVAL)
+            }
             var req = ifaliasreq()
             setName(&req.ifra_name)
-            let a = Self.sockaddrIn(address)
             withUnsafeMutableBytes(of: &req.ifra_addr) { $0.storeBytes(of: a, as: sockaddr_in.self) }
             withUnsafeMutableBytes(of: &req.ifra_broadaddr) { $0.storeBytes(of: a, as: sockaddr_in.self) }
-            withUnsafeMutableBytes(of: &req.ifra_mask) {
-                $0.storeBytes(of: Self.sockaddrIn("255.255.255.255"), as: sockaddr_in.self)
-            }
+            withUnsafeMutableBytes(of: &req.ifra_mask) { $0.storeBytes(of: host, as: sockaddr_in.self) }
             let rc = withUnsafeMutablePointer(to: &req) { ioctl(s, ioW("i", 26, ifaliasreq.self), $0) }
             guard rc == 0 else { throw SystemError("SIOCAIFADDR \(address)") }
         }
@@ -109,6 +107,12 @@
         /// Adds an IPv6 address. Through ifconfig: `in6_aliasreq` isn't in the
         /// SDK's public headers.
         public func addIPv6(_ address: String, prefixLength: Int) throws {
+            // Only a real address goes on ifconfig's command line, never a
+            // word it would take as an option or a command.
+            var a6 = in6_addr()
+            guard inet_pton(AF_INET6, address, &a6) == 1, (1...128).contains(prefixLength) else {
+                throw SystemError("bad IPv6 address \(address)/\(prefixLength)", EINVAL)
+            }
             let p = Process()
             p.executableURL = URL(fileURLWithPath: "/sbin/ifconfig")
             p.arguments = [name, "inet6", address, "prefixlen", "\(prefixLength)", "alias"]
@@ -118,6 +122,7 @@
         }
 
         public func setMTU(_ mtu: Int) throws {
+            guard (576...65535).contains(mtu) else { throw SystemError("MTU \(mtu) out of range", EINVAL) }
             let s = socket(AF_INET, SOCK_DGRAM, 0)
             guard s >= 0 else { throw SystemError("socket(AF_INET)") }
             defer { Darwin.close(s) }
@@ -179,11 +184,12 @@
             }
         }
 
-        static func sockaddrIn(_ s: String) -> sockaddr_in {
+        /// nil if `s` isn't a dotted quad: never a silent 0.0.0.0.
+        static func sockaddrIn(_ s: String) -> sockaddr_in? {
             var a = sockaddr_in()
             a.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
             a.sin_family = sa_family_t(AF_INET)
-            _ = inet_pton(AF_INET, s, &a.sin_addr)
+            guard inet_pton(AF_INET, s, &a.sin_addr) == 1 else { return nil }
             return a
         }
     }

@@ -28,6 +28,9 @@
             Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchDaemons/\(AlbiHelper.plistName)")
         }
 
+        /// What the helper must be signed as, for a team-signed app.
+        static let helperRequirement = AlbiHelper.helperRequirement(app: Bundle.main.bundleURL, helper: bundledHelper)
+
         static var daemon: SMAppService { SMAppService.daemon(plistName: AlbiHelper.plistName) }
 
         // MARK: XPC
@@ -35,6 +38,7 @@
         private func xpc() -> NSXPCConnection {
             if let c = connection { return c }
             let c = NSXPCConnection(machServiceName: AlbiHelper.label, options: .privileged)
+            if let r = Self.helperRequirement { c.setCodeSigningRequirement(r) }
             c.remoteObjectInterface = AlbiHelper.interface()
             c.exportedInterface = AlbiHelper.clientInterface()
             c.exportedObject = receiver

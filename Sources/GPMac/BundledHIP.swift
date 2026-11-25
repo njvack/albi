@@ -11,11 +11,19 @@
     public struct BundledHIP: Sendable {
         public var executable: URL?
         public var timeout: Double
+        /// A code-signing requirement the executable must meet just before
+        /// each run, when it runs as root and its bundle could be rewritten.
+        /// Checked only when set.
+        public var requirement: String?
 
         /// `executable` defaults to `hipreport` in the main bundle's Contents/MacOS.
-        public init(executable: URL? = Bundle.main.url(forAuxiliaryExecutable: "hipreport"), timeout: Double = 20) {
+        public init(
+            executable: URL? = Bundle.main.url(forAuxiliaryExecutable: "hipreport"), timeout: Double = 20,
+            requirement: String? = nil
+        ) {
             self.executable = executable
             self.timeout = timeout
+            self.requirement = requirement
         }
 
         public struct Output: Sendable {
@@ -58,6 +66,9 @@
 
         func run(_ args: [String]) async throws -> Output {
             guard let executable else { throw Failure(description: "no hipreport in the extension's bundle") }
+            if let requirement, !CodeIdentity.check(executable, requirement: requirement) {
+                throw Failure(description: "\(executable.path) isn't signed as Albi's hipreport; not running it")
+            }
             let p = Process()
             p.executableURL = executable
             p.arguments = args

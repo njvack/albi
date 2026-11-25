@@ -64,6 +64,9 @@
         private var tunnelRoutes: Set<RouteSpec> = []
         private var excluded: Set<RouteSpec> = []
         private var excludedWanted: [RouteSpec] = []
+        /// Routes we wanted that something else had already put in. Not ours:
+        /// never deleted, and logged once.
+        private var skipped: Set<RouteSpec> = []
         private var dnsKeys: [String] = []
 
         public init(journal: URL = NetConfig.defaultJournal, log: @escaping @Sendable (String) -> Void) {
@@ -115,11 +118,17 @@
             }
             for r in tunnelRoutes.subtracting(want) {
                 _ = try? RoutingSocket.delete(r)
+                tunnelRoutes.remove(r)
             }
+            // Track each route as it goes in, so a failure partway still
+            // leaves `tunnelRoutes` listing everything we added.
             for r in want.subtracting(tunnelRoutes) {
-                try RoutingSocket.add(r)
+                if try RoutingSocket.add(r) {
+                    tunnelRoutes.insert(r)
+                } else {
+                    foreign(r)
+                }
             }
-            tunnelRoutes = want
             try publishDNS(settings, interface: interface, mode: dnsMode)
         }
 
@@ -156,13 +165,25 @@
             excluded.subtract(remove)
             for r in add {
                 do {
-                    try RoutingSocket.add(r)
-                    excluded.insert(r)
+                    if try RoutingSocket.add(r) {
+                        excluded.insert(r)
+                    } else {
+                        foreign(r)
+                    }
                 } catch {
                     log("adding excluded route \(r): \(error)")
                 }
             }
             try writeJournal(excluded)
+        }
+
+        /// A route that was already in the table when we went to add it. The
+        /// kernel deletes by destination and mask alone, so deleting it later
+        /// would take out someone else's route: the LAN's, another VPN's, or
+        /// the default route. Leave it, and say so once.
+        private func foreign(_ r: RouteSpec) {
+            guard skipped.insert(r).inserted else { return }
+            log("\(r.destination)/\(r.prefixLength) is already routed by something else; leaving that route alone")
         }
 
         // MARK: DNS
@@ -243,6 +264,7 @@
             }
             excluded = []
             excludedWanted = []
+            skipped = []
             try? FileManager.default.removeItem(at: journal)
         }
 
@@ -307,12 +329,16 @@
         nonisolated(unsafe) private static var seq: Int32 = 0
         private static let lock = NSLock()
 
-        /// Adds `r`. One that's already there counts as added.
-        public static func add(_ r: RouteSpec) throws {
+        /// Adds `r`. Returns false if the table already had a route to that
+        /// destination and mask: it isn't ours, so the caller must not delete
+        /// it later.
+        @discardableResult
+        public static func add(_ r: RouteSpec) throws -> Bool {
             do {
                 try send(rtmAdd, r)
+                return true
             } catch let e as SystemError where e.code == EEXIST {
-                return
+                return false
             }
         }
 

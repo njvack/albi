@@ -34,7 +34,13 @@
 
             let core = HelperCore()
             let listener = NSXPCListener(machServiceName: AlbiHelper.label)
-            let delegate = ListenerDelegate(core: core)
+            let requirement = executable.flatMap(AlbiHelper.clientRequirement(helper:))
+            if let requirement {
+                log.notice("accepting clients that meet: \(requirement, privacy: .public)")
+            } else {
+                log.fault("albi-helper is unsigned or its signature is broken; refusing every client")
+            }
+            let delegate = ListenerDelegate(core: core, requirement: requirement)
             listener.delegate = delegate
             listener.resume()
             log.notice("albi-helper started (build \(build, privacy: .public), pid \(getpid()))")
@@ -65,11 +71,20 @@
     // actor, so they are Sendable and their Tasks can capture them.
     final class ListenerDelegate: NSObject, NSXPCListenerDelegate, Sendable {
         let core: HelperCore
+        /// The code-signing requirement a client must meet; nil accepts nobody.
+        let requirement: String?
 
-        init(core: HelperCore) { self.core = core }
+        init(core: HelperCore, requirement: String?) {
+            self.core = core
+            self.requirement = requirement
+        }
 
         func listener(_ listener: NSXPCListener, shouldAcceptNewConnection c: NSXPCConnection) -> Bool {
-            // Phase 4 checks the caller's code signature here.
+            // XPC checks the requirement against the caller's audit token on
+            // every message, not its PID or path, so a process can't pass by
+            // exec'ing something else after connecting.
+            guard let requirement else { return false }
+            c.setCodeSigningRequirement(requirement)
             c.exportedInterface = AlbiHelper.interface()
             c.exportedObject = Exported(core: core)
             c.remoteObjectInterface = AlbiHelper.clientInterface()
@@ -126,7 +141,7 @@
         private var codeWaiter: CheckedContinuation<String, Error>?
         private var power: PowerWatcher?
         private let keychain = KeychainStore(service: AlbiIDs.helperKeychainService)
-        private let hip = BundledHIP(executable: HelperCore.hipreport())
+        private let hip = HelperCore.bundledHIP()
 
         /// The hipreport beside this binary: albi-hipreport in the app (the
         /// extension's sandboxed hipreport can't run outside a sandbox), or
@@ -135,6 +150,18 @@
             guard let dir = HelperDaemon.executable?.deletingLastPathComponent() else { return nil }
             return ["albi-hipreport", "hipreport"].map { dir.appendingPathComponent($0) }
                 .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        }
+
+        /// hipreport, held to the helper's own signature. With no requirement
+        /// (an unsigned helper) there's nothing safe to run as root.
+        static func bundledHIP() -> BundledHIP {
+            guard let helper = HelperDaemon.executable, let exe = hipreport(),
+                let req = AlbiHelper.hipreportRequirement(helper: helper, hipreport: exe)
+            else {
+                log.error("no signed hipreport beside the helper; HIP reports are off")
+                return BundledHIP(executable: nil)
+            }
+            return BundledHIP(executable: exe, requirement: req)
         }
 
         /// Reads the saved files, before the listener takes requests.
@@ -207,9 +234,17 @@
             case .loadProfiles:
                 return HelperReply(profiles: stored.profiles)
             case .saveProfile(let p):
+                guard Profile.isValidServer(p.profile.server) else {
+                    return HelperReply(error: "\"\(p.profile.server)\" isn't a server name or address.")
+                }
                 if let i = stored.profiles.firstIndex(where: { $0.id == p.id }) {
                     let old = stored.profiles[i].profile
-                    if old.username != p.profile.username || old.server != p.profile.server || !p.profile.savePassword {
+                    // The saved password goes with the server, the account and
+                    // how the server is trusted: change any of them and it must
+                    // be typed again, so it's never sent somewhere new.
+                    if old.username != p.profile.username || old.server != p.profile.server
+                        || old.pins != p.profile.pins || old.mode != p.profile.mode || !p.profile.savePassword
+                    {
                         keychain.set(TunnelController.passwordAccount(old), nil)
                     }
                     stored.profiles[i] = p

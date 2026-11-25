@@ -289,10 +289,8 @@
 
         func hipReport(_ c: HIPContext) async throws -> String? {
             guard let path = options.hipWrapper else { return nil }
-            var args = ["--cookie", c.cookie.form.encoded]
-            if let v4 = c.clientIPv4 { args += ["--client-ip", v4] }
-            if let v6 = c.clientIPv6 { args += ["--client-ipv6", v6] }
-            args += ["--md5", c.md5, "--client-os", c.clientOS]
+            // Without the authcookie, which `ps` would show to every user.
+            let args = ProviderMessage.HIPRequest(c).wrapperArguments
             let report = try await run(path, args, env: ["APP_VERSION": c.appVersion])
             if options.verbose { say("hip report generated (\(report.utf8.count) bytes)") }
             return report

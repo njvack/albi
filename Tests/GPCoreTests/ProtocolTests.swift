@@ -273,7 +273,7 @@ let fakeGetConfig = """
             ])
         #expect(s.excludedIPv4 == [.init(address: "10.99.0.128", mask: "255.255.255.128", prefixLength: 25)])
         #expect(s.includedIPv6 == [.init(address: "fd99::", prefixLength: 64)])
-        #expect(s.ignoredRoutes == ["bogus"])
+        #expect(s.ignored == ["bogus"])
         #expect(s.matchDomains == ["fake.test"])
         #expect(s.searchDomains == ["fake.test"])
         #expect(s.mtu == TunnelSettings.defaultMTU)
@@ -306,6 +306,86 @@ let fakeGetConfig = """
         #expect(TunnelSettings.parseIPv4Route("10.1.2.300") == nil)
         #expect(TunnelSettings.parseIPv6Route("2001:db8::/32") == .init(address: "2001:db8::", prefixLength: 32))
         #expect(TunnelSettings.parseIPv6Route("2001:db8::/129") == nil)
+    }
+
+    @Test func ipv6Parsing() {
+        #expect(IPv6.parse("::").map(IPv6.format) == "::")
+        #expect(IPv6.parse("::1").map(IPv6.format) == "::1")
+        #expect(IPv6.parse("fd99::2").map(IPv6.format) == "fd99::2")
+        #expect(IPv6.parse("2001:db8:0:0:1:0:0:1").map(IPv6.format) == "2001:db8::1:0:0:1")
+        #expect(IPv6.parse("::ffff:10.0.0.1").map(IPv6.format) == "::ffff:a00:1")
+        #expect(IPv6.parse("1:2:3:4:5:6:7:8").map(IPv6.format) == "1:2:3:4:5:6:7:8")
+        #expect(IPv6.parse("fd99::") != nil)
+        for bad in [
+            "", ":", ":::", "1::2::3", "1:2:3:4:5:6:7:8:9", "12345::", "g::", "1:2", "-v", "1::2:", ":1::2", "down",
+        ] {
+            #expect(IPv6.parse(bad) == nil, "\(bad)")
+        }
+    }
+
+    func settings(_ body: String) throws -> TunnelSettings {
+        TunnelSettings(
+            config: try GatewayConfig(Reply.document(status: 200, body: "<response>\(body)</response>")),
+            remoteAddress: "gw")
+    }
+
+    @Test func rejectsBadAddressesAndMTU() throws {
+        let s = try settings(
+            "<ip-address>127.0.0.1</ip-address><ip-address-v6>down</ip-address-v6><mtu>99999999999</mtu>")
+        #expect(s.ipv4Address == nil)
+        #expect(s.ipv6Address == nil)
+        #expect(s.mtu == TunnelSettings.defaultMTU)
+        #expect(s.ignored == ["ip-address 127.0.0.1", "ip-address-v6 down", "mtu 99999999999"])
+        #expect(try settings("<ip-address>1.2.3</ip-address>").ipv4Address == nil)
+        #expect(try settings("<ip-address>10.0.0.2</ip-address><mtu>100</mtu>").mtu == TunnelSettings.defaultMTU)
+        let v6 = try settings("<ip-address>10.0.0.2</ip-address><ip-address-v6>fd00::5/64</ip-address-v6>")
+        #expect(v6.ipv6Address == "fd00::5")
+        #expect(v6.ipv6PrefixLength == 64)
+    }
+
+    @Test func rejectsUnsafeRoutes() throws {
+        let s = try settings(
+            """
+            <ip-address>10.0.0.2</ip-address><ip-address-v6>fd00::2</ip-address-v6>\
+            <access-routes><member>10.1.0.0/16</member><member>127.0.0.0/8</member><member>224.0.0.1</member>\
+            <member>169.254.1.0/24</member><member>0.1.2.3</member></access-routes>\
+            <access-routes-v6><member>fd00::/64</member><member>fe80::/64</member><member>ff02::1</member>\
+            <member>::1</member><member>::/4</member></access-routes-v6>\
+            <exclude-access-routes><member>0.0.0.0/0</member><member>10.1.2.0/24</member></exclude-access-routes>\
+            <exclude-access-routes-v6><member>::/0</member></exclude-access-routes-v6>
+            """)
+        #expect(s.includedIPv4.map(\.address) == ["10.1.0.0"])
+        #expect(s.excludedIPv4.map(\.address) == ["10.1.2.0"])
+        #expect(s.includedIPv6 == [.init(address: "fd00::", prefixLength: 64)])
+        #expect(s.excludedIPv6.isEmpty)
+        #expect(
+            s.ignored == [
+                "127.0.0.0/8", "224.0.0.1", "169.254.1.0/24", "0.1.2.3", "fe80::/64", "ff02::1", "::1", "::/4",
+                "0.0.0.0/0", "::/0",
+            ])
+    }
+
+    @Test func capsRoutes() throws {
+        let many = (0..<5000).map { "<member>10.\($0 / 256 % 256).\($0 % 256).0/24</member>" }.joined()
+        let s = try settings("<ip-address>10.0.0.2</ip-address><access-routes>\(many)</access-routes>")
+        #expect(s.includedIPv4.count + s.ignored.count == 5000)
+        #expect(s.ignored.count == 5000 - TunnelSettings.Limits.routes)
+    }
+
+    @Test func checksDNS() throws {
+        let s = try settings(
+            """
+            <ip-address>10.0.0.2</ip-address><access-routes><member>10.0.0.0/8</member></access-routes>\
+            <dns><member>10.0.0.53</member><member>127.0.0.1</member><member>evil;rm</member>\
+            <member>fd00::53</member></dns>\
+            <dns-suffix><member>Corp.Example.</member><member>.</member><member>bad domain</member>\
+            <member>a..b</member></dns-suffix>
+            """)
+        #expect(s.dnsServers == ["10.0.0.53", "fd00::53"])
+        #expect(s.searchDomains == ["corp.example"])
+        #expect(s.matchDomains == ["corp.example"])
+        #expect(
+            s.ignored == ["dns 127.0.0.1", "dns evil;rm", "dns-suffix .", "dns-suffix bad domain", "dns-suffix a..b"])
     }
 
     @Test func hostOnlyStripsPort() {
