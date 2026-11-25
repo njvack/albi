@@ -137,7 +137,8 @@
         }
 
         public struct HIPRequest: Codable, Equatable, Sendable {
-            /// openconnect's cookie string, for `--cookie`.
+            /// The cookie's user, domain and computer in openconnect's cookie
+            /// format, for `--cookie`. Never the authcookie.
             public var cookie: String
             public var clientIPv4: String?
             public var clientIPv6: String?
@@ -146,7 +147,14 @@
             public var appVersion: String
 
             public init(_ c: HIPContext) {
-                cookie = c.cookie.form.encoded
+                // Only the fields a report names. The authcookie is a live
+                // session token: it never goes on a command line (where `ps`
+                // shows it to every user) or to another process.
+                var f = Form()
+                f.append("user", c.cookie.user)
+                f.append("domain", c.cookie.domain)
+                f.append("computer", c.cookie.computer)
+                cookie = f.encoded
                 clientIPv4 = c.clientIPv4
                 clientIPv6 = c.clientIPv6
                 md5 = c.md5

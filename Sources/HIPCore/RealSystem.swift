@@ -64,10 +64,11 @@ public final class RealSystem: System {
         }
     }
 
-    /// /Library/Caches/Albi for root, so the root helper's cache can't be
-    /// written by users; otherwise the user's own.
+    /// /Library/Caches/Albi for root, and for the unprivileged user root
+    /// drops to (see `dropRoot`), so the helper's cache can't be written by
+    /// users; otherwise the user's own.
     public func cacheDirectory() -> String {
-        if getuid() == 0 { return AlbiPaths.rootCacheDirectory }
+        if getuid() == 0 || droppedFromRoot { return AlbiPaths.rootCacheDirectory }
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.path
         return (base ?? NSTemporaryDirectory()) + "/Albi"
     }
@@ -162,4 +163,50 @@ private final class OutputReader: @unchecked Sendable {
         _ = group.wait(timeout: .now() + 2)
         return data
     }
+}
+
+/// Set once `dropRoot` has switched users.
+nonisolated(unsafe) private var droppedFromRoot = false
+
+/// The user root hands over to: `nobody`. The checks read system state that
+/// any user can, so they don't need root, and a check file's command (or
+/// whatever it parses) then can't act as root. Facts that do need root, such
+/// as pf's state, come out n/a.
+public let unprivilegedUser = "nobody"
+
+/// Run as root, gives up root for good: makes the shared cache directory
+/// for `unprivilegedUser`, then switches group and user and checks there's no
+/// way back. Does nothing for other users. Exits the process if any step
+/// fails, rather than carry on as root.
+public func dropRoot() {
+    guard getuid() == 0 || geteuid() == 0 else { return }
+    func die(_ m: String) -> Never {
+        FileHandle.standardError.write(Data("hipreport: can't drop root: \(m)\n".utf8))
+        exit(70)
+    }
+    guard let pw = getpwnam(unprivilegedUser) else { die("no user \(unprivilegedUser)") }
+    let uid = pw.pointee.pw_uid, gid = pw.pointee.pw_gid
+    prepareCache(uid: uid, gid: gid)
+    var groups = [gid_t(gid)]
+    guard setgroups(1, &groups) == 0, setgid(gid) == 0, setuid(uid) == 0 else { die("setuid: \(errno)") }
+    guard setuid(0) != 0, getuid() == uid, geteuid() == uid, getgid() == gid else { die("root came back") }
+    droppedFromRoot = true
+}
+
+/// /Library/Caches/Albi, owned by `uid`, readable by nobody else. Never
+/// follows a symlink there: /Library/Caches is writable by admins.
+private func prepareCache(uid: uid_t, gid: gid_t) {
+    let path = AlbiPaths.rootCacheDirectory
+    var st = stat()
+    if lstat(path, &st) != 0 {
+        guard mkdir(path, 0o700) == 0 else { return }
+    } else if st.st_mode & S_IFMT != S_IFDIR {
+        // Not ours to fix; run without a cache.
+        return
+    }
+    let fd = open(path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW)
+    guard fd >= 0 else { return }
+    defer { close(fd) }
+    _ = fchown(fd, uid, gid)
+    _ = fchmod(fd, 0o700)
 }

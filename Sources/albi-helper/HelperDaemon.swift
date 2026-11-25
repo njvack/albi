@@ -141,7 +141,7 @@
         private var codeWaiter: CheckedContinuation<String, Error>?
         private var power: PowerWatcher?
         private let keychain = KeychainStore(service: AlbiIDs.helperKeychainService)
-        private let hip = BundledHIP(executable: HelperCore.hipreport())
+        private let hip = HelperCore.bundledHIP()
 
         /// The hipreport beside this binary: albi-hipreport in the app (the
         /// extension's sandboxed hipreport can't run outside a sandbox), or
@@ -150,6 +150,18 @@
             guard let dir = HelperDaemon.executable?.deletingLastPathComponent() else { return nil }
             return ["albi-hipreport", "hipreport"].map { dir.appendingPathComponent($0) }
                 .first { FileManager.default.isExecutableFile(atPath: $0.path) }
+        }
+
+        /// hipreport, held to the helper's own signature. With no requirement
+        /// (an unsigned helper) there's nothing safe to run as root.
+        static func bundledHIP() -> BundledHIP {
+            guard let helper = HelperDaemon.executable, let exe = hipreport(),
+                let req = AlbiHelper.hipreportRequirement(helper: helper, hipreport: exe)
+            else {
+                log.error("no signed hipreport beside the helper; HIP reports are off")
+                return BundledHIP(executable: nil)
+            }
+            return BundledHIP(executable: exe, requirement: req)
         }
 
         /// Reads the saved files, before the listener takes requests.

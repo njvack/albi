@@ -43,6 +43,20 @@
         }
     }
 
+    @Suite struct HIPRequestTests {
+        @Test func cookieLeavesOutTheSessionToken() {
+            let cookie = AuthCookie(
+                authcookie: "s3cret", portal: "p", user: "jdoe", domain: "AD Dom", preferredIP: "10.0.0.2",
+                computer: "mbp")
+            let ctx = HIPContext(
+                cookie: cookie, clientIPv4: "10.0.0.2", clientIPv6: nil, md5: cookie.hipToken, clientOS: "Mac",
+                appVersion: "6.3.0")
+            let r = ProviderMessage.HIPRequest(ctx)
+            #expect(r.cookie == "user=jdoe&domain=\(Form.escape("AD Dom"))&computer=mbp")
+            #expect(!r.wrapperArguments.joined(separator: " ").contains("s3cret"))
+        }
+    }
+
     @Suite struct ServerNameTests {
         @Test func acceptsHostsAndPorts() {
             for ok in [

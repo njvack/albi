@@ -98,6 +98,23 @@
             return CodeIdentity.requirement(team: nil, identifiers: [], adHoc: adHoc)
         }
 
+        /// What the helper requires of the albi-hipreport it runs as root,
+        /// checked on disk just before each run. With a team: that team and
+        /// the identifier albi-hipreport is built with. Ad hoc: the binary as
+        /// it was at the helper's startup. nil (run nothing) when the helper
+        /// is unsigned.
+        public static func hipreportRequirement(helper: URL, hipreport: URL) -> String? {
+            guard let me = CodeIdentity.of(helper) else { return nil }
+            if let team = me.teamID {
+                guard me.identifier.hasSuffix(daemonSuffix) else { return nil }
+                let id = String(me.identifier.dropLast(daemonSuffix.count)) + ".hipreport"
+                return CodeIdentity.requirement(team: team, identifiers: [id], adHoc: [])
+            }
+            return CodeIdentity.of(hipreport).flatMap {
+                CodeIdentity.requirement(team: nil, identifiers: [], adHoc: [$0])
+            }
+        }
+
         /// What the app expects of the helper it connects to: the same team,
         /// with the helper's identifier. nil for an ad-hoc or unsigned app,
         /// which then trusts the Mach service name alone (only launchd's
